@@ -48,7 +48,8 @@ try {
     run("pnpm", ["pack", "--pack-destination", out], { cwd: dir });
     const tarball = readdirSync(out).find((f) => !before.has(f));
     const args = ["publish", path.join(out, tarball), "--access", "public"];
-    if (!local) args.push("--provenance");
+    // package.json sets publishConfig.provenance, which npm can only honor in CI.
+    args.push(local ? "--provenance=false" : "--provenance");
     if (dryRun) args.push("--dry-run");
     run("npm", args);
     published += 1;
