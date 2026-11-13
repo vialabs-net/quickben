@@ -1,6 +1,6 @@
 {
   "name": "@quickben/plugin-doc-reader",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Document reading for Quickben: versioned document types, a pipeline of text-layer and vision-LLM extractors, a test bench, quotas, usage and a job queue.",
   "keywords": [
     "quickben",
@@ -32,6 +32,10 @@
       "types": "./dist/bullmq.d.ts",
       "default": "./dist/bullmq.js"
     },
+    "./connections": {
+      "types": "./dist/connections.d.ts",
+      "default": "./dist/connections.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -61,6 +65,7 @@
     "@quickben/admin": "workspace:^",
     "@quickben/core": "workspace:^",
     "@quickben/next": "workspace:^",
+    "@quickben/plugin-connections": "workspace:^",
     "ai": ">=7.0.0",
     "bullmq": ">=5.0.0",
     "next": ">=15.0.0",
@@ -74,6 +79,9 @@
       "optional": true
     },
     "@quickben/next": {
+      "optional": true
+    },
+    "@quickben/plugin-connections": {
       "optional": true
     },
     "bullmq": {
@@ -93,6 +101,7 @@
     "@quickben/db-memory": "workspace:^",
     "@quickben/eslint-config": "workspace:*",
     "@quickben/next": "workspace:^",
+    "@quickben/plugin-connections": "workspace:^",
     "@quickben/plugin-tenancy": "workspace:^",
     "@quickben/tsconfig": "workspace:*",
     "@testing-library/react": "16.3.3",
@@ -100,7 +109,7 @@
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitest/coverage-v8": "5.1.0",
-    "ai": "7.0.172",
+    "ai": "7.0.170",
     "bullmq": "6.7.6",
     "eslint": "10.14.0",
     "happy-dom": "21.0.4",

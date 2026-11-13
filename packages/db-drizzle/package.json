@@ -1,6 +1,6 @@
 {
   "name": "@quickben/db-drizzle",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Drizzle ORM database adapter for Quickben: Postgres, PGlite and SQLite (libSQL).",
   "keywords": [
     "quickben",

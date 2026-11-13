@@ -22,7 +22,7 @@ import type {
   FieldBox,
   FieldValue,
 } from "../extractor";
-import type { ResolveModel, ResolvedModel } from "../models";
+import type { ResolvedModel } from "../models";
 import type { PageImage, Rasterize } from "./page-images";
 
 export const VISION_LLM = "vision-llm";
@@ -40,7 +40,8 @@ export const visionConfigSchema = z.object({
 });
 
 export interface VisionLlmOptions {
-  readonly resolveModel?: ResolveModel;
+  /** Called with the connection and model of a step. */
+  readonly resolveModel?: (connectionId: string, modelId?: string) => Promise<ResolvedModel>;
   readonly rasterize?: Rasterize;
   /** Deadline of one call. Default 60 seconds. */
   readonly timeoutMs?: number;
@@ -187,10 +188,11 @@ function failure(error: string): ExtractionResult {
 }
 
 async function resolve(
-  resolveModel: ResolveModel | undefined,
+  resolveModel: VisionLlmOptions["resolveModel"],
   config: z.infer<typeof visionConfigSchema>,
 ): Promise<ResolvedModel | string> {
-  if (!resolveModel) return "no model resolver is configured (resolveModel)";
+  if (!resolveModel)
+    return "no models are configured: pass resolveModel, e.g. connectionModels() from @quickben/plugin-doc-reader/connections";
   try {
     return await resolveModel(config.connectionId, config.model);
   } catch (error) {

@@ -1,6 +1,6 @@
 {
   "name": "@quickben/db-memory",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "In-memory database adapter for Quickben. For tests and demos.",
   "keywords": [
     "quickben",

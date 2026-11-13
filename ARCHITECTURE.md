@@ -31,6 +31,7 @@ This file describes what exists. Sections marked **Planned** describe agreed des
 | `packages/admin`             | `@quickben/admin`                           | Exists |
 | `packages/plugin-tenancy`    | `@quickben/plugin-tenancy`                  | Exists |
 | `packages/plugin-doc-reader` | `@quickben/plugin-doc-reader`               | Exists |
+| `packages/plugin-templates`  | `@quickben/plugin-templates`                | Exists |
 | `packages/create-quickben`   | `create-quickben`                           | Exists |
 | `apps/docs`                  | Nextra site at https://quickben.vialabs.net | Exists |
 | `apps/playground`            | Next.js app using everything (PGlite)       | Exists |
@@ -331,11 +332,20 @@ export default createAdminPage(config, { serverFunction }); // async server comp
 - Helpers over the local API: `resolveTenant`, `inviteMember`, `acceptInvitation`, `updateMembership`, `removeMember`, `listMyOrganizations`, `listMyInvitations`, `switchOrganization` (returns the cookie), `canUseModule`, `moduleAccess`, `hasCapability`.
 - `@quickben/plugin-tenancy/admin`: `tenancyAdmin(config)` is an admin extension with an organization switcher, a Members page and an Organization settings page. Server actions use a registry keyed by base path, like the admin's default server function. They redirect with `?toast=` / `?error=` codes that the pages map to fixed messages.
 
+### `@quickben/plugin-templates`
+
+- `templates({ kinds })` adds `brands`, `document-templates` and `document-template-versions`. Kinds are data: `defineTemplateKind({ kind, label, catalog, baseTemplate })`; the catalog lists the variables a kind can print, with types and sample values.
+- Content is TipTap JSON. `validateContent` reports issues with node paths; conditions use a small parsed language (no eval) over own properties of the data.
+- Versions: one draft and one published version per kind (unique `slot`), published versions immutable, publishing refuses content with issues. Helpers: `saveDraft`, `publishTemplate`, `discardDraft`, `archiveTemplate`, `restoreVersion`.
+- `renderTemplate` returns the body HTML, a letterhead page and a preview page. `renderPdf` passes them to a `PdfRenderer`; `@quickben/plugin-templates/chromium` draws the letterhead over every page with pdf-lib. `playwright-core`, `pdf-lib` and `@tiptap/*` are optional peers.
+- With tenancy, add `TEMPLATE_COLLECTIONS` to the scope: one brand and set of templates per organization.
+- `@quickben/plugin-templates/admin`: Templates list, editor (TipTap, lazy-loaded) with variable panel, live preview and publishing, and a Brand page. Its CSS uses its own `qbt:` prefix.
+
 ### `@quickben/plugin-doc-reader`
 
 - `docReader(options)` adds `doc-types` (one row per version, `draft` or `published`), `doc-samples`, `doc-test-runs`, `doc-jobs`, `doc-usage` and `doc-quotas`, all hidden from the generic admin.
 - A document type is JSON validated with Zod: fields (`text`, `date`, `number`, `email`, `phone`, with `transform` and `pattern`), parameters, classification hints and a pipeline. Steps run in order; per field the first value at the threshold wins; the run stops once the `stopWhen` fields are read. A skip hook drops paid steps over budget.
-- Extractors: `text-layer` (unpdf text, regex templates or reader functions, boxes from text runs) and `vision-llm` (AI SDK `generateText` + `Output.object`; no nullable or union types in the answer schema). Models come from `resolveModel(connectionId, modelId)`; cost is computed from the model's prices.
+- Extractors: `text-layer` (unpdf text, regex templates or reader functions, boxes from text runs) and `vision-llm` (AI SDK `generateText` + `Output.object`; no nullable or union types in the answer schema). Models come from `resolveModel(connectionId, modelId, qb)`; `/connections` exports `connectionModels()`, backed by `@quickben/plugin-connections/ai`. Cost is computed from the model's prices.
 - `readDocument(qb, input, ctx)` checks the file by its first bytes, stores it in a `FileStore`, creates a job and queues it through a `JobRunner` (`inProcessRunner` by default, `bullmqRunner` in `/bullmq`). A run claims a job by queue version, so cancelled or retried jobs keep the newer state.
 - Studio rules: one draft per type, published versions never change, publishing needs a finished test run of the draft's current revision.
 - `@quickben/plugin-doc-reader/admin`: `docReaderAdmin(config)` adds Document types, Readings and Usage pages. Server actions redirect with fixed `?toast=` / `?error=` codes.

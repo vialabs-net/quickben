@@ -1,6 +1,6 @@
 {
   "name": "@quickben/auth-firebase",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Firebase Authentication for Quickben: session cookies, a sign-in route, a client helper with Google One Tap and a sign-in page.",
   "keywords": [
     "quickben",

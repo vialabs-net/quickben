@@ -69,7 +69,7 @@ export interface DocReaderState {
   readonly readerKeys: readonly string[];
   readonly types: readonly DocumentType[];
   readonly isStaff: (user: QuickbenUser) => boolean;
-  readonly listModels: ListModels | undefined;
+  readonly listModels: (() => ReturnType<ListModels>) | undefined;
   readonly hasModels: boolean;
   readonly maxWaitMs: number;
   readonly maxFileBytes: number;
@@ -82,13 +82,25 @@ export const defaultIsStaff = (user: QuickbenUser) =>
   user.roles?.includes("platform-admin") === true;
 
 export function resolveOptions(options: DocReaderOptions): DocReaderState {
+  // `rootQb` is set when Quickben starts, before any reading runs.
+  const holder: { qb: Quickben | undefined } = { qb: undefined };
+  const withQb = (): Quickben => {
+    if (!holder.qb) throw new ConfigError("docReader: Quickben has not started yet");
+    return holder.qb;
+  };
+  const { resolveModel, listModels } = options;
   const builtin: Extractor[] = [
     createTextLayerExtractor({
       ...(options.templates ? { templates: options.templates } : {}),
       ...(options.readers ? { readers: options.readers } : {}),
     }),
     createVisionLlmExtractor({
-      ...(options.resolveModel ? { resolveModel: options.resolveModel } : {}),
+      ...(resolveModel
+        ? {
+            resolveModel: (connectionId: string, modelId?: string) =>
+              resolveModel(connectionId, modelId, withQb()),
+          }
+        : {}),
       ...(options.rasterize ? { rasterize: options.rasterize } : {}),
       ...(options.modelTimeoutMs === undefined ? {} : { timeoutMs: options.modelTimeoutMs }),
     }),
@@ -118,7 +130,7 @@ export function resolveOptions(options: DocReaderOptions): DocReaderState {
     readerKeys: Object.keys(options.readers ?? {}),
     types,
     isStaff: options.isStaff ?? defaultIsStaff,
-    listModels: options.listModels,
+    listModels: listModels ? () => listModels(withQb()) : undefined,
     hasModels: options.resolveModel !== undefined,
     maxWaitMs: options.maxWaitMs ?? 30_000,
     maxFileBytes: options.maxFileBytes ?? 20 * 1024 * 1024,
@@ -128,7 +140,12 @@ export function resolveOptions(options: DocReaderOptions): DocReaderState {
       ((event, data) => {
         console.warn(`[doc-reader] ${event}`, data);
       }),
-    rootQb: undefined,
+    get rootQb() {
+      return holder.qb;
+    },
+    set rootQb(qb: Quickben | undefined) {
+      holder.qb = qb;
+    },
   };
 }
 

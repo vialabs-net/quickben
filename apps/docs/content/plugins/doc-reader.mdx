@@ -149,9 +149,23 @@ Results: `OK`, `INCOMPLETE` (required fields missing), `NO_MATCH`, `NO_TEXT`, `E
 
 `vision-llm` uses the [AI SDK](https://ai-sdk.dev) (`generateText` with `Output.object`). The plugin never sees a key: `resolveModel` returns a ready model and its prices.
 
+**With `@quickben/plugin-connections`**
+
+```ts nocheck
+import { connections } from "@quickben/plugin-connections";
+import { docReader } from "@quickben/plugin-doc-reader";
+import { connectionModels } from "@quickben/plugin-doc-reader/connections";
+
+plugins: [connections({ masterKey }), docReader({ ...connectionModels() })];
+```
+
+`connectionModels()` resolves a step's `connectionId` and `model` with `resolveLanguageModel` from `@quickben/plugin-connections/ai`, and lists connections with vision models for the admin. Model prices come from the connection. Connections do not store a page limit: `connectionModels({ maxPages })` sets it (default 4).
+
+**Your own resolver**
+
 ```ts nocheck
 docReader({
-  resolveModel: async (connectionId, modelId) => ({
+  resolveModel: async (connectionId, modelId, qb) => ({
     connection: { id: connectionId, name: "OpenAI" },
     model: {
       id: "gpt-vision",
@@ -163,7 +177,7 @@ docReader({
     },
     languageModel: openai("gpt-vision"),
   }),
-  listModels: async () => [
+  listModels: async (qb) => [
     { connectionId: "openai-main", connectionName: "OpenAI", models: [{ id: "gpt-vision" }] },
   ],
 });

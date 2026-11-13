@@ -3,6 +3,7 @@
  * (for example `@quickben/plugin-connections`). The reader never sees a key: it gets a ready
  * language model plus the prices to bill it with.
  */
+import type { Quickben } from "@quickben/core";
 import type { LanguageModel } from "ai";
 
 /** A model a connection offers, with what the reader needs to know about it. */
@@ -28,9 +29,14 @@ export interface ResolvedModel {
 
 /**
  * Resolve a connection and one of its models; no `modelId` means the connection's default.
- * Throw a `QuickbenError` (its message is shown) when the connection cannot be used.
+ * `qb` is the instance the plugin runs in. Throw a `QuickbenError` (its message is shown) when
+ * the connection cannot be used.
  */
-export type ResolveModel = (connectionId: string, modelId?: string) => Promise<ResolvedModel>;
+export type ResolveModel = (
+  connectionId: string,
+  modelId: string | undefined,
+  qb: Quickben,
+) => Promise<ResolvedModel>;
 
 /** A connection and its vision models, for the admin's pickers. */
 export interface ModelChoice {
@@ -40,7 +46,7 @@ export interface ModelChoice {
 }
 
 /** Lists connections with vision models, for the admin's pickers. */
-export type ListModels = () => Promise<readonly ModelChoice[]>;
+export type ListModels = (qb: Quickben) => Promise<readonly ModelChoice[]>;
 
 /** USD for one call, from the model's prices per million tokens, rounded to micro-dollars. */
 export function callCost(

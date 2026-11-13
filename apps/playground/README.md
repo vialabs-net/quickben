@@ -30,6 +30,10 @@ pnpm dev          # builds the packages, then http://localhost:3000
 
 An empty database is seeded on start. `pnpm seed` seeds it from the command line, `pnpm db:reset` deletes `./.pglite`.
 
+## Document templates
+
+Start with `QUICKBEN_TEMPLATES=1` (or `pnpm dev:templates`) to add `@quickben/plugin-templates` with a demo `invoice` kind. The admin gets Templates and Brand pages under Documents. With `QUICKBEN_TENANCY=1` too, each organization has its own. The e2e tests turn it on unless `QUICKBEN_TEMPLATES=0`.
+
 ## Multi-tenancy
 
 Start with `QUICKBEN_TENANCY=1` (or `pnpm dev:tenancy`) to add `@quickben/plugin-tenancy`. Posts, authors and tags then belong to an organization. PGlite data goes to `./.pglite-tenancy`.
@@ -59,6 +63,10 @@ Start with `QUICKBEN_AUTH=better-auth` (or `pnpm dev:better-auth`) to sign in wi
 | a new account        | your choice           | viewer |
 
 Sign in at `/sign-in`. `e2e/better-auth.spec.ts` runs only in this mode.
+
+## Connections
+
+Start with `QUICKBEN_CONNECTIONS=1` (or `pnpm dev:connections`) to add `@quickben/plugin-connections`. The admin gets an Integrations group with Connections and Credentials. Secrets use `QUICKBEN_MASTER_KEY`, or a fixed demo key when it is unset. `e2e/connections.spec.ts` runs only in this mode; it tests an HTTP API connection against the playground's own `/api/_meta`.
 
 ## Roles
 

@@ -144,7 +144,7 @@ describe("vision-llm extractor", () => {
     });
     const bare = createVisionLlmExtractor();
     expect((await bare.extract(input, invoice, {}, ctx)).problems).toEqual({
-      error: "no model resolver is configured (resolveModel)",
+      error: expect.stringContaining("no models are configured") as unknown,
     });
     resolve.mockRejectedValueOnce(new NotFoundError("Connection conn-1 not found"));
     expect((await extractor.extract(input, invoice, {}, ctx)).problems).toEqual({

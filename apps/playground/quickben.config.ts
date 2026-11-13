@@ -1,10 +1,14 @@
 import { defineCollection, defineConfig, definePlugin, fields as f } from "@quickben/core";
+import { connections } from "@quickben/plugin-connections";
+import { templates, TEMPLATE_COLLECTIONS } from "@quickben/plugin-templates";
 import { tenancy } from "@quickben/plugin-tenancy";
 
 import { playgroundAuth } from "./lib/auth";
+import { connectionsEnabled, demoMasterKey } from "./lib/connections";
 import { createDb } from "./lib/db";
 import { docReaderEnabled, playgroundDocReader } from "./lib/doc-reader";
 import { seedIfEmpty } from "./lib/seed";
+import { invoice, templatesEnabled } from "./lib/templates";
 import { tenancyEnabled } from "./lib/tenancy";
 
 import type { AccessArgs } from "@quickben/core";
@@ -97,12 +101,21 @@ const demo = definePlugin({
   onInit: seedIfEmpty,
 });
 
+// With QUICKBEN_TEMPLATES=1: document templates and a brand (per organization with tenancy).
+const documentTemplates = templates({
+  kinds: [invoice],
+  access: { manage: hasRole("admin", "editor") },
+});
+
 // With QUICKBEN_TENANCY=1, posts, authors and tags belong to an organization. The demo `admin`
 // user is platform staff: it sees every organization.
 const multiTenant = tenancy({
-  scope: ["posts", "authors", "tags"],
+  scope: ["posts", "authors", "tags", ...(templatesEnabled ? TEMPLATE_COLLECTIONS : [])],
   isPlatformAdmin: (user) => user.roles?.includes("admin") === true,
 });
+
+// With QUICKBEN_CONNECTIONS=1, the admin gets Integrations: connections and credentials.
+const integrations = connections({ masterKey: demoMasterKey });
 
 const config = defineConfig({
   db: createDb(),
@@ -111,7 +124,9 @@ const config = defineConfig({
     demo,
     // With QUICKBEN_DOC_READER=1: document types, readings and usage, with a fake model.
     ...(docReaderEnabled ? [playgroundDocReader] : []),
+    ...(templatesEnabled ? [documentTemplates] : []),
     ...(tenancyEnabled ? [multiTenant] : []),
+    ...(connectionsEnabled ? [integrations] : []),
   ],
   auth: playgroundAuth(),
   admin: { title: "Quickben Playground" },

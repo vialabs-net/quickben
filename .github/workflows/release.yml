@@ -3,6 +3,7 @@ name: Release
 on:
   push:
     branches: [trunk]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -45,9 +46,9 @@ jobs:
       # Publishes to npm after that pull request is merged.
       - uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
-          version: pnpm version-packages
-          publish: pnpm release
-          commit: "chore: version packages"
-          title: "chore: version packages"
+          version-script: pnpm version-packages
+          publish-script: pnpm release
+          commit-message: "chore: version packages"
+          pr-title: "chore: version packages"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

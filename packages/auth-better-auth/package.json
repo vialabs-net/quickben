@@ -1,6 +1,6 @@
 {
   "name": "@quickben/auth-better-auth",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Better Auth for Quickben: an auth adapter that reads the Better Auth session, with organization plugin support and a bridge to Quickben tenancy.",
   "keywords": [
     "quickben",
