@@ -42,15 +42,15 @@ The directory must be new or empty. The git repository is skipped inside an exis
 | `app/api/[...quickben]/route.ts`     | REST route handlers.                                     |
 | `app/admin/[[...segments]]/page.tsx` | Admin page with its server function.                     |
 | `app/page.tsx`                       | Home page that reads with the local API.                 |
-| `next.config.ts`                     | `serverExternalPackages` for the adapter and drivers.    |
+| `next.config.ts`                     | Cache Components on; keeps PGlite out of the bundle.     |
 | `.env.example`, `.env.local`         | Dev user and database settings. `.env.local` is ignored. |
 
-| `--db`     | Adapter                                   | Driver                 |
-| ---------- | ----------------------------------------- | ---------------------- |
-| `pglite`   | `@quickben/db-drizzle`, data in `.pglite` | `@electric-sql/pglite` |
-| `postgres` | `@quickben/db-drizzle`, `DATABASE_URL`    | `pg`                   |
-| `sqlite`   | `@quickben/db-drizzle`, `DATABASE_URL`    | `@libsql/client`       |
-| `memory`   | `@quickben/db-memory`                     |                        |
+| `--db`     | Adapter                                          | Driver                 |
+| ---------- | ------------------------------------------------ | ---------------------- |
+| `pglite`   | `@quickben/db-drizzle/pglite`, data in `.pglite` | `@electric-sql/pglite` |
+| `postgres` | `@quickben/db-drizzle/postgres`, `DATABASE_URL`  | `pg`                   |
+| `sqlite`   | `@quickben/db-drizzle/sqlite`, `DATABASE_URL`    | `@libsql/client`       |
+| `memory`   | `@quickben/db-memory`                            |                        |
 
 The `@quickben/*` versions in the app are the versions released with this CLI.
 

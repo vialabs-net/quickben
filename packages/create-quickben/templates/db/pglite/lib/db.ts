@@ -1,4 +1,4 @@
-import { drizzleAdapter } from "@quickben/db-drizzle";
+import { drizzleAdapter } from "@quickben/db-drizzle/pglite";
 import { singleton } from "@quickben/next";
 
 import type { DatabaseAdapter } from "@quickben/core";
@@ -13,7 +13,6 @@ import type { DatabaseAdapter } from "@quickben/core";
 export function createDb(): DatabaseAdapter {
   return singleton("quickben-db", () =>
     drizzleAdapter({
-      dialect: "pglite",
       dataDir: process.env.PGLITE_DATA_DIR ?? "./.pglite",
       push: true,
     }),

@@ -1,4 +1,4 @@
-import { drizzleAdapter } from "@quickben/db-drizzle";
+import { drizzleAdapter } from "@quickben/db-drizzle/sqlite";
 import { singleton } from "@quickben/next";
 
 import type { DatabaseAdapter } from "@quickben/core";
@@ -14,7 +14,6 @@ import type { DatabaseAdapter } from "@quickben/core";
 export function createDb(): DatabaseAdapter {
   return singleton("quickben-db", () =>
     drizzleAdapter({
-      dialect: "sqlite",
       url: process.env.DATABASE_URL ?? "file:./app.db",
       authToken: process.env.DATABASE_AUTH_TOKEN,
       push: true,
