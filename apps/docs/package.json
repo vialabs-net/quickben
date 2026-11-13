@@ -12,7 +12,8 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "node scripts/extract-samples.mjs && next typegen && tsc && tsc -p tsconfig.samples.json",
-    "clean": "rm -rf .next .turbo public/_pagefind"
+    "clean": "rm -rf .next .turbo public/_pagefind",
+    "build:static": "DOCS_STATIC_EXPORT=1 next build && pagefind --site out --output-path out/_pagefind"
   },
   "dependencies": {
     "hast-util-to-jsx-runtime": "2.3.7",
