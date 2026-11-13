@@ -1,0 +1,131 @@
+---
+title: Better Auth
+description: Use Better Auth sessions and organizations with Quickben through @quickben/auth-better-auth.
+---
+
+# Better Auth
+
+`@quickben/auth-better-auth` reads the [Better Auth](https://www.better-auth.com) session of each request. Sign-in, sign-up and sessions stay in Better Auth.
+
+```sh
+pnpm add @quickben/auth-better-auth better-auth
+```
+
+## Setup
+
+```ts nocheck filename="lib/auth.ts"
+import { DatabaseSync } from "node:sqlite";
+
+import { betterAuth } from "better-auth";
+import { admin } from "better-auth/plugins";
+
+export const auth = betterAuth({
+  database: new DatabaseSync("auth.sqlite"),
+  emailAndPassword: { enabled: true },
+  plugins: [admin()],
+});
+```
+
+```ts nocheck filename="quickben.config.ts"
+import { betterAuthAdapter } from "@quickben/auth-better-auth";
+import { defineConfig } from "@quickben/core";
+import { memoryAdapter } from "@quickben/db-memory";
+
+import { auth } from "./lib/auth";
+
+export default defineConfig({
+  db: memoryAdapter(),
+  collections: [],
+  auth: betterAuthAdapter({ auth }),
+});
+```
+
+Mount Better Auth's handler as its docs describe (`app/api/auth/[...all]/route.ts` with `toNextJsHandler(auth)`).
+
+## Options
+
+| Option        | Default                      | Purpose                                                                |
+| ------------- | ---------------------------- | ---------------------------------------------------------------------- |
+| `auth`        | required                     | Your `betterAuth()` instance.                                          |
+| `roles`       | `user.role`, split on commas | A function of the session that returns the roles.                      |
+| `memberRoles` | `false`                      | Load roles in the active organization. One extra call per request.     |
+| `resolveUser` | none                         | Gets the session and the default user. Return another user, or `null`. |
+
+## User mapping
+
+| `QuickbenUser`         | From                                                      |
+| ---------------------- | --------------------------------------------------------- |
+| `id`                   | `user.id`                                                 |
+| `email`                | `user.email`                                              |
+| `emailVerified`        | `user.emailVerified === true`                             |
+| `roles`                | `user.role` of the admin plugin, or the `roles` function  |
+| `activeOrganizationId` | `session.activeOrganizationId` of the organization plugin |
+| `organizationRoles`    | the active member's role, with `memberRoles: true`        |
+
+The package adds `activeOrganizationId` and `organizationRoles` to `QuickbenUser` with declaration merging.
+
+## With the tenancy plugin
+
+Better Auth's organization plugin and [`@quickben/plugin-tenancy`](/docs/plugins/tenancy) both keep organizations and members. Use Better Auth as the source and mirror into tenancy. The organizations then have the same ids in both.
+
+| Piece                          | Does                                                                                                          |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `tenancySync({ qb })`          | Better Auth `organizationHooks` that create, update and delete tenancy organizations and memberships.         |
+| `withActiveOrganizationCookie` | Wraps Better Auth's `POST` handler. Keeps tenancy's organization cookie on Better Auth's active organization. |
+| `user.activeOrganizationId`    | Pass it as `ctx.organizationId` in local API calls that need it.                                              |
+
+```ts nocheck filename="lib/tenant-auth.ts"
+import { DatabaseSync } from "node:sqlite";
+
+import { tenancySync } from "@quickben/auth-better-auth";
+import { getQuickben } from "@quickben/core";
+import { betterAuth } from "better-auth";
+import { organization } from "better-auth/plugins";
+
+import config from "../quickben.config";
+
+export const auth = betterAuth({
+  database: new DatabaseSync("auth.sqlite"),
+  emailAndPassword: { enabled: true },
+  plugins: [organization({ organizationHooks: tenancySync({ qb: () => getQuickben(config) }) })],
+});
+```
+
+```ts nocheck filename="app/api/auth/[...all]/route.ts"
+import { withActiveOrganizationCookie } from "@quickben/auth-better-auth";
+import { toNextJsHandler } from "better-auth/next-js";
+
+import { auth } from "../../../../lib/tenant-auth";
+
+const handlers = toNextJsHandler(auth);
+
+export const GET = handlers.GET;
+export const POST = withActiveOrganizationCookie(handlers.POST);
+```
+
+| Better Auth hook                          | Tenancy change                                  |
+| ----------------------------------------- | ----------------------------------------------- |
+| `afterCreateOrganization`                 | organization with the same id, owner membership |
+| `afterUpdateOrganization`                 | `name`, `slug`                                  |
+| `afterDeleteOrganization`                 | organization and its memberships deleted        |
+| `afterAddMember`, `afterAcceptInvitation` | active membership with the member's role        |
+| `afterUpdateMemberRole`                   | `role`                                          |
+| `afterRemoveMember`                       | membership deleted                              |
+
+| Better Auth route         | Tenancy cookie                               |
+| ------------------------- | -------------------------------------------- |
+| `organization/set-active` | the organization in the response, or cleared |
+| `organization/create`     | the new organization                         |
+| `sign-in/*`, `sign-out`   | cleared                                      |
+
+Notes:
+
+- A Better Auth role with several values (`"admin,member"`) maps to its first value. Pass `mapRole` to change that.
+- Better Auth's `owner`, `admin` and `member` roles match tenancy's default roles.
+- Tenancy's rules still apply, for example "an organization keeps one active owner". A hook that breaks one throws after Better Auth saved its change. Make the same rule in Better Auth.
+- `organization/create` sets the cookie because Better Auth activates a new organization. With `keepCurrentActiveOrganization: true`, call `set-active` yourself.
+- Pass `cookie` to `withActiveOrganizationCookie` when tenancy uses another cookie name.
+
+## Playground
+
+`QUICKBEN_AUTH=better-auth pnpm --filter @quickben/playground dev` (or `pnpm dev:better-auth` in `apps/playground`) signs in with Better Auth email and password, on SQLite. See [Playground](/docs/playground).
