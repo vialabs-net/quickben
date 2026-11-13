@@ -15,7 +15,8 @@
     "test:e2e": "playwright test",
     "clean": "rm -rf .next .turbo test-results playwright-report",
     "db:reset": "rm -rf .pglite .pglite-tenancy",
-    "dev:tenancy": "QUICKBEN_TENANCY=1 next dev --port 3000"
+    "dev:tenancy": "QUICKBEN_TENANCY=1 next dev --port 3000",
+    "dev:templates": "QUICKBEN_TEMPLATES=1 next dev --port 3000"
   },
   "dependencies": {
     "@electric-sql/pglite": "0.5.16",
@@ -24,7 +25,14 @@
     "@quickben/db-drizzle": "workspace:*",
     "@quickben/db-memory": "workspace:*",
     "@quickben/next": "workspace:*",
+    "@quickben/plugin-templates": "workspace:*",
     "@quickben/plugin-tenancy": "workspace:*",
+    "@tiptap/core": "3.33.1",
+    "@tiptap/extension-table": "3.33.1",
+    "@tiptap/extension-text-align": "3.33.1",
+    "@tiptap/pm": "3.33.1",
+    "@tiptap/react": "3.33.1",
+    "@tiptap/starter-kit": "3.33.1",
     "drizzle-orm": "0.45.4",
     "next": "16.4.6",
     "react": "19.3.1",

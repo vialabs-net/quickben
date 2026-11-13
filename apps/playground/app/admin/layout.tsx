@@ -1,4 +1,5 @@
 import "@quickben/admin/styles.css";
+import "@quickben/plugin-templates/styles.css";
 
 import { generateAdminMetadata } from "@quickben/admin";
 import { Suspense } from "react";

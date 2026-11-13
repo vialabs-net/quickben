@@ -30,6 +30,10 @@ pnpm dev          # builds the packages, then http://localhost:3000
 
 An empty database is seeded on start. `pnpm seed` seeds it from the command line, `pnpm db:reset` deletes `./.pglite`.
 
+## Document templates
+
+Start with `QUICKBEN_TEMPLATES=1` (or `pnpm dev:templates`) to add `@quickben/plugin-templates` with a demo `invoice` kind. The admin gets Templates and Brand pages under Documents. With `QUICKBEN_TENANCY=1` too, each organization has its own. The e2e tests turn it on unless `QUICKBEN_TEMPLATES=0`.
+
 ## Multi-tenancy
 
 Start with `QUICKBEN_TENANCY=1` (or `pnpm dev:tenancy`) to add `@quickben/plugin-tenancy`. Posts, authors and tags then belong to an organization. PGlite data goes to `./.pglite-tenancy`.
