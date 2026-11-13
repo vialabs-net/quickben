@@ -1,0 +1,7 @@
+pnpm-lock.yaml
+dist/
+coverage/
+.turbo/
+.next/
+CHANGELOG.md
+CODE_OF_CONDUCT.md
