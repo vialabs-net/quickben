@@ -1,4 +1,4 @@
-import { drizzleAdapter } from "@quickben/db-drizzle";
+import { drizzleAdapter } from "@quickben/db-drizzle/pglite";
 import { memoryAdapter } from "@quickben/db-memory";
 import { singleton } from "@quickben/next";
 
@@ -7,13 +7,13 @@ import type { DatabaseAdapter } from "@quickben/core";
 /**
  * Databases the playground can use, chosen with the `QUICKBEN_DB` environment variable.
  *
- * | Value              | Adapter                                                                  |
- * | ------------------ | ------------------------------------------------------------------------ |
- * | `pglite` (default) | `@quickben/db-drizzle` on PGlite in `./.pglite`. Tables are pushed on start. |
- * | `memory`           | `@quickben/db-memory`. Data resets on restart.                           |
+ * | Value              | Adapter                                                                   |
+ * | ------------------ | ------------------------------------------------------------------------- |
+ * | `pglite` (default) | `@quickben/db-drizzle/pglite` in `./.pglite`. Tables are pushed on start. |
+ * | `memory`           | `@quickben/db-memory`. Data resets on restart.                            |
  */
 const adapters: Record<string, () => DatabaseAdapter> = {
-  pglite: () => drizzleAdapter({ dialect: "pglite", dataDir: "./.pglite", push: true }),
+  pglite: () => drizzleAdapter({ dataDir: "./.pglite", push: true }),
   memory: () => memoryAdapter(),
 };
 
