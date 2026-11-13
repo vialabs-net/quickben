@@ -7,3 +7,7 @@ minimumReleaseAgeExclude:
 allowBuilds:
   # drizzle-kit (dev only). esbuild works from its platform package without the install script.
   esbuild: false
+overrides:
+  # Nextra 4.6 schemas break on zod >= 4.4 (missing `children` key fails z.custom).
+  nextra>zod: 4.3.6
+  nextra-theme-docs>zod: 4.3.6

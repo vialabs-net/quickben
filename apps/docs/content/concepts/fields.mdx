@@ -1,0 +1,94 @@
+---
+title: Fields
+description: Field types, their stored values, options and validation rules.
+---
+
+# Fields
+
+Fields come from the `fields` export. Most code imports it as `f`.
+
+```ts
+import { fields as f } from "@quickben/core";
+import { z } from "zod";
+
+const productFields = {
+  name: f.text({ required: true, maxLength: 120 }),
+  summary: f.textarea(),
+  contact: f.email(),
+  website: f.url(),
+  price: f.number({ min: 0 }),
+  stock: f.number({ integer: true, default: 0 }),
+  active: f.boolean({ default: true }),
+  launchDate: f.date(),
+  updatedBySyncAt: f.datetime(),
+  kind: f.select({ options: ["physical", "digital"], required: true }),
+  labels: f.select({ options: ["new", "sale", "featured"], many: true }),
+  vendor: f.relation({ to: "vendors" }),
+  related: f.relation({ to: "products", many: true }),
+  specs: f.json({ schema: z.object({ weightKg: z.number() }) }),
+};
+```
+
+## Types
+
+| Factory        | Stored value                                                | Extra options            |
+| -------------- | ----------------------------------------------------------- | ------------------------ |
+| `f.text()`     | string                                                      | `minLength`, `maxLength` |
+| `f.textarea()` | string                                                      | `minLength`, `maxLength` |
+| `f.email()`    | string                                                      | `minLength`, `maxLength` |
+| `f.url()`      | string, `http` or `https` only                              | `minLength`, `maxLength` |
+| `f.number()`   | number                                                      | `integer`, `min`, `max`  |
+| `f.boolean()`  | boolean                                                     |                          |
+| `f.date()`     | `"YYYY-MM-DD"`. Input also accepts `Date`.                  |                          |
+| `f.datetime()` | ISO 8601 UTC string. Input also accepts `Date` and offsets. |                          |
+| `f.select()`   | one option, or an array with `many: true`                   | `options`, `many`        |
+| `f.relation()` | id, or ids with `many: true`                                | `to`, `many`             |
+| `f.json()`     | JSON value                                                  | `schema` (Zod)           |
+
+## Common options
+
+| Option        | Effect                                                                        |
+| ------------- | ----------------------------------------------------------------------------- |
+| `required`    | The value is never `null`. On a `many` field: at least one value.             |
+| `unique`      | The adapter rejects duplicates with `ConflictError`. Not allowed with `many`. |
+| `index`       | Asks the adapter to index the field.                                          |
+| `default`     | Value or function used on create. Makes the field optional on create.         |
+| `label`       | Admin label. Default: humanized name (`publishedAt` → `Published at`).        |
+| `description` | Help text in the admin UI.                                                    |
+| `validate`    | Custom check. Returns `true` or an error message.                             |
+| `admin`       | `{ hidden, readOnly, width: "full" \| "half" \| "third" }`                    |
+
+`f.relation()` has no `default`.
+
+## Values
+
+| Field            | Unset value | Type in `InferDoc` |
+| ---------------- | ----------- | ------------------ |
+| `required: true` | never unset | `T`                |
+| not required     | `null`      | `T \| null`        |
+| `many: true`     | `[]`        | `T[]`              |
+
+Values in a `many` array must be unique.
+
+## Custom validation
+
+```ts
+import { fields as f } from "@quickben/core";
+
+const sku = f.text({
+  required: true,
+  validate: (value, { operation }) =>
+    operation === "update" || /^[A-Z]{3}-\d{4}$/.test(value) || "Use the format ABC-1234",
+});
+```
+
+`validate` runs after the built-in checks, only for values that are not `null`. It receives `{ operation, data, original, user }`. It may be async.
+
+## Validation order
+
+1. Core builds a Zod 4 schema per collection, for create and for update. Unknown keys are rejected.
+2. Field `validate` functions run.
+3. Related ids must exist. Core checks them with one query per related collection.
+4. The adapter enforces `unique`.
+
+Errors are `ValidationError` with `issues: { path, message }[]`. See [Errors](/docs/concepts/errors).

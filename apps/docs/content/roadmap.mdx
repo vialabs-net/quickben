@@ -1,0 +1,31 @@
+---
+title: Roadmap
+description: Planned packages and features, in rough order.
+---
+
+# Roadmap
+
+Quickben is alpha. This list is the current plan. Order and scope can change. Follow progress on [GitHub](https://github.com/vialabs-net/quickben).
+
+## 0.1
+
+| Item            | Package                | What it adds                                                           |
+| --------------- | ---------------------- | ---------------------------------------------------------------------- |
+| Drizzle adapter | `@quickben/db-drizzle` | Postgres, PGlite and SQLite. Table generation, `quickben db:generate`. |
+| Route handlers  | `@quickben/next`       | REST for every collection from one catch-all route.                    |
+| Admin UI        | `@quickben/admin`      | List, create and edit screens, sidebar, settings shell.                |
+| Playground      | `apps/playground`      | A Next.js app that uses everything, on PGlite.                         |
+
+## Later
+
+| Item                        | What it adds                                                                                                                              |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Multi-tenancy plugin        | Organizations, memberships, roles, module entitlements, tenant-scoped collections with an automatic organization field and access filter. |
+| Connections and credentials | Store and use credentials for third-party services per organization.                                                                      |
+| Document templates          | Generate documents from templates and collection data.                                                                                    |
+| Document reading            | Extract data from uploaded documents into collections.                                                                                    |
+| Release train               | Versioning and release tooling for apps built on Quickben.                                                                                |
+| `create-quickben`           | `pnpm create quickben` scaffolds a new app.                                                                                               |
+| Inferred plugin fields      | Types for fields added with `extendCollection`.                                                                                           |
+| More adapters               | A document-store adapter (for example MongoDB) without core changes.                                                                      |
+| Spanish docs                | A Spanish version of this site.                                                                                                           |

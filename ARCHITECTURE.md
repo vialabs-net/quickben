@@ -31,7 +31,7 @@ This file describes what exists. Sections marked **Planned** describe agreed des
 | `packages/admin`           | `@quickben/admin`                           | Planned |
 | `packages/plugin-tenancy`  | `@quickben/plugin-tenancy`                  | Planned |
 | `packages/create-quickben` | `create-quickben`                           | Planned |
-| `apps/docs`                | Nextra site at https://quickben.vialabs.net | Planned |
+| `apps/docs`                | Nextra site at https://quickben.vialabs.net | Exists  |
 | `apps/playground`          | Next.js app using everything (PGlite)       | Planned |
 
 Dependencies point one way: adapters and other packages depend on `@quickben/core` (as a peer dependency). Core depends only on Zod.

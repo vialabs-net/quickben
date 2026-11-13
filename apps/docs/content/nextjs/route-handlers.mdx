@@ -1,0 +1,58 @@
+---
+title: Route handlers
+description: "@quickben/next: one catch-all route file exposes every collection over REST. Coming in 0.1."
+---
+
+import { Callout } from "nextra/components";
+
+# Route handlers
+
+<Callout type="warning">
+
+**Coming in 0.1.** `@quickben/next` is not released yet. This page describes the planned API. Names and URLs may change.
+
+</Callout>
+
+One catch-all route file exposes every collection over REST.
+
+```ts filename="app/api/[...quickben]/route.ts"
+import { createRouteHandlers } from "@quickben/next";
+
+import config from "../../../quickben.config";
+
+export const { GET, POST, PATCH, DELETE } = createRouteHandlers(config);
+```
+
+## Planned behavior
+
+| Topic   | Plan                                                                                      |
+| ------- | ----------------------------------------------------------------------------------------- |
+| User    | `config.auth.getUser(req)` resolves the user of each request.                             |
+| Access  | Every request goes through the local API, so access rules and hooks apply.                |
+| Errors  | `QuickbenError` becomes a JSON response with its `status` and `code`.                     |
+| Runtime | Node.js runtime. Works with React Server Components; no client-only data fetching needed. |
+
+## Planned routes
+
+| Method   | Path                   | Local API call                                          |
+| -------- | ---------------------- | ------------------------------------------------------- |
+| `GET`    | `/api/:collection`     | `find` (query string: where, sort, limit, page, cursor) |
+| `GET`    | `/api/:collection/:id` | `findById`                                              |
+| `POST`   | `/api/:collection`     | `create`                                                |
+| `PATCH`  | `/api/:collection/:id` | `update`                                                |
+| `DELETE` | `/api/:collection/:id` | `delete`                                                |
+
+## Server code
+
+In server components and server actions, call the local API directly. You do not need HTTP.
+
+```ts filename="app/posts/data.ts"
+import { getQuickben } from "@quickben/core";
+
+import config from "../../quickben.config";
+
+export async function publishedPosts() {
+  const qb = await getQuickben(config);
+  return qb.find("posts", { where: { status: { eq: "published" } } }, { user: null });
+}
+```
