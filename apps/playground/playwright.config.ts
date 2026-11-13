@@ -26,8 +26,12 @@ export default defineConfig({
       ? `pnpm exec next start --port ${String(port)}`
       : `pnpm exec next dev --port ${String(port)}`,
     url: `${baseURL}/api/_meta`,
-    // Lets the demo auth (devAuth) run under `next start`. See lib/auth.ts.
-    env: { QUICKBEN_PLAYGROUND_DEMO: "1" },
+    // Lets the demo auth (devAuth) run under `next start`. See lib/auth.ts. The templates
+    // plugin is on in every e2e run, so its flow is tested with and without tenancy.
+    env: {
+      QUICKBEN_PLAYGROUND_DEMO: "1",
+      QUICKBEN_TEMPLATES: process.env.QUICKBEN_TEMPLATES ?? "1",
+    },
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },

@@ -19,20 +19,21 @@ This file describes what exists. Sections marked **Planned** describe agreed des
 
 ## Repository
 
-| Path                       | Package                                     | Status |
-| -------------------------- | ------------------------------------------- | ------ |
-| `packages/core`            | `@quickben/core`                            | Exists |
-| `packages/db-memory`       | `@quickben/db-memory`                       | Exists |
-| `packages/adapter-tests`   | `@quickben/adapter-tests` (private)         | Exists |
-| `tooling/tsconfig`         | `@quickben/tsconfig` (private)              | Exists |
-| `tooling/eslint-config`    | `@quickben/eslint-config` (private)         | Exists |
-| `packages/db-drizzle`      | `@quickben/db-drizzle`                      | Exists |
-| `packages/next`            | `@quickben/next`                            | Exists |
-| `packages/admin`           | `@quickben/admin`                           | Exists |
-| `packages/plugin-tenancy`  | `@quickben/plugin-tenancy`                  | Exists |
-| `packages/create-quickben` | `create-quickben`                           | Exists |
-| `apps/docs`                | Nextra site at https://quickben.vialabs.net | Exists |
-| `apps/playground`          | Next.js app using everything (PGlite)       | Exists |
+| Path                        | Package                                     | Status |
+| --------------------------- | ------------------------------------------- | ------ |
+| `packages/core`             | `@quickben/core`                            | Exists |
+| `packages/db-memory`        | `@quickben/db-memory`                       | Exists |
+| `packages/adapter-tests`    | `@quickben/adapter-tests` (private)         | Exists |
+| `tooling/tsconfig`          | `@quickben/tsconfig` (private)              | Exists |
+| `tooling/eslint-config`     | `@quickben/eslint-config` (private)         | Exists |
+| `packages/db-drizzle`       | `@quickben/db-drizzle`                      | Exists |
+| `packages/next`             | `@quickben/next`                            | Exists |
+| `packages/admin`            | `@quickben/admin`                           | Exists |
+| `packages/plugin-tenancy`   | `@quickben/plugin-tenancy`                  | Exists |
+| `packages/plugin-templates` | `@quickben/plugin-templates`                | Exists |
+| `packages/create-quickben`  | `create-quickben`                           | Exists |
+| `apps/docs`                 | Nextra site at https://quickben.vialabs.net | Exists |
+| `apps/playground`           | Next.js app using everything (PGlite)       | Exists |
 
 Dependencies point one way: adapters and other packages depend on `@quickben/core` (as a peer dependency). Core depends only on Zod.
 
@@ -329,6 +330,15 @@ export default createAdminPage(config, { serverFunction }); // async server comp
 - Roles are data: capabilities per role, ranked by order. Membership hooks enforce the guard rails (`TenancyRuleError` with a `rule`): last active owner, no self-demotion for owners and admins, no managing higher roles. Invitations by email need `emailVerified` not `false`.
 - Helpers over the local API: `resolveTenant`, `inviteMember`, `acceptInvitation`, `updateMembership`, `removeMember`, `listMyOrganizations`, `listMyInvitations`, `switchOrganization` (returns the cookie), `canUseModule`, `moduleAccess`, `hasCapability`.
 - `@quickben/plugin-tenancy/admin`: `tenancyAdmin(config)` is an admin extension with an organization switcher, a Members page and an Organization settings page. Server actions use a registry keyed by base path, like the admin's default server function. They redirect with `?toast=` / `?error=` codes that the pages map to fixed messages.
+
+### `@quickben/plugin-templates`
+
+- `templates({ kinds })` adds `brands`, `document-templates` and `document-template-versions`. Kinds are data: `defineTemplateKind({ kind, label, catalog, baseTemplate })`; the catalog lists the variables a kind can print, with types and sample values.
+- Content is TipTap JSON. `validateContent` reports issues with node paths; conditions use a small parsed language (no eval) over own properties of the data.
+- Versions: one draft and one published version per kind (unique `slot`), published versions immutable, publishing refuses content with issues. Helpers: `saveDraft`, `publishTemplate`, `discardDraft`, `archiveTemplate`, `restoreVersion`.
+- `renderTemplate` returns the body HTML, a letterhead page and a preview page. `renderPdf` passes them to a `PdfRenderer`; `@quickben/plugin-templates/chromium` draws the letterhead over every page with pdf-lib. `playwright-core`, `pdf-lib` and `@tiptap/*` are optional peers.
+- With tenancy, add `TEMPLATE_COLLECTIONS` to the scope: one brand and set of templates per organization.
+- `@quickben/plugin-templates/admin`: Templates list, editor (TipTap, lazy-loaded) with variable panel, live preview and publishing, and a Brand page. Its CSS uses its own `qbt:` prefix.
 
 ## create-quickben
 

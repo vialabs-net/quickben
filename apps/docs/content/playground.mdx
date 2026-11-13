@@ -71,6 +71,8 @@ The demo accounts use the password `playground-password`.
 
 ## Database
 
+Start with `QUICKBEN_TEMPLATES=1` (`pnpm --filter @quickben/playground dev:templates`) to add [document templates](/plugins/templates) with a demo `invoice` kind.
+
 | `QUICKBEN_DB`      | Storage                                                                                             |
 | ------------------ | --------------------------------------------------------------------------------------------------- |
 | `pglite` (default) | PGlite in `./.pglite` (`./.pglite-tenancy` with `QUICKBEN_TENANCY=1`). Tables are created on start. |

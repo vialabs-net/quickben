@@ -1,0 +1,200 @@
+---
+title: Document templates
+description: Brands, versioned document templates per kind, a safe expression language, HTML and PDF rendering, and a TipTap editor with @quickben/plugin-templates.
+---
+
+# Document templates
+
+`@quickben/plugin-templates` lets users write the text of business documents (invoices, contracts, letters) in the admin. Your product registers the document kinds and the variables each kind can print. Users edit drafts, see a live preview and publish versions. Your code renders the published version to HTML or PDF.
+
+```sh
+pnpm add @quickben/plugin-templates
+```
+
+## Setup
+
+```ts filename="quickben.config.ts"
+import { defineConfig } from "@quickben/core";
+import { memoryAdapter } from "@quickben/db-memory";
+import { defineTemplateKind, templates } from "@quickben/plugin-templates";
+import { chromiumRenderer } from "@quickben/plugin-templates/chromium";
+
+export const invoice = defineTemplateKind({
+  kind: "invoice",
+  label: "Invoice",
+  catalog: [
+    { path: "customer.name", label: "Customer", group: "Customer", sample: "Ada Lovelace" },
+    { path: "invoice.total", label: "Total", type: "number", sample: 1250 },
+    { path: "invoice.paid", label: "Paid", type: "boolean", sample: false },
+    {
+      path: "invoice.lines",
+      label: "Lines",
+      type: "list",
+      fields: [
+        { key: "item", label: "Item" },
+        { key: "amount", label: "Amount" },
+      ],
+    },
+  ],
+  baseTemplate: { type: "doc", content: [{ type: "paragraph" }] },
+});
+
+export default defineConfig({
+  db: memoryAdapter(),
+  collections: [],
+  plugins: [templates({ kinds: [invoice], pdf: chromiumRenderer() })],
+});
+```
+
+Render a document from your own code:
+
+```ts
+import { renderPdf, renderTemplate } from "@quickben/plugin-templates";
+
+const data = { customer: { name: "Ada" }, invoice: { total: 1250, paid: false, lines: [] } };
+
+const { html, version } = await renderTemplate(qb, { kind: "invoice", data });
+const { pdf } = await renderPdf(qb, { kind: "invoice", data, reference: "INV-0042" });
+```
+
+`renderTemplate` uses the published version. Without one it uses the kind's `baseTemplate`, or throws `NotFoundError`. `version` says which version was used (`null` for the base template), so you can store it with the document.
+
+## What it adds
+
+| Collection                   | Fields                                                                                                                                      |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `brands`                     | `displayName`, `legalName`, `taxId`, `address`, `contact`, `footer`, `primaryColor`, `accentColor`, `font`, `customFont`, `logo`            |
+| `document-templates`         | `kind`. One per kind.                                                                                                                       |
+| `document-template-versions` | `template`, `kind`, `number`, `status` (`draft`, `published`, `archived`), `content`, `contentHash`, `publishedAt`, `publishedBy`, and more |
+
+All three are hidden from the generated admin views. The admin extension below has pages for them.
+
+## Options
+
+| Option   | Default                | Purpose                                                                                                             |
+| -------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `kinds`  | required               | Kinds from `defineTemplateKind`.                                                                                    |
+| `access` | signed-in users        | `{ read, manage }` rules. `manage` covers create, update and delete. Return a boolean.                              |
+| `format` | `en-US`, `UTC`, yes/no | `{ locale, timeZone, booleanLabels }` for printed numbers, dates and booleans.                                      |
+| `page`   | `letter`, no reserve   | `{ size: "letter" \| "a4", reserveBottom }`. `reserveBottom` (points) keeps space free, e.g. for a signature stamp. |
+| `fonts`  | none                   | Extra fonts: `{ key, label, generic, faces() }`. `faces` returns woff2 `data:` URLs.                                |
+| `pdf`    | none                   | A `PdfRenderer`. Needed by `renderPdf` and the admin's PDF download.                                                |
+| `assets` | inline `data:` URLs    | `{ save, load }` to keep logos and fonts in your own storage. The brand stores the reference.                       |
+| `module` | none                   | `{ key, label }`: registers a module with the three collections.                                                    |
+
+## Kinds and variables
+
+| Variable option | Purpose                                                                           |
+| --------------- | --------------------------------------------------------------------------------- |
+| `path`          | Dot path into the render data. `brand.*` is reserved.                             |
+| `type`          | `text` (default), `number`, `date`, `boolean`, `enum`, `list`.                    |
+| `values`        | `enum`: `{ value, label }[]`. Conditions compare against `value`; `label` prints. |
+| `fields`        | `list`: `{ key, label }[]` of each item. Lists print in a repeated list block.    |
+| `sample`        | Value for the editor preview.                                                     |
+| `placeholder`   | Printed when the value is missing. Default: a blank line.                         |
+| `format`        | `(value) => string`. Runs on the server only.                                     |
+
+| Kind option        | Purpose                                                        |
+| ------------------ | -------------------------------------------------------------- |
+| `baseTemplate`     | Starting text, and the content used when nothing is published. |
+| `sampleData`       | Preview data. Default: built from each variable's `sample`.    |
+| `requireSignature` | Publishing needs a signature block.                            |
+
+Every kind also gets `brand.name`, `brand.legalName`, `brand.taxId`, `brand.address` and `brand.contact`, filled from the brand.
+
+## Content
+
+Template content is TipTap (ProseMirror) JSON.
+
+| Node                                               | Prints                                                                  |
+| -------------------------------------------------- | ----------------------------------------------------------------------- |
+| `paragraph`, `heading` (1–3)                       | Text. Paragraphs can be notes (`variant: "note"`). Text can be aligned. |
+| `variable`                                         | A value. `transform`: `lower` or `upper`.                               |
+| `conditional`                                      | Its blocks, when `expr` is true.                                        |
+| `checkOption`, `checkMark`                         | A box, checked when `expr` is true.                                     |
+| `repeat`                                           | One row or bullet per item of a list variable.                          |
+| `table`                                            | A fixed table to fill in by hand.                                       |
+| `signature`                                        | A signature line, a caption and lines of text and variables.            |
+| `pageFooter`                                       | Text at the foot of every page, instead of the brand's footer.          |
+| `pageBreak`, `horizontalRule`, lists, `blockquote` | As named.                                                               |
+
+Text marks: bold, italic, underline. Every string is escaped. Unknown nodes and marks print nothing.
+
+## Conditions
+
+```text
+invoice.paid
+customer.type == 'company' and not invoice.paid
+invoice.total >= 1000 or (invoice.lines and customer.vip)
+```
+
+| Syntax                                            | Meaning                                       |
+| ------------------------------------------------- | --------------------------------------------- |
+| `a.b`                                             | A variable. A list is true when it has items. |
+| `'text'`, `"text"`, `12`, `true`, `false`, `null` | Literals.                                     |
+| `==`, `!=`                                        | Equal, not equal.                             |
+| `<`, `<=`, `>`, `>=`                              | Numbers, and strings such as ISO dates.       |
+| `and` / `&&`, `or` / `\|\|`, `not` / `!`, `( )`   | Logic.                                        |
+
+Conditions are parsed, never executed. Paths read own properties of the data only. A condition that does not parse renders as false.
+
+## Versions
+
+| Rule                                         | Enforced by                                      |
+| -------------------------------------------- | ------------------------------------------------ |
+| One draft and one published version per kind | Unique `slot` field                              |
+| New versions start as drafts                 | `beforeValidate` hook                            |
+| Published and archived versions never change | `beforeValidate` hook                            |
+| Only drafts can be deleted                   | `beforeDelete` hook                              |
+| Publishing needs content without issues      | `publishTemplate` (throws `TemplateIssuesError`) |
+
+| Function                                            | Does                                                     |
+| --------------------------------------------------- | -------------------------------------------------------- |
+| `listTemplates(qb, ctx)`                            | Every kind with its draft and published version.         |
+| `getTemplate(qb, kind, ctx)`                        | Draft, published version and history.                    |
+| `saveDraft(qb, kind, content, ctx)`                 | Saves the draft. Returns its issues.                     |
+| `publishTemplate(qb, kind, ctx, { content })`       | Publishes the draft and archives the previous version.   |
+| `discardDraft`, `archiveTemplate`, `restoreVersion` | As named.                                                |
+| `validateTemplate(qb, kind, content)`               | Issues: `{ path, message }`. `path` holds child indexes. |
+| `getBrand`, `saveBrand`, `loadBrand`                | The brand document, and the brand as a render uses it.   |
+
+## PDF
+
+```ts nocheck
+import { chromiumRenderer } from "@quickben/plugin-templates/chromium";
+
+templates({ kinds, pdf: chromiumRenderer({ concurrency: 2, timeoutMs: 20_000 }) });
+```
+
+`chromiumRenderer` needs `playwright-core` and `pdf-lib`, and a Chromium binary at `CHROMIUM_PATH` (or a common install path). It renders the body, renders the letterhead once, and draws the letterhead over every page. Pages run no scripts and load no URLs. Any other engine works if it implements `PdfRenderer`.
+
+## Admin
+
+```tsx nocheck filename="app/admin/[[...segments]]/page.tsx"
+import { templatesAdmin } from "@quickben/plugin-templates/admin";
+
+export default createAdminPage(config, { serverFunction, extensions: [templatesAdmin(config)] });
+```
+
+```tsx filename="app/admin/layout.tsx"
+import "@quickben/admin/styles.css";
+import "@quickben/plugin-templates/styles.css";
+```
+
+| Page               | Has                                                                                                                                                      |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `templates`        | Every kind and its status.                                                                                                                               |
+| `templates/<kind>` | Editor with blocks, variables and toolbar; live preview; problems; save, publish, discard, archive, history and restore; PDF download when `pdf` is set. |
+| `brand`            | Identity, colors, font, logo, custom woff2 font and footer, with a letterhead preview.                                                                   |
+
+The editor (TipTap) loads only on the editor page. Install `@tiptap/core`, `@tiptap/pm`, `@tiptap/react`, `@tiptap/starter-kit`, `@tiptap/extension-table` and `@tiptap/extension-text-align`.
+
+Logos and fonts are limited to 512 KB, because server actions accept 1 MB bodies by default.
+
+## With tenancy
+
+```ts nocheck
+plugins: [templates({ kinds }), tenancy({ scope: ["posts", ...TEMPLATE_COLLECTIONS] })];
+```
+
+List `templates()` before `tenancy()`. Each organization then has its own brand, templates and versions. In server code, pass the organization: `renderTemplate(qb, { kind, data, organization })`.
