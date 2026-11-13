@@ -264,22 +264,22 @@ async function runVoidHooks(
 }
 
 /**
- * Load the document an update or delete targets. A document the user cannot read is
- * `NOT_FOUND`, as in `findById`, so writes do not reveal which ids exist elsewhere.
+ * Load the document an update or delete targets. Writes need read access: a document the user
+ * cannot read is `NOT_FOUND`, as in `findById`, so writes do not reveal which ids exist
+ * elsewhere. Without any read access the write is denied before the lookup.
  */
 async function loadOriginal(
   scope: OperationScope,
-  slug: string,
+  operation: "update" | "delete",
   collection: SanitizedCollection,
   id: string,
 ) {
+  const slug = collection.slug;
   const read = await checkAccess(collection, "read", scope.ctx, { qb: scope.api, id });
+  if (read === false) throw accessDenied(scope.ctx, operation, slug);
   const row = await scope.db.findOne({
     collection: slug,
-    where: andWhere(
-      { field: "id", op: "eq", value: id },
-      read === true || read === false ? undefined : read,
-    ),
+    where: andWhere({ field: "id", op: "eq", value: id }, read === true ? undefined : read),
   });
   if (!row) throw new NotFoundError(`Document "${id}" not found in "${slug}"`);
   return normalizeDoc(collection, row);
@@ -345,7 +345,7 @@ async function update(scope: OperationScope, slug: string, id: unknown, input: u
   const collection = getCollection(scope.collections, slug);
   const docId = assertId(id);
   const data = assertObject(input);
-  const original = await loadOriginal(scope, slug, collection, docId);
+  const original = await loadOriginal(scope, "update", collection, docId);
   const access = await assertWriteAccess(scope, collection, "update", original, data);
   const base = { ...hookArgs(scope, collection), operation: "update", original };
   const prepared = await runDataHooks(collection.hooks.beforeValidate, {
@@ -383,7 +383,7 @@ async function update(scope: OperationScope, slug: string, id: unknown, input: u
 async function remove(scope: OperationScope, slug: string, id: unknown) {
   const collection = getCollection(scope.collections, slug);
   const docId = assertId(id);
-  const original = await loadOriginal(scope, slug, collection, docId);
+  const original = await loadOriginal(scope, "delete", collection, docId);
   await assertWriteAccess(scope, collection, "delete", original);
   const args = { ...hookArgs(scope, collection), id: docId, doc: original };
   await runVoidHooks(collection.hooks.beforeDelete, args);

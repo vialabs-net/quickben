@@ -403,6 +403,13 @@ describe("access", () => {
       NotFoundError,
     );
     await expect(qb.delete("secrets", other.id, as(bob))).rejects.toBeInstanceOf(NotFoundError);
+    // No read access at all: denied, whether the document exists or not.
+    await expect(qb.delete("secrets", other.id, as(null))).rejects.toBeInstanceOf(
+      UnauthorizedError,
+    );
+    await expect(qb.delete("secrets", "missing", as(null))).rejects.toBeInstanceOf(
+      UnauthorizedError,
+    );
     expect(await qb.count("secrets", {}, system)).toBe(1);
   });
 
