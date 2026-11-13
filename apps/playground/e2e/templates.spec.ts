@@ -27,7 +27,7 @@ test("create a draft, insert a variable, preview and publish", async ({ page }) 
   await page.goto("/admin/templates");
   await expect(page.getByRole("heading", { level: 1, name: "Document templates" })).toBeVisible();
   await page.getByRole("link", { name: "Edit Invoice" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "Invoice" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Invoice", exact: true })).toBeVisible();
 
   const editor = page.getByRole("textbox", { name: "Template text" });
   await expect(editor).toBeVisible();
