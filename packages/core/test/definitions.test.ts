@@ -145,7 +145,7 @@ describe("defineConfig", () => {
 
   it("sanitizes collections", () => {
     const config = defineConfig({ db: testAdapter(), collections: [users] });
-    expect(config.admin).toEqual({ title: "Quickben" });
+    expect(config.admin).toEqual({ title: "Quickben", meta: {} });
     expect(config.collections[0]?.fieldList).toMatchObject([
       { name: "name", label: "Name", type: "text" },
     ]);
