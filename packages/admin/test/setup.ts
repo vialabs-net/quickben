@@ -8,6 +8,8 @@ vi.mock("next/headers", () => ({
   cookies: () => Promise.resolve({ getAll: () => [] }),
 }));
 
+vi.mock("next/server", () => ({ connection: () => Promise.resolve() }));
+
 vi.mock("next/navigation", () => ({
   notFound: () => {
     throw new Error("NEXT_NOT_FOUND");

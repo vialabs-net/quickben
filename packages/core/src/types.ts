@@ -404,10 +404,20 @@ export interface Module {
   nav?: readonly NavItem[];
 }
 
+/** Page metadata of the admin UI (`<title>`, description). */
+export interface AdminMeta {
+  /** Document title of admin pages. Default `Admin · <admin.title>`. */
+  title?: string;
+  /** Meta description of admin pages. */
+  description?: string;
+}
+
 /** Admin UI options. */
 export interface AdminConfig {
   /** Title shown in the admin UI. Default `Quickben`. */
   title?: string;
+  /** Page metadata, used by `generateAdminMetadata` from `@quickben/admin`. */
+  meta?: AdminMeta;
 }
 
 /** Runs once after the database is ready. */

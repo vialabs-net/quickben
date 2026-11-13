@@ -1,19 +1,15 @@
 ---
 title: Route handlers
-description: "@quickben/next: one catch-all route file exposes every collection over REST. Coming in 0.1."
+description: "@quickben/next: one catch-all route file serves every collection over REST, plus server helpers for pages and server actions."
 ---
-
-import { Callout } from "nextra/components";
 
 # Route handlers
 
-<Callout type="warning">
+`@quickben/next` serves every collection over REST from one catch-all route file. It also has helpers for server components and server actions.
 
-**Coming in 0.1.** `@quickben/next` is not released yet. This page describes the planned API. Names and URLs may change.
-
-</Callout>
-
-One catch-all route file exposes every collection over REST.
+```sh
+pnpm add @quickben/next
+```
 
 ```ts filename="app/api/[...quickben]/route.ts"
 import { createRouteHandlers } from "@quickben/next";
@@ -23,36 +19,197 @@ import config from "../../../quickben.config";
 export const { GET, POST, PATCH, DELETE } = createRouteHandlers(config);
 ```
 
-## Planned behavior
+No `next.config` wrapper is needed.
 
-| Topic   | Plan                                                                                      |
-| ------- | ----------------------------------------------------------------------------------------- |
-| User    | `config.auth.getUser(req)` resolves the user of each request.                             |
-| Access  | Every request goes through the local API, so access rules and hooks apply.                |
-| Errors  | `QuickbenError` becomes a JSON response with its `status` and `code`.                     |
-| Runtime | Node.js runtime. Works with React Server Components; no client-only data fetching needed. |
+## Routes
 
-## Planned routes
+| Route                     | Local API call                              | Success |
+| ------------------------- | ------------------------------------------- | ------- |
+| `GET /_meta`              | [Collections the user can read](#get-_meta) | 200     |
+| `GET /:collection`        | `qb.find`                                   | 200     |
+| `GET /:collection/:id`    | `qb.findById`                               | 200     |
+| `POST /:collection`       | `qb.create`                                 | 201     |
+| `PATCH /:collection/:id`  | `qb.update`                                 | 200     |
+| `DELETE /:collection/:id` | `qb.delete` (returns the deleted document)  | 200     |
 
-| Method   | Path                   | Local API call                                          |
-| -------- | ---------------------- | ------------------------------------------------------- |
-| `GET`    | `/api/:collection`     | `find` (query string: where, sort, limit, page, cursor) |
-| `GET`    | `/api/:collection/:id` | `findById`                                              |
-| `POST`   | `/api/:collection`     | `create`                                                |
-| `PATCH`  | `/api/:collection/:id` | `update`                                                |
-| `DELETE` | `/api/:collection/:id` | `delete`                                                |
+- The user comes from `config.auth.getUser(req)` on every request. Access rules and hooks run as in the [local API](/docs/concepts/local-api).
+- Bodies must be JSON objects sent with `Content-Type: application/json`. `id`, `createdAt` and `updatedAt` are removed from bodies.
+- Responses have `Cache-Control: private, no-store`.
 
-## Server code
+## Options
 
-In server components and server actions, call the local API directly. You do not need HTTP.
+```ts filename="app/api/[...quickben]/route.ts"
+import { createRouteHandlers } from "@quickben/next";
 
-```ts filename="app/posts/data.ts"
-import { getQuickben } from "@quickben/core";
+import config from "../../../quickben.config";
+
+export const { GET, POST, PATCH, DELETE } = createRouteHandlers(config, {
+  basePath: "/api",
+  maxLimit: 100,
+  csrf: { trustedOrigins: ["https://app.example.com"] },
+});
+```
+
+| Option     | Default | Purpose                                                                 |
+| ---------- | ------- | ----------------------------------------------------------------------- |
+| `basePath` | `/api`  | URL path of the catch-all route.                                        |
+| `maxLimit` | `100`   | Largest `limit` of `GET /:collection`.                                  |
+| `csrf`     | `{}`    | Same-origin check on mutating methods. `{ trustedOrigins }` or `false`. |
+
+## Query string
+
+| Parameter | Format                                   | Example                           |
+| --------- | ---------------------------------------- | --------------------------------- |
+| `where`   | JSON, same shape as the local API        | `where={"status":{"eq":"draft"}}` |
+| `sort`    | Comma-separated keys, `-` for descending | `sort=-publishedAt,title`         |
+| `limit`   | Integer, at most `maxLimit`              | `limit=50`                        |
+| `page`    | Integer, from 1                          | `page=2`                          |
+| `cursor`  | `nextCursor` of the previous result      | `cursor=…`                        |
+| `depth`   | Integer 0–3                              | `depth=1`                         |
+| `select`  | Comma-separated field names              | `select=title,status`             |
+
+- `GET /:collection/:id` accepts `depth` and `select`.
+- Unknown parameters return `400 VALIDATION`.
+- `where` is JSON so numbers, booleans and arrays keep their types. `where[views][gte]=10` is not supported.
+
+```sh
+curl -G http://localhost:3000/api/posts \
+  --data-urlencode 'where={"status":{"eq":"published"}}' \
+  --data-urlencode 'sort=-createdAt' \
+  --data-urlencode 'select=title,status'
+```
+
+In client code, `toSearchParams` builds the query string:
+
+```ts
+import { toSearchParams } from "@quickben/next";
+
+const params = toSearchParams({
+  where: { status: { eq: "draft" } },
+  sort: "-createdAt",
+  limit: 20,
+});
+const res = await fetch(`/api/posts?${params.toString()}`);
+```
+
+## Errors
+
+Every error has the same body:
+
+```json
+{
+  "error": {
+    "code": "VALIDATION",
+    "message": "Validation failed. title: Required",
+    "details": { "issues": [{ "path": "title", "message": "Required" }] }
+  }
+}
+```
+
+| Code                     | Status | When                                                  | `details`                         |
+| ------------------------ | ------ | ----------------------------------------------------- | --------------------------------- |
+| `VALIDATION`             | 400    | Invalid body or query string                          | `{ issues: [{ path, message }] }` |
+| `UNAUTHORIZED`           | 401    | Access rule denies and there is no user               | `null`                            |
+| `FORBIDDEN`              | 403    | Access rule denies a signed-in user; CSRF check fails | `null`                            |
+| `NOT_FOUND`              | 404    | Unknown document, collection or route                 | `null`                            |
+| `METHOD_NOT_ALLOWED`     | 405    | For example `POST /posts/:id`. Has an `Allow` header. | `null`                            |
+| `CONFLICT`               | 409    | Unique field already used                             | `{ field }`                       |
+| `UNSUPPORTED_MEDIA_TYPE` | 415    | Body without `Content-Type: application/json`         | `null`                            |
+| `CONFIG`                 | 500    | Config error, for example `devAuth()` in production   | `null`                            |
+| `INTERNAL`               | 500    | Any other error. It is logged, and not returned.      | `null`                            |
+
+`errorResponse(error)` builds the same response in your own route handlers.
+
+## CSRF
+
+`POST`, `PATCH` and `DELETE` check where the request comes from:
+
+| Request has                    | Result                                                                                           |
+| ------------------------------ | ------------------------------------------------------------------------------------------------ |
+| An `Origin` header             | Allowed when its host is the request host (`Host` or `X-Forwarded-Host`) or in `trustedOrigins`. |
+| No `Origin`, `Sec-Fetch-Site`  | Rejected when the value is `cross-site`.                                                         |
+| Neither header (curl, servers) | Allowed.                                                                                         |
+
+A rejected request returns `403 FORBIDDEN`. The JSON content type also forces a CORS preflight for cross-site `fetch` calls.
+
+| Setup                              | `csrf` option                                     |
+| ---------------------------------- | ------------------------------------------------- |
+| App and API on one host            | Default (`{}`)                                    |
+| Front end on another origin        | `{ trustedOrigins: ["https://app.example.com"] }` |
+| Token auth that never uses cookies | `false`                                           |
+
+## `GET /_meta`
+
+Returns the collections and [modules](/docs/concepts/plugins-and-modules#modules) the user can read: fields, labels, admin options and `access: { create, update, delete }`.
+
+- Collections whose read rule returns `false` are left out. A rule that returns a filter counts as allowed.
+- Functions (`validate`, function defaults) are not included.
+
+## Server helpers
+
+| Export                      | Purpose                                                                                  |
+| --------------------------- | ---------------------------------------------------------------------------------------- |
+| `getQuickben(config)`       | Cached instance. The cache is on `globalThis`, so every bundle and dev reload shares it. |
+| `getRequestContext(config)` | `{ user, req }` for local API calls in server components and server actions.             |
+| `getUser(config)`           | The current user, or `null`.                                                             |
+| `currentRequest()`          | A `Request` built from `headers()` and `cookies()` of `next/headers`.                    |
+| `singleton(key, create)`    | One value per process. Use it for database clients created in the config.                |
+| `getMeta(qb, ctx)`          | The `GET /_meta` body.                                                                   |
+
+In Next.js apps, use `getQuickben` from `@quickben/next`, not from `@quickben/core`. The core version caches per module copy, and Next.js can load a module more than once.
+
+**Server component**
+
+```tsx filename="app/posts/page.tsx"
+import { getQuickben, getRequestContext } from "@quickben/next";
+import { Suspense } from "react";
 
 import config from "../../quickben.config";
 
-export async function publishedPosts() {
-  const qb = await getQuickben(config);
-  return qb.find("posts", { where: { status: { eq: "published" } } }, { user: null });
+export default function PostsPage() {
+  return (
+    <Suspense fallback={<p>Loading…</p>}>
+      <Posts />
+    </Suspense>
+  );
 }
+
+async function Posts() {
+  const ctx = await getRequestContext(config);
+  const qb = await getQuickben(config);
+  const posts = await qb.find("posts", { limit: 10 }, ctx);
+  return (
+    <ul>
+      {posts.docs.map((post) => (
+        <li key={post.id}>{post.title}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+With [Cache Components](https://nextjs.org/docs/app/getting-started/caching) (`cacheComponents: true`), a component that reads the request (`getRequestContext`, `getUser`) or the database must render inside `<Suspense>`. Without Cache Components the same code works.
+
+**Server action**
+
+```ts filename="app/posts/actions.ts"
+"use server";
+
+import { getQuickben, getRequestContext } from "@quickben/next";
+
+import config from "../../quickben.config";
+
+export async function createPost(formData: FormData) {
+  const qb = await getQuickben(config);
+  const title = String(formData.get("title"));
+  await qb.create("posts", { title }, await getRequestContext(config));
+}
+```
+
+`currentRequest()` reads cookies from `cookies()`. A cookie set earlier in the same server action, such as a sign-in cookie, is visible to the auth adapter.
+
+**Database client**
+
+```ts nocheck
+db: singleton("db", () => drizzleAdapter({ dataDir: "./.pglite" })),
 ```

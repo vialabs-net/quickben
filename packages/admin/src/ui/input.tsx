@@ -35,10 +35,22 @@ export function Checkbox({ className, ...props }: Readonly<ComponentProps<"input
   );
 }
 
-/** Field label. */
-export function Label({ className, ...props }: Readonly<ComponentProps<"label">>) {
+/** Props of {@link Label}. `htmlFor` is required: every label names the control it describes. */
+export type LabelProps = Omit<ComponentProps<"label">, "htmlFor" | "children"> & {
+  htmlFor: string;
+  children: ReactNode;
+};
+
+/** Field label for the control with the id `htmlFor`. */
+export function Label({ htmlFor, className, children, ...props }: Readonly<LabelProps>) {
   return (
-    <label className={cn("qb:text-sm qb:font-medium qb:text-zinc-900", className)} {...props} />
+    <label
+      htmlFor={htmlFor}
+      className={cn("qb:text-sm qb:font-medium qb:text-zinc-900", className)}
+      {...props}
+    >
+      {children}
+    </label>
   );
 }
 

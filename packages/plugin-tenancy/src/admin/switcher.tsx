@@ -67,7 +67,12 @@ export function createSwitcher(config: QuickbenConfig, key: string, basePath: st
         >
           Active organization
         </label>
-        <AutoSubmitSelect id="qb-organization" name="organizationId" defaultValue={current ?? ""}>
+        <AutoSubmitSelect
+          key={current ?? "none"}
+          id="qb-organization"
+          name="organizationId"
+          defaultValue={current ?? ""}
+        >
           {current === null ? (
             <option value="">{platform ? "All organizations" : "Choose…"}</option>
           ) : null}

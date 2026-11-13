@@ -1,0 +1,7 @@
+{
+  "dependencies": {
+    "@libsql/client": "0.18.0",
+    "@quickben/db-drizzle": "workspace:^",
+    "drizzle-orm": "0.45.4"
+  }
+}

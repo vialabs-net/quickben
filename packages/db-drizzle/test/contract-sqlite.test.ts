@@ -1,7 +1,7 @@
 import { runAdapterContractTests } from "@quickben/adapter-tests";
 import { afterEach, expect, it } from "vitest";
 
-import { drizzleAdapter } from "../src";
+import { drizzleAdapter } from "./drizzle";
 
 import type { DrizzleAdapter } from "../src";
 

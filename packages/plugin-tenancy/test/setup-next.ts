@@ -26,6 +26,8 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn(), replace: vi.fn() }),
 }));
 
+vi.mock("next/server", () => ({ connection: () => Promise.resolve() }));
+
 vi.mock("next/cache", () => ({
   revalidatePath: (path: string) => {
     navigation.revalidated.push(path);

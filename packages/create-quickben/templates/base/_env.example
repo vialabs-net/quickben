@@ -1,0 +1,4 @@
+# create-quickben copies this file to .env.local, which is not committed.
+
+# User for devAuth() in lib/auth.ts, in development only. Remove it to browse as an anonymous visitor.
+QUICKBEN_DEV_USER='{"id":"dev","email":"dev@example.com","roles":["admin"]}'

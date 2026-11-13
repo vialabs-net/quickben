@@ -16,10 +16,11 @@ import { getTableConfig as pgTableConfig } from "drizzle-orm/pg-core";
 import { getTableConfig as sqliteTableConfig } from "drizzle-orm/sqlite-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { drizzleAdapter, generateDrizzleSchema, schemaSource, tableSpecs } from "../src";
+import { generateDrizzleSchema, schemaSource, tableSpecs } from "../src";
 import { tableExportName } from "../src/generate";
 import { buildTable } from "../src/tables";
 
+import { drizzleAdapter } from "./drizzle";
 import { fullSchema } from "./fixtures/schema";
 
 import type { Dialect } from "../src";

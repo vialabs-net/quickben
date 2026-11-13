@@ -51,6 +51,7 @@ export type {
   AccessFn,
   AccessOperation,
   AdminConfig,
+  AdminMeta,
   AfterChangeHook,
   AfterDeleteHook,
   AfterReadHook,

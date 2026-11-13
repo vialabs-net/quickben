@@ -77,9 +77,34 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm turbo run test --filter=@quickben/db-drizzle
 
-  e2e:
-    name: Playground e2e
+  scaffold:
+    name: create-quickben scaffold
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm turbo run build --filter=./packages/*
+      # Scaffolds pglite + blank, installs @quickben/* from `pnpm pack` tarballs, runs next build and next start.
+      - run: pnpm --filter create-quickben test:e2e
+
+  e2e:
+    name: Playground e2e (cacheComponents ${{ matrix.cache-components }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The playground turns on cacheComponents unless QUICKBEN_CACHE_COMPONENTS is "0".
+        cache-components: ["on", "off"]
+    env:
+      QUICKBEN_CACHE_COMPONENTS: ${{ matrix.cache-components == 'off' && '0' || '1' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -106,6 +131,6 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         with:
-          name: playwright-results
+          name: playwright-results-${{ matrix.cache-components }}
           path: apps/playground/test-results
           retention-days: 7

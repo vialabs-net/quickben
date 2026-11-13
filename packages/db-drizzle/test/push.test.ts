@@ -1,9 +1,10 @@
 import { createClient } from "@libsql/client";
 import { describe, expect, it } from "vitest";
 
-import { drizzleAdapter, tableSpec } from "../src";
+import { tableSpec } from "../src";
 import { columnDdl, createTableDdl, indexDdl, quote } from "../src/push";
 
+import { drizzleAdapter } from "./drizzle";
 import { fullSchema } from "./fixtures/schema";
 
 import type { DatabaseSchema, FieldSchema } from "@quickben/core";

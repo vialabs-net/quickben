@@ -1,0 +1,60 @@
+{
+  "name": "create-quickben",
+  "version": "0.0.0",
+  "description": "Create a Next.js app with Quickben: pnpm create quickben my-app.",
+  "keywords": [
+    "quickben",
+    "nextjs",
+    "create",
+    "scaffold",
+    "cli",
+    "template"
+  ],
+  "homepage": "https://quickben.vialabs.net",
+  "bugs": "https://github.com/vialabs-net/quickben/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vialabs-net/quickben.git",
+    "directory": "packages/create-quickben"
+  },
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "create-quickben": "./dist/bin.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsdown",
+    "lint": "eslint .",
+    "typecheck": "tsc",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "clean": "rm -rf dist coverage .turbo"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.9.0",
+    "picocolors": "^1.1.1"
+  },
+  "devDependencies": {
+    "@quickben/eslint-config": "workspace:*",
+    "@quickben/tsconfig": "workspace:*",
+    "@types/node": "22.20.5",
+    "@vitest/coverage-v8": "5.1.0",
+    "eslint": "10.14.0",
+    "publint": "0.3.25",
+    "tsdown": "0.23.7",
+    "typescript": "6.0.3",
+    "vite": "8.3.8",
+    "vitest": "5.1.0"
+  }
+}

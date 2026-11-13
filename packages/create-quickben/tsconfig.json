@@ -1,0 +1,8 @@
+{
+  "extends": "@quickben/tsconfig/library.json",
+  "compilerOptions": {
+    // tsdown.config.ts imports src/stamp.ts with its extension.
+    "allowImportingTsExtensions": true
+  },
+  "include": ["src", "test", "*.config.ts"]
+}

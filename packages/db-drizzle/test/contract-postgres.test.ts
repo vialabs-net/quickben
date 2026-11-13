@@ -2,7 +2,7 @@ import { runAdapterContractTests } from "@quickben/adapter-tests";
 import pg from "pg";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
-import { drizzleAdapter } from "../src";
+import { drizzleAdapter } from "./drizzle";
 
 import type { DrizzleAdapter } from "../src";
 

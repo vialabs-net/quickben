@@ -1,83 +1,220 @@
 ---
 title: Quick start
-description: Install @quickben/core, define a collection and query it with the local API.
+description: A Next.js app with REST routes and the admin UI on PGlite, in seven steps.
 ---
 
-import { Steps } from "nextra/components";
+import { Callout, Steps } from "nextra/components";
 
 # Quick start
 
-This page uses the in-memory adapter. Data is lost when the process exits. For a real database, see [Drizzle](/docs/database-adapters/drizzle) (coming in 0.1).
+This page builds a Next.js app with one collection, REST routes at `/api` and the admin UI at `/admin`. The database is [PGlite](https://pglite.dev) (Postgres in WASM), stored in `./.pglite`. You need Node.js 22.18 or later and pnpm.
 
 <Steps>
 
-### Install
+### Create a Next.js app
 
 ```sh
-pnpm add @quickben/core @quickben/db-memory
+pnpm create next-app@latest my-app --yes
+cd my-app
 ```
+
+The defaults are fine, including [Cache Components](https://nextjs.org/docs/app/getting-started/caching). To get all the files of this page in one step, use [`create-quickben`](/docs/create-an-app) instead.
+
+### Install Quickben
+
+```sh
+pnpm add @quickben/core @quickben/next @quickben/admin @quickben/db-drizzle drizzle-orm @electric-sql/pglite
+```
+
+<Callout type="info">
+
+The packages are not on npm yet. Until the first release, build them from the repository and install the tarballs:
+
+```sh
+git clone https://github.com/vialabs-net/quickben.git ../quickben
+cd ../quickben
+pnpm install
+pnpm turbo run build --filter='./packages/*'
+for p in core next admin db-drizzle; do (cd packages/$p && pnpm pack --pack-destination ../../tarballs); done
+cd ../my-app
+pnpm add ../quickben/tarballs/*.tgz drizzle-orm @electric-sql/pglite
+```
+
+</Callout>
 
 ### Write the config
 
 ```ts filename="quickben.config.ts"
 import { defineCollection, defineConfig, devAuth, fields as f } from "@quickben/core";
-import { memoryAdapter } from "@quickben/db-memory";
+import { drizzleAdapter } from "@quickben/db-drizzle/pglite";
+import { singleton } from "@quickben/next";
 
 const posts = defineCollection({
   slug: "posts",
   fields: {
     title: f.text({ required: true, maxLength: 200 }),
     status: f.select({ options: ["draft", "published"], required: true, default: "draft" }),
+    body: f.textarea(),
   },
   access: {
     read: () => true,
     create: ({ user }) => user !== null,
+    update: ({ user }) => user !== null,
+    delete: ({ user }) => user !== null,
   },
+  admin: { useAsTitle: "title", defaultColumns: ["title", "status", "updatedAt"] },
 });
 
 export default defineConfig({
-  db: memoryAdapter(),
+  db: singleton("db", () => drizzleAdapter({ dataDir: "./.pglite", push: true })),
   collections: [posts],
   auth: devAuth(),
 });
 ```
 
-### Query it
+| Line                          | Effect                                                                                                         |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `@quickben/db-drizzle/pglite` | The PGlite entry point. Next.js bundles only this driver.                                                      |
+| `singleton`                   | One database client per process. Route handlers and pages share it, also across dev reloads.                   |
+| `push: true`                  | Creates missing tables at startup. Use [migrations](/docs/database-adapters/drizzle#migrations) for real data. |
+| `devAuth()`                   | Reads the user from the `QUICKBEN_DEV_USER` variable or the `x-quickben-user` header. Development only.        |
 
-```ts filename="scripts/try.ts"
-import { getQuickben } from "@quickben/core";
+Add `/.pglite` to `.gitignore`.
 
-import config from "../quickben.config";
+### Add the route handlers
 
-const qb = await getQuickben(config);
-const user = { id: "u1" };
+```ts filename="app/api/[...quickben]/route.ts"
+import { createRouteHandlers } from "@quickben/next";
 
-await qb.create("posts", { title: "Hello" }, { user });
+import config from "../../../quickben.config";
 
-const page = await qb.find(
-  "posts",
-  { where: { status: { eq: "draft" } }, sort: "-createdAt" },
-  { user },
-);
-console.log(page.docs[0]?.title);
+export const { GET, POST, PATCH, DELETE } = createRouteHandlers(config);
 ```
 
-`page.docs` is typed from the fields: `{ id, createdAt, updatedAt, title: string, status: "draft" | "published" }[]`.
+### Add the admin page
+
+```tsx filename="app/admin/[[...segments]]/page.tsx"
+import { createAdminPage, handleAdminRequest } from "@quickben/admin";
+
+import config from "../../../quickben.config";
+
+import type { AdminRequest } from "@quickben/admin";
+
+async function serverFunction(request: AdminRequest) {
+  "use server";
+  return handleAdminRequest(config, request);
+}
+
+export default createAdminPage(config, { serverFunction });
+```
+
+```tsx filename="app/admin/layout.tsx"
+import "@quickben/admin/styles.css";
+
+import { generateAdminMetadata } from "@quickben/admin";
+
+import config from "../../quickben.config";
+
+import type { ReactNode } from "react";
+
+export const metadata = generateAdminMetadata(config);
+
+export default function AdminLayout({ children }: Readonly<{ children: ReactNode }>) {
+  return children;
+}
+```
+
+[Admin UI](/docs/nextjs/admin#setup) explains the `serverFunction` lines.
+
+### Configure Next.js and the dev user
+
+Add this line to the `nextConfig` object in `next.config.ts`:
+
+```ts nocheck
+  serverExternalPackages: ["@electric-sql/pglite"],
+```
+
+PGlite loads its WebAssembly file from its package folder, so it must not be bundled. Postgres (`pg`) and SQLite (`@libsql/client`) need no entry.
+
+```sh filename=".env.local"
+QUICKBEN_DEV_USER='{"id":"dev","email":"dev@example.com","roles":["admin"]}'
+```
+
+### Run it
+
+```sh
+pnpm dev
+```
+
+| URL                              | Result                                    |
+| -------------------------------- | ----------------------------------------- |
+| http://localhost:3000/admin      | Dashboard. Open Posts, then "New post".   |
+| http://localhost:3000/api/posts  | `{"docs":[],"limit":20,…}`                |
+| http://localhost:3000/api/\_meta | Collections and fields the user can read. |
+
+Create a post over REST:
+
+```sh
+curl -X POST http://localhost:3000/api/posts \
+  -H 'content-type: application/json' \
+  -d '{"title":"Hello"}'
+```
 
 </Steps>
 
-## What happened
+## Read data in a page
 
-| Step               | Result                                                               |
-| ------------------ | -------------------------------------------------------------------- |
-| `defineCollection` | Checks the slug and field names. Returns a typed collection.         |
-| `defineConfig`     | Applies plugins, checks slugs and relation targets.                  |
-| `getQuickben`      | Calls `db.init`, runs plugin `onInit` hooks, caches the instance.    |
-| `qb.create`        | Checks access, applies defaults, validates, writes in a transaction. |
-| `qb.find`          | ANDs the read rule with your filter, sorts, returns one page.        |
+Server components call the local API directly. Access rules apply with the current user.
+
+```tsx filename="app/posts/page.tsx"
+import { getQuickben, getRequestContext } from "@quickben/next";
+import { Suspense } from "react";
+
+import config from "../../quickben.config";
+
+export default function PostsPage() {
+  return (
+    <Suspense fallback={<p>Loading…</p>}>
+      <Posts />
+    </Suspense>
+  );
+}
+
+async function Posts() {
+  const ctx = await getRequestContext(config);
+  const qb = await getQuickben(config);
+  const posts = await qb.find(
+    "posts",
+    { where: { status: { eq: "published" } }, sort: "-createdAt" },
+    ctx,
+  );
+  return (
+    <ul>
+      {posts.docs.map((post) => (
+        <li key={post.id}>{post.title}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+`getRequestContext` reads the request headers. With Cache Components, components that read the request or the database must be inside `<Suspense>`. Next.js prerenders the rest of the page and streams them in. Without Cache Components the page works the same.
+
+`posts.docs` is typed from the fields: `{ id, createdAt, updatedAt, title: string, status: "draft" | "published", body: string | null }[]`.
+
+## What runs where
+
+| File                                 | Package           | Calls                                             |
+| ------------------------------------ | ----------------- | ------------------------------------------------- |
+| `quickben.config.ts`                 | `@quickben/core`  | Collections, access rules, database, auth.        |
+| `app/api/[...quickben]/route.ts`     | `@quickben/next`  | `qb.find`, `qb.create`, … per HTTP request.       |
+| `app/admin/[[...segments]]/page.tsx` | `@quickben/admin` | Same local API, with the user from `config.auth`. |
+| `next.config.ts`                     | Next.js           | Keeps PGlite out of the bundle.                   |
 
 ## Next steps
 
 - [Collections](/docs/concepts/collections) and [Fields](/docs/concepts/fields)
-- [Access control](/docs/concepts/access-control)
-- [Local API](/docs/concepts/local-api)
+- [Access control](/docs/concepts/access-control): replace `user !== null` with real rules.
+- [Auth adapters](/docs/concepts/auth-adapters): replace `devAuth()` before you deploy.
+- [Drizzle adapter](/docs/database-adapters/drizzle): Postgres, SQLite and migrations.
+- [Playground](/docs/playground): a larger example with relations, roles and modules.

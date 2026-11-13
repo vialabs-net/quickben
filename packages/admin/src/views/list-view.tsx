@@ -79,8 +79,13 @@ function SortHeader({ props, column }: Readonly<{ props: ListViewProps; column: 
   );
 }
 
-function FilterSelect({ field, value }: Readonly<{ field: FieldMeta; value: string | undefined }>) {
-  const id = `qb-filter-${field.name}`;
+function FilterSelect({
+  slug,
+  field,
+  value,
+}: Readonly<{ slug: string; field: FieldMeta; value: string | undefined }>) {
+  // Per collection: Next.js can keep the lists of other collections mounted but hidden.
+  const id = `qb-${slug}-filter-${field.name}`;
   const options = field.type === "boolean" ? ["true", "false"] : (field.options ?? []);
   const optionLabel = (option: string) => {
     if (field.type !== "boolean") return option;
@@ -123,11 +128,14 @@ function Toolbar(props: Readonly<ListViewProps>) {
     >
       {search ? (
         <div className="qb:min-w-56 qb:flex-1 qb:space-y-1 qb:lg:max-w-sm">
-          <Label htmlFor="qb-search" className="qb:block qb:text-xs qb:text-zinc-500">
+          <Label
+            htmlFor={`qb-${collection.slug}-search`}
+            className="qb:block qb:text-xs qb:text-zinc-500"
+          >
             Search {search.label.toLowerCase()}
           </Label>
           <Input
-            id="qb-search"
+            id={`qb-${collection.slug}-search`}
             type="search"
             name="q"
             defaultValue={state.q}
@@ -136,7 +144,12 @@ function Toolbar(props: Readonly<ListViewProps>) {
         </div>
       ) : null}
       {filters.map((field) => (
-        <FilterSelect key={field.name} field={field} value={state.filters[field.name]} />
+        <FilterSelect
+          key={field.name}
+          slug={collection.slug}
+          field={field}
+          value={state.filters[field.name]}
+        />
       ))}
       {state.sort ? <input type="hidden" name="sort" value={state.sort} /> : null}
       {state.limit === 20 ? null : <input type="hidden" name="limit" value={state.limit} />}

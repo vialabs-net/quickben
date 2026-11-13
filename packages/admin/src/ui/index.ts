@@ -8,4 +8,5 @@ export { Toast } from "./toast";
 
 export type { BadgeProps, BadgeTone } from "./badge";
 export type { ButtonLinkProps, ButtonProps, ButtonSize, ButtonVariant } from "./button";
+export type { LabelProps } from "./input";
 export type { ToastProps } from "./toast";

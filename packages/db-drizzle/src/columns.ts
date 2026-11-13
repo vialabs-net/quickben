@@ -1,6 +1,6 @@
 import type { CollectionSchema, DatabaseSchema, FieldSchema } from "@quickben/core";
 
-/** Database engines supported by {@link drizzleAdapter}. */
+/** Database engines supported by `drizzleAdapter`. */
 export type Dialect = "postgres" | "pglite" | "sqlite";
 
 /** Storage family of a dialect: `postgres` and `pglite` share the Postgres column types. */
