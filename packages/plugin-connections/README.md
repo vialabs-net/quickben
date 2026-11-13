@@ -11,20 +11,35 @@ Full guide: https://quickben.vialabs.net/plugins/connections
 ## Setup
 
 ```ts
-import { defineConfig } from "@quickben/core";
+import { defineConfig, devAuth } from "@quickben/core";
+import { memoryAdapter } from "@quickben/db-memory";
 import { connections } from "@quickben/plugin-connections";
 
 export default defineConfig({
-  db,
+  db: memoryAdapter(),
   collections: [],
   plugins: [connections({ masterKey: process.env.QUICKBEN_MASTER_KEY })],
+  auth: devAuth(),
 });
 ```
 
 ```tsx
+import { createAdminPage, handleAdminRequest } from "@quickben/admin";
 import { connectionsAdmin } from "@quickben/plugin-connections/admin";
 
-export default createAdminPage(config, { serverFunction, extensions: [connectionsAdmin(config)] });
+import config from "../../../quickben.config";
+
+import type { AdminRequest } from "@quickben/admin";
+
+async function serverFunction(request: AdminRequest) {
+  "use server";
+  return handleAdminRequest(config, request);
+}
+
+export default createAdminPage(config, {
+  serverFunction,
+  extensions: [connectionsAdmin(config)],
+});
 ```
 
 Generate a key once with `generateMasterKey()` (32 random bytes, base64) and keep it in your secret manager. Without a key, connections and credentials can be listed, but no secret can be stored or used.
@@ -81,7 +96,7 @@ Test errors are the plugin's own text. Provider messages are never shown, becaus
 ## Your own provider
 
 ```ts
-import { defineProvider, redactKeys } from "@quickben/plugin-connections";
+import { connections, defineProvider, redactKeys } from "@quickben/plugin-connections";
 import { z } from "zod";
 
 export const identityCheck = defineProvider({
@@ -100,13 +115,16 @@ export const identityCheck = defineProvider({
       headers: { "x-api-key": credential?.secret ?? "" },
       signal,
     });
-    return response.ok ? { ok: true } : { ok: false, error: `HTTP ${response.status}` };
+    return response.ok ? { ok: true } : { ok: false, error: `HTTP ${String(response.status)}` };
   },
   // This API echoes the key in its answers.
   redactResponse: (body) => redactKeys(body, ["organization_api_key"]),
 });
 
-connections({ masterKey, providers: [identityCheck] });
+export const plugin = connections({
+  masterKey: process.env.QUICKBEN_MASTER_KEY,
+  providers: [identityCheck],
+});
 ```
 
 | Key              | Purpose                                                                                                                                  |

@@ -225,6 +225,9 @@ importers:
       '@quickben/next':
         specifier: workspace:^
         version: link:../../packages/next
+      '@quickben/plugin-connections':
+        specifier: workspace:^
+        version: link:../../packages/plugin-connections
       '@quickben/plugin-tenancy':
         specifier: workspace:^
         version: link:../../packages/plugin-tenancy
