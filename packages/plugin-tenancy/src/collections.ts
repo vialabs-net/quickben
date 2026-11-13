@@ -1,14 +1,16 @@
-import {
-  ConfigError,
-  defineCollection,
-  ForbiddenError,
-  fields as f,
-  ValidationError,
-} from "@quickben/core";
+import { ConfigError, defineCollection, fields as f, ValidationError } from "@quickben/core";
 import { z } from "zod";
 
 import { capabilitiesOf, MEMBERSHIPS, ORGANIZATIONS, rankOf } from "./options";
-import { eq, invalidateTenants, myMemberships, rawFind, rawOrganization } from "./tenant";
+import {
+  eq,
+  invalidateTenants,
+  myMemberships,
+  rawFind,
+  rawOrganization,
+  TenancyRuleError,
+  trustedEmail,
+} from "./tenant";
 
 import type { Capability, ResolvedTenancy } from "./options";
 import type { MembershipRecord } from "./tenant";
@@ -168,7 +170,10 @@ export function organizationsCollection(state: TenancyState) {
           const trusted = isTrusted(tenancy, ctx);
           if (operation === "create") {
             if (!trusted && (data.modules !== undefined || data.status !== "active")) {
-              throw new ForbiddenError("Only platform staff can set modules or status");
+              throw new TenancyRuleError(
+                "platform-only",
+                "Only platform staff can set modules or status",
+              );
             }
             if (data.modules !== undefined) return data;
             const all = qb.config.modules.map((module) => module.key);
@@ -179,7 +184,10 @@ export function organizationsCollection(state: TenancyState) {
             data.modules !== undefined && !sameList(data.modules, original.modules);
           const changesStatus = data.status !== undefined && data.status !== original.status;
           if (!trusted && (changesModules || changesStatus)) {
-            throw new ForbiddenError("Only platform staff can change modules or status");
+            throw new TenancyRuleError(
+              "platform-only",
+              "Only platform staff can change modules or status",
+            );
           }
           return data;
         },
@@ -264,7 +272,8 @@ async function assertKeepsOwner(
     eq("status", "active"),
   );
   if (owners.every((owner) => owner.id === membership.id)) {
-    throw new ForbiddenError(
+    throw new TenancyRuleError(
+      "last-owner",
       "An organization needs at least one active owner. Make someone else owner first.",
     );
   }
@@ -291,7 +300,7 @@ function assertRank(tenancy: ResolvedTenancy, actor: Actor, ...roles: unknown[])
   const own = rankOf(tenancy, actor.membership?.role ?? "");
   for (const role of roles) {
     if (typeof role === "string" && rankOf(tenancy, role) < own) {
-      throw new ForbiddenError(`Only a higher role can manage the role "${role}"`);
+      throw new TenancyRuleError("higher-role", `Only a higher role can manage the role "${role}"`);
     }
   }
 }
@@ -323,7 +332,8 @@ function assertActorMayChange(
 ) {
   if (original?.user === actor.user.id && managesMembers(tenancy, original.role)) {
     if (next.role !== original.role || next.status !== original.status) {
-      throw new ForbiddenError(
+      throw new TenancyRuleError(
+        "own-role",
         "You cannot change your own role or status. Ask another owner or admin.",
       );
     }
@@ -358,10 +368,8 @@ export function membershipsCollection(state: TenancyState) {
         const user = args.user;
         if (!user) return false;
         if (isPlatform(tenancy, user)) return true;
-        const mine = [
-          { user: { eq: user.id } },
-          ...(user.email ? [{ email: { eq: user.email.toLowerCase() } }] : []),
-        ];
+        const email = trustedEmail(user);
+        const mine = [{ user: { eq: user.id } }, ...(email ? [{ email: { eq: email } }] : [])];
         return {
           or: [...mine, { organization: { in: await organizationsWith(state, args, "read") } }],
         };
@@ -417,7 +425,8 @@ export function membershipsCollection(state: TenancyState) {
           if (actor) {
             const self = doc.user === actor.user.id;
             if (self && managesMembers(tenancy, doc.role)) {
-              throw new ForbiddenError(
+              throw new TenancyRuleError(
+                "own-membership",
                 "You cannot remove your own owner or admin membership. Ask another owner or admin.",
               );
             }

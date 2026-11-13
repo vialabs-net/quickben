@@ -3,7 +3,13 @@ import { ForbiddenError, UnauthorizedError } from "@quickben/core";
 import { allCapabilities, capabilitiesOf, MEMBERSHIPS, ORGANIZATIONS } from "./options";
 
 import type { Capability, ResolvedTenancy } from "./options";
-import type { DocumentData, Quickben, RequestContext, WhereNode } from "@quickben/core";
+import type {
+  DocumentData,
+  Quickben,
+  QuickbenUser,
+  RequestContext,
+  WhereNode,
+} from "@quickben/core";
 
 declare module "@quickben/core" {
   interface RequestContext {
@@ -27,6 +33,21 @@ export class OrganizationError extends ForbiddenError {
     super(message);
     this.name = "OrganizationError";
     this.reason = reason;
+  }
+}
+
+/** Which tenancy rule a {@link TenancyRuleError} broke. */
+export type TenancyRule =
+  "last-owner" | "own-role" | "own-membership" | "higher-role" | "platform-only";
+
+/** A membership or organization change broke a tenancy rule. `rule` says which one. */
+export class TenancyRuleError extends ForbiddenError {
+  readonly rule: TenancyRule;
+
+  constructor(rule: TenancyRule, message: string) {
+    super(message);
+    this.name = "TenancyRuleError";
+    this.rule = rule;
   }
 }
 
@@ -69,6 +90,12 @@ export interface Tenant {
 }
 
 export const eq = (field: string, value: unknown): WhereNode => ({ field, op: "eq", value });
+
+/** The user's email in lower case, unless the auth adapter marked it unverified. */
+export function trustedEmail(user: QuickbenUser): string | undefined {
+  if (user.emailVerified === false) return undefined;
+  return user.email?.toLowerCase();
+}
 
 /** Read documents straight from the adapter, without access rules or hooks. */
 export async function rawFind(

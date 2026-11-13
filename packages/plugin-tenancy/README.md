@@ -120,43 +120,46 @@ Use `moduleAccess` for collections outside `scope`. Scoped collections check the
 
 ## Guard rails
 
-| Rule                                                                            | Error             |
-| ------------------------------------------------------------------------------- | ----------------- |
-| Membership changes need `members:manage` in that organization.                  | `ForbiddenError`  |
-| The last active owner cannot be demoted, disabled or removed.                   | `ForbiddenError`  |
-| Owners and admins cannot change their own role or status, or remove themselves. | `ForbiddenError`  |
-| You cannot grant or manage a role ranked above yours.                           | `ForbiddenError`  |
-| A membership keeps its organization, and its user once set.                     | `ValidationError` |
-| Granted modules must be enabled for the organization.                           | `ValidationError` |
-| One membership per user or email per organization.                              | `ConflictError`   |
-| Only platform staff set `organization.modules` and `status`.                    | `ForbiddenError`  |
+| Rule                                                                            | Error                                           |
+| ------------------------------------------------------------------------------- | ----------------------------------------------- |
+| Membership changes need `members:manage` in that organization.                  | `ForbiddenError`                                |
+| The last active owner cannot be demoted, disabled or removed.                   | `TenancyRuleError` `last-owner`                 |
+| Owners and admins cannot change their own role or status, or remove themselves. | `TenancyRuleError` `own-role`, `own-membership` |
+| You cannot grant or manage a role ranked above yours.                           | `TenancyRuleError` `higher-role`                |
+| A membership keeps its organization, and its user once set.                     | `ValidationError`                               |
+| Granted modules must be enabled for the organization.                           | `ValidationError`                               |
+| One membership per user or email per organization.                              | `ConflictError`                                 |
+| Only platform staff set `organization.modules` and `status`.                    | `TenancyRuleError` `platform-only`              |
 
-`overrideAccess` and platform staff skip the role checks. The last-owner rule always applies.
+`overrideAccess` and platform staff skip the role checks. The last-owner rule always applies. `TenancyRuleError` extends `ForbiddenError`; `rule` says which rule failed.
+
+Invitations by email need a verified address. Set `emailVerified` on the user in your auth adapter: with `emailVerified: false`, `acceptInvitation` throws `ForbiddenError`, and `listMyInvitations` and membership reads ignore the email. Invitations by user id do not check it. When the field is missing, the email is trusted, so return only verified addresses in `email`.
 
 ## Helpers
 
 All take `(qb, ctx, …)` and go through the local API, so access rules apply.
 
-| Helper                                 | Returns                                                          |
-| -------------------------------------- | ---------------------------------------------------------------- |
-| `resolveTenant(qb, ctx)`               | `Tenant`: organization, membership, role, capabilities, modules. |
-| `hasCapability(qb, ctx, capability)`   | `boolean`                                                        |
-| `canUseModule(qb, ctx, key)`           | `boolean`                                                        |
-| `listMyOrganizations(qb, ctx)`         | Active memberships with their organization, by name.             |
-| `listMyInvitations(qb, ctx)`           | Pending invitations for the user's id or email.                  |
-| `inviteMember(qb, ctx, input)`         | New membership with status `invited`.                            |
-| `acceptInvitation(qb, ctx, id)`        | The membership, now `active`.                                    |
-| `updateMembership(qb, ctx, id, patch)` | Changed `role`, `status` or `modules`.                           |
-| `removeMember(qb, ctx, id)`            | The deleted membership.                                          |
-| `switchOrganization(qb, ctx, id)`      | `{ organizationId, tenant, cookie, setCookie }`.                 |
-| `organizationCookie(qb, id \| null)`   | Cookie to set or clear the selection.                            |
-| `getTenancy(qb)`                       | Resolved options: roles, cookie and header names.                |
+| Helper                                     | Returns                                                          |
+| ------------------------------------------ | ---------------------------------------------------------------- |
+| `resolveTenant(qb, ctx)`                   | `Tenant`: organization, membership, role, capabilities, modules. |
+| `hasCapability(qb, ctx, capability)`       | `boolean`                                                        |
+| `canUseModule(qb, ctx, key)`               | `boolean`                                                        |
+| `listMyOrganizations(qb, ctx)`             | Active memberships with their organization, by name.             |
+| `listMyInvitations(qb, ctx)`               | Pending invitations for the user's id or email.                  |
+| `inviteMember(qb, ctx, input)`             | New membership with status `invited`.                            |
+| `acceptInvitation(qb, ctx, id)`            | The membership, now `active`.                                    |
+| `updateMembership(qb, ctx, id, patch)`     | Changed `role`, `status` or `modules`.                           |
+| `removeMember(qb, ctx, id)`                | The deleted membership.                                          |
+| `switchOrganization(qb, ctx, id)`          | `{ organizationId, tenant, cookie, setCookie }`.                 |
+| `organizationCookie(qb, id \| null, req?)` | Cookie to set or clear the selection.                            |
+| `getTenancy(qb)`                           | Resolved options: roles, cookie and header names.                |
 
 Switching in a Next.js server action:
 
 ```ts
 "use server";
-import { getQuickben, getRequestContext } from "@quickben/next";
+import { getQuickben } from "@quickben/core";
+import { getRequestContext } from "@quickben/next";
 import { switchOrganization } from "@quickben/plugin-tenancy";
 import { cookies } from "next/headers";
 
@@ -168,6 +171,8 @@ export async function selectOrganization(id: string) {
 ```
 
 Route handlers and pages pass the request in `ctx`, so the cookie and header are read without extra code.
+
+The cookie is `HttpOnly`, `SameSite=Lax` and `Path=/`. It is `Secure` when the request is https (`x-forwarded-proto`, else the request URL), so it also works on `http://localhost`. `organizationCookie(qb, id, req)` without `req` always sets `Secure`. `isSecureRequest(req)` is the check.
 
 ## Admin UI
 
@@ -184,6 +189,6 @@ export default createAdminPage(config, { serverFunction, extensions: [tenancyAdm
 | `/admin/members`      | Members table, invite form, role, status and modules per member, remove.                |
 | `/admin/organization` | Rename the organization; platform staff set status and modules; create an organization. |
 
-Pass `basePath` when the admin is not at `/admin`. `@quickben/admin`, `@quickben/next`, `next` and `react` are needed only for this entry.
+Pass `basePath` when the admin is not at `/admin`. Actions redirect with a code (`?toast=member-updated`, `?error=last-owner`). The pages map codes to fixed messages and ignore unknown codes, so the URL never puts text on the page. `@quickben/admin`, `@quickben/next`, `next` and `react` are needed only for this entry.
 
 Server actions find the config through a registry filled when the page module loads. After a restart, a form submitted from an open tab can fail once; reload the page.

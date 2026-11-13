@@ -26,11 +26,12 @@ export const { GET, POST, PATCH, DELETE } = createRouteHandlers(config);
 | `PATCH /:collection/:id`  | `qb.update`                                | 200     |
 | `DELETE /:collection/:id` | `qb.delete` (returns the deleted document) | 200     |
 
-| Option     | Default | Purpose                                                                 |
-| ---------- | ------- | ----------------------------------------------------------------------- |
-| `basePath` | `/api`  | URL path of the catch-all route.                                        |
-| `maxLimit` | `100`   | Largest `limit` of `GET /:collection`.                                  |
-| `csrf`     | `{}`    | Same-origin check on mutating methods. `{ trustedOrigins }` or `false`. |
+| Option         | Default          | Purpose                                                                 |
+| -------------- | ---------------- | ----------------------------------------------------------------------- |
+| `basePath`     | `/api`           | URL path of the catch-all route.                                        |
+| `maxLimit`     | `100`            | Largest `limit` of `GET /:collection`.                                  |
+| `csrf`         | `{}`             | Same-origin check on mutating methods. `{ trustedOrigins }` or `false`. |
+| `maxBodyBytes` | `1048576` (1 MB) | Largest `POST` / `PATCH` body. Larger bodies get `413`.                 |
 
 - The user comes from `config.auth.getUser(req)` on every request.
 - Bodies must be JSON objects sent with `Content-Type: application/json`. `id`, `createdAt` and `updatedAt` are removed from bodies.
@@ -74,6 +75,7 @@ export const { GET, POST, PATCH, DELETE } = createRouteHandlers(config);
 | `NOT_FOUND`              | 404    | `null` (also unknown routes)                                                                   |
 | `METHOD_NOT_ALLOWED`     | 405    | `null`, `Allow` header                                                                         |
 | `CONFLICT`               | 409    | `{ field }`                                                                                    |
+| `PAYLOAD_TOO_LARGE`      | 413    | `null` (body larger than `maxBodyBytes`)                                                       |
 | `UNSUPPORTED_MEDIA_TYPE` | 415    | `null`                                                                                         |
 | `INTERNAL`               | 500    | `null`; the error is logged, not returned. Also for 5xx Quickben errors such as `ConfigError`. |
 
@@ -93,17 +95,16 @@ The JSON content type requirement also forces a CORS preflight for cross-site `f
 
 ## Server helpers
 
-| Export                      | Purpose                                                                                                       |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `getQuickben(config)`       | Core's `getQuickben`, re-exported. The cache lives on `globalThis`, so every bundle and dev reload shares it. |
-| `getRequestContext(config)` | `{ user, req }` for local API calls in server components and server actions.                                  |
-| `getUser(config)`           | The current user, or `null`.                                                                                  |
-| `currentRequest()`          | A `Request` built from `headers()` and `cookies()` of `next/headers`.                                         |
-| `singleton(key, create)`    | One value per process. Use it for database clients created in the config.                                     |
-| `getMeta(qb, ctx)`          | The `GET /_meta` body.                                                                                        |
+| Export                      | Purpose                                                                      |
+| --------------------------- | ---------------------------------------------------------------------------- |
+| `getRequestContext(config)` | `{ user, req }` for local API calls in server components and server actions. |
+| `getUser(config)`           | The current user, or `null`.                                                 |
+| `currentRequest()`          | A `Request` built from `headers()` and `cookies()` of `next/headers`.        |
+| `singleton(key, create)`    | One value per process. Use it for database clients created in the config.    |
+| `getMeta(qb, ctx)`          | The `GET /_meta` body.                                                       |
 
 ```tsx
-// app/page.tsx
+// app/page.tsx (getQuickben comes from @quickben/core)
 const qb = await getQuickben(config);
 const posts = await qb.find("posts", { limit: 10 }, await getRequestContext(config));
 ```

@@ -1,4 +1,5 @@
-import { getQuickben, getRequestContext } from "@quickben/next";
+import { getQuickben } from "@quickben/core";
+import { getRequestContext } from "@quickben/next";
 import Link from "next/link";
 import { Suspense } from "react";
 

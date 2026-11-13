@@ -12,7 +12,8 @@ import {
   Th,
   Tr,
 } from "@quickben/admin/ui";
-import { getQuickben, getRequestContext } from "@quickben/next";
+import { getQuickben } from "@quickben/core";
+import { getRequestContext } from "@quickben/next";
 
 import { MEMBERSHIPS, getTenancy } from "../options";
 

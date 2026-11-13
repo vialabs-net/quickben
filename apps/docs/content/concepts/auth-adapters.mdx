@@ -15,11 +15,12 @@ interface AuthAdapter {
 interface QuickbenUser {
   id: string;
   email?: string;
+  emailVerified?: boolean; // false: features that trust the email refuse it
   roles?: string[];
 }
 ```
 
-Return `null` for anonymous requests. The [route handlers](/docs/nextjs/route-handlers) and the [admin UI](/docs/nextjs/admin) call `getUser` and pass the user to the local API.
+Return `null` for anonymous requests. Set `emailVerified` when your auth library knows it: tenancy invitations by email need a verified address. The [route handlers](/docs/nextjs/route-handlers) and the [admin UI](/docs/nextjs/admin) call `getUser` and pass the user to the local API.
 
 ## Extra user fields
 

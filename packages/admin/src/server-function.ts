@@ -1,4 +1,5 @@
-import { collectionMeta, getQuickben, getRequestContext } from "@quickben/next";
+import { getQuickben } from "@quickben/core";
+import { collectionMeta, getRequestContext } from "@quickben/next";
 
 import { fieldErrorsState, toFormState } from "./action-errors";
 import { parseFormData } from "./form-data";

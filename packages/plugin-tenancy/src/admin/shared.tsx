@@ -3,6 +3,8 @@ import { Card, CardBody, Toast } from "@quickben/admin/ui";
 import { resolveTenant } from "../api";
 import { OrganizationError } from "../tenant";
 
+import { errorMessage, toastMessage } from "./feedback";
+
 import type { Tenant } from "../tenant";
 import type { Quickben, RequestContext } from "@quickben/core";
 import type { ReactNode } from "react";
@@ -34,11 +36,14 @@ export function Notice({ children }: Readonly<{ children: ReactNode }>) {
   );
 }
 
-/** Toast for `?toast=` or `?error=` set by the server actions. */
+/**
+ * Toast for the `?toast=` or `?error=` code set by the server actions. Codes map to fixed
+ * messages; unknown codes show nothing.
+ */
 export function Feedback({ searchParams }: Readonly<{ searchParams: SearchParams }>) {
-  const error = first(searchParams.error);
+  const error = errorMessage(first(searchParams.error));
   if (error) return <Toast message={error} tone="error" param="error" duration={8000} />;
-  const toast = first(searchParams.toast);
+  const toast = toastMessage(first(searchParams.toast));
   return toast ? <Toast message={toast} param="toast" /> : null;
 }
 

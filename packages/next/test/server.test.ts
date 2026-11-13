@@ -1,6 +1,8 @@
+import { getQuickben } from "@quickben/core";
 import { describe, expect, it, vi } from "vitest";
 
-import { currentRequest, getQuickben, getRequestContext, getUser, singleton } from "../src";
+import * as next from "../src";
+import { currentRequest, getRequestContext, getUser, singleton } from "../src";
 
 import { editor, makeConfig } from "./fixtures";
 
@@ -24,6 +26,10 @@ describe("singleton", () => {
 });
 
 describe("getQuickben", () => {
+  it("is not exported: import it from @quickben/core", () => {
+    expect("getQuickben" in next).toBe(false);
+  });
+
   it("caches one instance per config", async () => {
     const config = makeConfig();
     const qb = await getQuickben(config);

@@ -1,5 +1,6 @@
 import { Button } from "@quickben/admin/ui";
-import { getQuickben, getRequestContext } from "@quickben/next";
+import { getQuickben } from "@quickben/core";
+import { getRequestContext } from "@quickben/next";
 import Link from "next/link";
 
 import { listMyOrganizations, resolveTenant } from "../api";

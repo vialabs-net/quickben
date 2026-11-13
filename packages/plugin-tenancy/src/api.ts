@@ -1,7 +1,7 @@
-import { NotFoundError, UnauthorizedError, ValidationError } from "@quickben/core";
+import { ForbiddenError, NotFoundError, UnauthorizedError, ValidationError } from "@quickben/core";
 
 import { getTenancy, MEMBERSHIPS, ORGANIZATIONS } from "./options";
-import { eq, OrganizationError, rawFind, tenantOf } from "./tenant";
+import { eq, OrganizationError, rawFind, tenantOf, trustedEmail } from "./tenant";
 
 import type { Capability } from "./options";
 import type { MembershipRecord, OrganizationRecord, Tenant } from "./tenant";
@@ -82,16 +82,14 @@ export interface MyInvitation {
   organization: { id: string; name: string; slug: string };
 }
 
-/** Pending invitations for the user's id or email. */
+/** Pending invitations for the user's id or email (not when `emailVerified` is `false`). */
 export async function listMyInvitations(
   qb: Quickben,
   ctx: RequestContext,
 ): Promise<MyInvitation[]> {
   const user = requireUser(ctx);
-  const mine = [
-    { user: { eq: user.id } },
-    ...(user.email ? [{ email: { eq: user.email.toLowerCase() } }] : []),
-  ];
+  const email = trustedEmail(user);
+  const mine = [{ user: { eq: user.id } }, ...(email ? [{ email: { eq: email } }] : [])];
   const invites = await qb.find(
     MEMBERSHIPS,
     { where: { status: { eq: "invited" }, or: mine }, limit: MAX_LIST },
@@ -161,7 +159,8 @@ export async function inviteMember(
 
 /**
  * Accept an invitation addressed to the user (by id or by email). The membership becomes
- * `active` and is bound to the user's id.
+ * `active` and is bound to the user's id. An invitation by email needs a verified address:
+ * with `emailVerified: false` on the user it throws `ForbiddenError`.
  */
 export async function acceptInvitation(
   qb: Quickben,
@@ -175,6 +174,9 @@ export async function acceptInvitation(
     invite?.user === user.id ||
     (invite && (invite.user ?? null) === null && email !== undefined && invite.email === email);
   if (!invite || !forMe) throw new NotFoundError(`No invitation "${membershipId}" for you`);
+  if (invite.user !== user.id && user.emailVerified === false) {
+    throw new ForbiddenError("Verify your email address before you accept this invitation");
+  }
   if (invite.status !== "invited") {
     throw new ValidationError([{ path: "status", message: "The invitation is not pending" }]);
   }
@@ -232,7 +234,8 @@ export interface OrganizationCookie {
     path: "/";
     httpOnly: true;
     sameSite: "lax";
-    secure: true;
+    /** `true` unless the request came over plain http (see {@link isSecureRequest}). */
+    secure: boolean;
     /** Seconds. `0` deletes the cookie. */
     maxAge: number;
   };
@@ -250,12 +253,25 @@ export interface SwitchResult {
 const YEAR = 60 * 60 * 24 * 365;
 
 /**
+ * Whether a request came over https: the first `x-forwarded-proto` value when present, else
+ * the protocol of `req.url`. Without a request it returns `true`.
+ */
+export function isSecureRequest(req: Request | undefined): boolean {
+  if (!req) return true;
+  const forwarded = req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim().toLowerCase();
+  if (forwarded) return forwarded === "https";
+  return new URL(req.url).protocol === "https:";
+}
+
+/**
  * The cookie that selects an organization, or deletes the selection when `organizationId` is
- * `null`.
+ * `null`. Pass the request so the cookie is `Secure` only on https and also works on
+ * `http://localhost`.
  */
 export function organizationCookie(
   qb: Quickben,
   organizationId: string | null,
+  req?: Request,
 ): OrganizationCookie {
   return {
     name: getTenancy(qb).cookie,
@@ -264,7 +280,7 @@ export function organizationCookie(
       path: "/",
       httpOnly: true,
       sameSite: "lax",
-      secure: true,
+      secure: isSecureRequest(req),
       maxAge: organizationId === null ? 0 : YEAR,
     },
   };
@@ -272,14 +288,15 @@ export function organizationCookie(
 
 /** Serialize a cookie as a `Set-Cookie` header value. */
 export function serializeCookie(cookie: OrganizationCookie): string {
-  return [
+  const parts = [
     `${cookie.name}=${encodeURIComponent(cookie.value)}`,
     `Path=${cookie.options.path}`,
     `Max-Age=${String(cookie.options.maxAge)}`,
     "HttpOnly",
     "SameSite=Lax",
-    "Secure",
-  ].join("; ");
+  ];
+  if (cookie.options.secure) parts.push("Secure");
+  return parts.join("; ");
 }
 
 /**
@@ -293,6 +310,6 @@ export async function switchOrganization(
 ): Promise<SwitchResult> {
   requireUser(ctx);
   const tenant = await resolveTenant(qb, { ...ctx, organizationId });
-  const cookie = organizationCookie(qb, organizationId);
+  const cookie = organizationCookie(qb, organizationId, ctx.req);
   return { organizationId, tenant, cookie, setCookie: serializeCookie(cookie) };
 }

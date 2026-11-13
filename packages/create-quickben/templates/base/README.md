@@ -39,5 +39,5 @@ In development, `devAuth()` signs you in as the user in `QUICKBEN_DEV_USER` (`.e
 ## Next steps
 
 - Add fields and collections in `quickben.config.ts`. Types, the REST API and the admin follow.
-- Read data in server components with `getQuickben(config)` and `getRequestContext(config)` from `@quickben/next`.
+- Read data in server components with `getQuickben(config)` from `@quickben/core` and `getRequestContext(config)` from `@quickben/next`.
 - Docs: https://quickben.vialabs.net

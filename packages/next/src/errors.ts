@@ -4,7 +4,7 @@ import type { ErrorCode } from "@quickben/core";
 
 /** Codes in error responses: the core codes plus a few that only exist at the HTTP layer. */
 export type HttpErrorCode =
-  ErrorCode | "METHOD_NOT_ALLOWED" | "UNSUPPORTED_MEDIA_TYPE" | "INTERNAL";
+  ErrorCode | "METHOD_NOT_ALLOWED" | "PAYLOAD_TOO_LARGE" | "UNSUPPORTED_MEDIA_TYPE" | "INTERNAL";
 
 /** Body of every error response. */
 export interface ErrorBody {

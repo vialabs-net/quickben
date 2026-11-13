@@ -1,7 +1,14 @@
-import { ConfigError, ConflictError, ForbiddenError, ValidationError } from "@quickben/core";
-import { collectionMeta, getMeta, getQuickben } from "@quickben/next";
+import {
+  ConfigError,
+  ConflictError,
+  ForbiddenError,
+  getQuickben,
+  ValidationError,
+} from "@quickben/core";
+import { collectionMeta, getMeta } from "@quickben/next";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
+import * as adminApi from "../src";
 import { fieldErrorsState, toFormState } from "../src/action-errors";
 import { assertPages, normalizeBasePath, resolveExtensions } from "../src/extensions";
 import {
@@ -450,6 +457,10 @@ describe("extensions and registry", () => {
     expect(registerAdmin({ config, basePath: "/registry-test" })).toBe("/registry-test");
     expect(getAdmin("/registry-test")?.config).toBe(config);
     expect(getAdmin("/missing")).toBeUndefined();
+  });
+
+  it("keeps resolveRoute internal", () => {
+    expect("resolveRoute" in adminApi).toBe(false);
   });
 
   it("resolves routes", () => {

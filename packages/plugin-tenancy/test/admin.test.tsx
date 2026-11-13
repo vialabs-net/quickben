@@ -3,9 +3,8 @@ import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 
-import { defineConfig, devAuth } from "@quickben/core";
+import { defineConfig, devAuth, getQuickben } from "@quickben/core";
 import { memoryAdapter } from "@quickben/db-memory";
-import { getQuickben } from "@quickben/next";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -170,7 +169,7 @@ describe("tenancyAdmin", () => {
     expect(navigation.revalidated).toEqual(["/admin"]);
     actAs(carol);
     const denied = await run(switchOrganizationAction, form({ organizationId: ids.globex! }));
-    expect(denied).toMatch(/^\/admin\/organization\?error=You%20are%20not%20a%20member/);
+    expect(denied).toBe("/admin/organization?error=organization-not-member");
     expect(jar.has("quickben-organization")).toBe(false);
     jar.set("quickben-organization", ids.acme!);
     await run(switchOrganizationAction, form({ organizationId: "" }));
@@ -179,7 +178,7 @@ describe("tenancyAdmin", () => {
 
   it("members page: managers get forms, viewers get badges", async () => {
     actAs(alice);
-    await renderPage("members", { toast: "Member updated" });
+    await renderPage("members", { toast: "member-updated" });
     expect(screen.getByRole("heading", { level: 1, name: "Members" })).toBeTruthy();
     expect(screen.getAllByRole("row")).toHaveLength(5);
     expect(screen.getByText("(you)")).toBeTruthy();
@@ -193,11 +192,25 @@ describe("tenancyAdmin", () => {
     expect(screen.getByRole("status").textContent).toContain("Member updated");
     cleanup();
     actAs(dave);
-    await renderPage("members", { error: "Nope" });
+    await renderPage("members", { error: "forbidden" });
     expect(screen.queryByRole("button", { name: "Invite" })).toBeNull();
     expect(screen.queryByRole("columnheader", { name: "Actions" })).toBeNull();
     expect(screen.getAllByText("active").length).toBeGreaterThan(0);
-    expect(screen.getByRole("alert").textContent).toContain("Nope");
+    expect(screen.getByRole("alert").textContent).toContain("You are not allowed to do that.");
+  });
+
+  it("feedback shows fixed messages for known codes only", async () => {
+    actAs(alice);
+    await renderPage("members", { error: "<b>Pay here</b>", toast: "Click evil.example" });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(document.body.textContent).not.toContain("evil.example");
+    cleanup();
+    await renderPage("members", { error: ["last-owner", "x"] });
+    expect(screen.getByRole("alert").textContent).toContain("at least one active owner");
+    cleanup();
+    await renderPage("members", { error: "toString" });
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("members page: asks to choose or sign in when there is no organization", async () => {
@@ -218,8 +231,13 @@ describe("tenancyAdmin", () => {
     actAs(alice);
     expect(
       await run(inviteMemberAction, form({ invitee: "eve@example.com", role: "viewer" })),
-    ).toBe("/admin/members?toast=Invitation%20created");
-    expect(await run(inviteMemberAction, form({ invitee: "frank" }))).toMatch(/toast=/);
+    ).toBe("/admin/members?toast=invited");
+    expect(await run(inviteMemberAction, form({ invitee: "frank" }))).toBe(
+      "/admin/members?toast=invited",
+    );
+    expect(await run(inviteMemberAction, form({ invitee: "frank" }))).toBe(
+      "/admin/members?error=already-member",
+    );
     const qb = await getQuickben(config);
     const invited = await qb.find("memberships", { where: { status: { eq: "invited" } } }, system);
     expect(invited.docs.map((m) => [m.email, m.user, m.role])).toEqual(
@@ -233,21 +251,21 @@ describe("tenancyAdmin", () => {
         updateMemberAction,
         form({ membershipId: ids.carol!, role: "admin", status: "active", modules: ["sales"] }),
       ),
-    ).toBe("/admin/members?toast=Member%20updated");
+    ).toBe("/admin/members?toast=member-updated");
     const carolNow = await qb.findById("memberships", ids.carol!, {}, system);
     expect(carolNow).toMatchObject({ role: "admin", modules: ["sales"] });
     const own = await run(updateMemberAction, form({ membershipId: ids.alice!, role: "member" }));
-    expect(decodeURIComponent(own ?? "")).toContain("your own role");
+    expect(own).toBe("/admin/members?error=own-role");
     actAs(staff);
     selectOrg(ids.acme!);
     const last = await run(updateMemberAction, form({ membershipId: ids.alice!, role: "member" }));
-    expect(decodeURIComponent(last ?? "")).toContain("at least one active owner");
+    expect(last).toBe("/admin/members?error=last-owner");
     actAs(alice);
     expect(await run(removeMemberAction, form({ membershipId: ids.dave! }))).toBe(
-      "/admin/members?toast=Member%20removed",
+      "/admin/members?toast=member-removed",
     );
     const self = await run(removeMemberAction, form({ membershipId: ids.alice! }));
-    expect(decodeURIComponent(self ?? "")).toContain("your own owner");
+    expect(self).toBe("/admin/members?error=own-membership");
   });
 
   it("organization page: managers rename, platform staff set status and modules", async () => {
@@ -257,7 +275,7 @@ describe("tenancyAdmin", () => {
     expect(screen.queryByRole("combobox", { name: "Status" })).toBeNull();
     expect(screen.getByText("Set by platform staff.")).toBeTruthy();
     expect(await run(updateOrganizationAction, form({ name: "Acme Inc" }))).toBe(
-      "/admin/organization?toast=Organization%20saved",
+      "/admin/organization?toast=organization-saved",
     );
     cleanup();
     actAs(carol);
@@ -265,7 +283,7 @@ describe("tenancyAdmin", () => {
     expect(screen.getByText("Your role cannot change these settings.")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Save settings" })).toBeNull();
     const denied = await run(updateOrganizationAction, form({ name: "X" }));
-    expect(denied).toMatch(/error=/);
+    expect(denied).toBe("/admin/organization?error=forbidden");
     cleanup();
     actAs(staff);
     selectOrg(ids.acme!);
@@ -291,14 +309,17 @@ describe("tenancyAdmin", () => {
   it("create organization action makes it active", async () => {
     actAs({ id: "nobody", email: "nobody@example.com" });
     expect(await run(createOrganizationAction, form({ name: "New", slug: "new-org" }))).toBe(
-      "/admin/organization?toast=Organization%20created",
+      "/admin/organization?toast=organization-created",
     );
     const qb = await getQuickben(config);
     const created = (await qb.find("organizations", { where: { slug: { eq: "new-org" } } }, system))
       .docs[0]!;
     expect(jar.get("quickben-organization")).toBe(created.id);
     const bad = await run(createOrganizationAction, form({ name: "Bad", slug: "Not ok" }));
-    expect(bad).toMatch(/error=/);
+    expect(bad).toBe("/admin/organization?error=invalid-slug");
+    expect(await run(createOrganizationAction, form({ name: "Again", slug: "new-org" }))).toBe(
+      "/admin/organization?error=slug-taken",
+    );
   });
 
   it("actions reject unknown keys", async () => {

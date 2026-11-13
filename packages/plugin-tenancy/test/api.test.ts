@@ -19,6 +19,7 @@ import {
   getTenancy,
   hasCapability,
   inviteMember,
+  isSecureRequest,
   listMyInvitations,
   listMyOrganizations,
   organizationCookie,
@@ -89,6 +90,27 @@ describe("invitations", () => {
     expect(accepted.joinedAt).toEqual(expect.any(String));
     expect(await resolveRole(qb, eve)).toBe("viewer");
     await expect(acceptInvitation(qb, as(eve), invite.id)).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("refuses an email invitation when the email is not verified", async () => {
+    const { qb } = await setup();
+    const invite = await inviteMember(qb, as(alice), { email: "eve@example.com" });
+    const unverified = { id: "eve", email: "eve@example.com", emailVerified: false };
+    expect(await listMyInvitations(qb, as(unverified))).toEqual([]);
+    expect((await qb.find("memberships", {}, as(unverified))).totalDocs).toBe(0);
+    const refused = acceptInvitation(qb, as(unverified), invite.id);
+    await expect(refused).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(refused).rejects.toThrow("Verify your email address");
+    const verified = { ...unverified, emailVerified: true };
+    expect(await listMyInvitations(qb, as(verified))).toHaveLength(1);
+    expect((await acceptInvitation(qb, as(verified), invite.id)).status).toBe("active");
+  });
+
+  it("accepts an invitation by user id with an unverified email", async () => {
+    const { qb, globex } = await setup();
+    const invite = await inviteMember(qb, as(bob), { organizationId: globex.id, userId: "frank" });
+    const frank = { id: "frank", email: "frank@example.com", emailVerified: false };
+    expect((await acceptInvitation(qb, as(frank), invite.id)).status).toBe("active");
   });
 
   it("invites by user id with modules, into a given organization", async () => {
@@ -173,6 +195,32 @@ describe("organization switcher", () => {
       UnauthorizedError,
     );
     expect(organizationCookie(qb, null)).toMatchObject({ value: "", options: { maxAge: 0 } });
+  });
+
+  it("sets Secure only for https requests", async () => {
+    const { qb, globex } = await setup();
+    const http = new Request("http://localhost:3000/admin");
+    const plain = await switchOrganization(qb, as(bob, { req: http }), globex.id);
+    expect(plain.cookie.options).toMatchObject({ secure: false, httpOnly: true, sameSite: "lax" });
+    expect(plain.setCookie).toBe(
+      `quickben-organization=${globex.id}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax`,
+    );
+    const https = new Request("https://app.test/admin");
+    expect((await switchOrganization(qb, as(bob, { req: https }), globex.id)).setCookie).toMatch(
+      /; Secure$/,
+    );
+    expect(organizationCookie(qb, null, http).options).toMatchObject({ secure: false, maxAge: 0 });
+  });
+
+  it("reads the protocol from x-forwarded-proto first", () => {
+    const behindProxy = (proto: string, url = "http://localhost:3000/") =>
+      new Request(url, { headers: { "x-forwarded-proto": proto } });
+    expect(isSecureRequest(behindProxy("https"))).toBe(true);
+    expect(isSecureRequest(behindProxy("HTTPS, http"))).toBe(true);
+    expect(isSecureRequest(behindProxy("http", "https://app.test/"))).toBe(false);
+    expect(isSecureRequest(new Request("https://app.test/"))).toBe(true);
+    expect(isSecureRequest(new Request("http://localhost/"))).toBe(false);
+    expect(isSecureRequest(undefined)).toBe(true);
   });
 
   it("the cookie is then read from the request", async () => {
