@@ -1,4 +1,8 @@
 {
   "extends": "@quickben/tsconfig/library.json",
+  "compilerOptions": {
+    "lib": ["dom", "dom.iterable", "es2023"],
+    "jsx": "react-jsx"
+  },
   "include": ["src", "test", "*.config.ts"]
 }

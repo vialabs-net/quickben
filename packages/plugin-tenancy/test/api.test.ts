@@ -22,6 +22,7 @@ import {
   listMyInvitations,
   listMyOrganizations,
   organizationCookie,
+  OrganizationError,
   requestedOrganization,
   switchOrganization,
   tenancy,
@@ -277,5 +278,10 @@ describe("plugin config", () => {
     expect(await ruleOf(scoped, as(alice))).toEqual({
       organization: { eq: expect.any(String) as unknown },
     });
+    // A probe without qb answers false when there is no usable organization.
+    expect(await ruleOf(scoped, as({ id: "nobody" }))).toBe(false);
+    await qb.create("organizations", { name: "B", slug: "b" }, as(alice));
+    expect(await ruleOf(scoped, as(alice))).toBe(false);
+    await expect(ruleOf(scoped, as(alice), qb)).rejects.toBeInstanceOf(OrganizationError);
   });
 });

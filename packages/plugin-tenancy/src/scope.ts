@@ -5,6 +5,7 @@ import { getTenancy } from "./options";
 import { OrganizationError, tenantOf } from "./tenant";
 
 import type { TenancyState } from "./collections";
+import type { Tenant } from "./tenant";
 import type {
   AccessArgs,
   AccessFn,
@@ -39,7 +40,15 @@ function scopedRule(
     const result = (await base(args)) as boolean | object;
     if (result === false || !args.user) return false;
     const qb = apiOf(state, args.qb);
-    const tenant = await tenantOf(qb, state.tenancy, args.ctx);
+    let tenant: Tenant;
+    try {
+      tenant = await tenantOf(qb, state.tenancy, args.ctx);
+    } catch (error) {
+      // Without `qb` the rule is probed by a UI (for example the admin sidebar), not run by the
+      // local API: answer "not allowed" instead of failing the whole page.
+      if (args.qb === undefined && error instanceof OrganizationError) return false;
+      throw error;
+    }
     if (!tenant.platform) {
       const needed = operation === "read" ? "read" : "write";
       if (!tenant.capabilities.includes(needed)) return false;
