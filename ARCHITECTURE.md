@@ -26,12 +26,12 @@ This file describes what exists. Sections marked **Planned** describe agreed des
 | `packages/adapter-tests`   | `@quickben/adapter-tests` (private)         | Exists  |
 | `tooling/tsconfig`         | `@quickben/tsconfig` (private)              | Exists  |
 | `tooling/eslint-config`    | `@quickben/eslint-config` (private)         | Exists  |
-| `packages/db-drizzle`      | `@quickben/db-drizzle`                      | Planned |
+| `packages/db-drizzle`      | `@quickben/db-drizzle`                      | Exists  |
 | `packages/next`            | `@quickben/next`                            | Planned |
 | `packages/admin`           | `@quickben/admin`                           | Planned |
 | `packages/plugin-tenancy`  | `@quickben/plugin-tenancy`                  | Planned |
 | `packages/create-quickben` | `create-quickben`                           | Planned |
-| `apps/docs`                | Nextra site at https://quickben.vialabs.net | Planned |
+| `apps/docs`                | Nextra site at https://quickben.vialabs.net | Exists  |
 | `apps/playground`          | Next.js app using everything (PGlite)       | Planned |
 
 Dependencies point one way: adapters and other packages depend on `@quickben/core` (as a peer dependency). Core depends only on Zod.
@@ -265,6 +265,20 @@ Extend `QuickbenUser` with declaration merging. `devAuth()` reads the user from 
 
 All errors extend `QuickbenError` with a stable `code` and a suggested HTTP `status`: `VALIDATION` 400, `UNAUTHORIZED` 401, `FORBIDDEN` 403, `NOT_FOUND` 404, `CONFLICT` 409, `CONFIG` 500.
 
+### Drizzle adapter (`@quickben/db-drizzle`)
+
+```ts
+drizzleAdapter({ dialect: "postgres", url }); // node-postgres
+drizzleAdapter({ dialect: "pglite", dataDir }); // in memory without dataDir
+drizzleAdapter({ dialect: "sqlite", url }); // libSQL; :memory: by default
+```
+
+- `init` builds one Drizzle table per collection (table = slug, column = field name). `push` creates missing tables, columns and indexes; it is on by default for in-memory databases.
+- `quickben-drizzle generate` (or `generateDrizzleSchema(config, { out })`) writes the same tables as a TypeScript schema file for drizzle-kit migrations.
+- `raw` is `{ dialect, db, tables, table(slug) }`. Inside a transaction `db` is the Drizzle transaction.
+- Postgres stores datetimes as `timestamp(3) with time zone` and `many` fields as `text[]`. SQLite stores datetimes as ISO text and `many` fields as JSON arrays.
+- PGlite and local SQLite have one connection, so operations run one at a time.
+
 ## Planned packages
 
 ### Next.js integration (`@quickben/next`, `@quickben/admin`)
@@ -278,10 +292,6 @@ export default createAdminPage(config); // server component
 ```
 
 Server actions for admin mutations. Works with React Server Components; no client-only data fetching. Admin UI: React 19, Tailwind v4, list/edit/create generated from fields, sidebar from collections and modules, settings shell.
-
-### Drizzle adapter (`@quickben/db-drizzle`)
-
-Postgres (node-postgres or postgres.js), PGlite and SQLite/libSQL. Generates tables from collections; `quickben db:generate` writes a Drizzle schema file for drizzle-kit migrations. `raw` exposes the Drizzle database and generated tables. Must pass `runAdapterContractTests`.
 
 ### Tenancy (`@quickben/plugin-tenancy`)
 

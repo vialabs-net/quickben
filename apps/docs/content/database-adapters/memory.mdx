@@ -1,0 +1,63 @@
+---
+title: Memory adapter
+description: "@quickben/db-memory: an in-memory database adapter for tests and demos."
+---
+
+# Memory adapter
+
+`@quickben/db-memory` keeps data in process memory. Use it in tests, demos and docs. Data is lost when the process exits.
+
+```sh
+pnpm add @quickben/db-memory
+```
+
+```ts
+import { defineConfig } from "@quickben/core";
+import { memoryAdapter } from "@quickben/db-memory";
+
+import { posts, tags, users } from "./collections";
+
+export default defineConfig({
+  db: memoryAdapter({
+    initialData: {
+      tags: [
+        {
+          id: "t1",
+          name: "news",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+    },
+  }),
+  collections: [users, tags, posts],
+});
+```
+
+## Options
+
+| Option        | Purpose                                                                  |
+| ------------- | ------------------------------------------------------------------------ |
+| `initialData` | Documents to load before the first call, keyed by slug. Stored as given. |
+
+## Behavior
+
+| Topic        | Behavior                                                                                              |
+| ------------ | ----------------------------------------------------------------------------------------------------- |
+| Transactions | Copy-on-write. Changes apply to the latest data on commit. Unique values are checked again on commit. |
+| Isolation    | Reads outside a transaction do not see its writes until commit.                                       |
+| `raw`        | `{ collections }`: the documents the adapter can see, keyed by slug and id.                           |
+| Contract     | Reference adapter for the shared contract tests.                                                      |
+
+## Tests
+
+Use `createQuickben` to get a fresh instance per test:
+
+```ts
+import { createQuickben } from "@quickben/core";
+
+const fresh = await createQuickben(config);
+await fresh.create("tags", { name: "test" }, { user });
+```
+
+The config holds one adapter. For isolated tests, build the config in a function that calls `memoryAdapter()` each time.

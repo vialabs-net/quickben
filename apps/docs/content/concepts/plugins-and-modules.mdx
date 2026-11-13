@@ -1,0 +1,92 @@
+---
+title: Plugins and modules
+description: A plugin is a function from config to config. Modules group collections into feature areas.
+---
+
+# Plugins and modules
+
+## Plugins
+
+A plugin is a function `(config) => config`. Write one with `definePlugin`.
+
+```ts
+import { defineCollection, definePlugin, extendCollection, fields as f } from "@quickben/core";
+
+import type { AfterChangeHook } from "@quickben/core";
+
+const auditLog = defineCollection({
+  slug: "audit-log",
+  fields: {
+    collection: f.text({ required: true }),
+    documentId: f.text({ required: true }),
+    operation: f.select({ options: ["create", "update"], required: true }),
+  },
+  access: { create: () => false, update: () => false, delete: () => false },
+});
+
+const log: AfterChangeHook = async ({ qb, collection, operation, doc }) => {
+  if (collection.slug === "audit-log") return;
+  await qb.create(
+    "audit-log",
+    { collection: collection.slug, documentId: doc.id, operation },
+    { user: null, overrideAccess: true },
+  );
+};
+
+export const audit = definePlugin({
+  name: "audit",
+  collections: [auditLog],
+  extendCollections: (collections) =>
+    collections.map((c) => extendCollection(c, { hooks: { afterChange: [log] } })),
+  modules: [{ key: "audit", label: "Audit", collections: ["audit-log"] }],
+});
+```
+
+The plugin adds an `audit-log` collection and an `afterChange` hook on every other collection. Use it in the config: `defineConfig({ …, plugins: [audit] })`. `audit-log` is then typed in `qb.find`.
+
+### `definePlugin` options
+
+| Option              | Runs                      | Purpose                                                    |
+| ------------------- | ------------------------- | ---------------------------------------------------------- |
+| `name`              |                           | Unique name. Applying a plugin twice throws `ConfigError`. |
+| `collections`       | first                     | Collections to add. They are typed in the registry.        |
+| `extendCollections` | after `collections`       | Change all collections added so far, including yours.      |
+| `modules`           | after `extendCollections` | Modules to register.                                       |
+| `onInit`            | after `db.init`           | Runs once with the local API.                              |
+
+### Order
+
+`defineConfig` applies plugins in the order listed, then validates the result. A plugin sees the collections of the config and of the plugins before it. It does not see collections added by later plugins.
+
+### `extendCollection`
+
+`extendCollection(collection, { fields, hooks })` returns a copy. New hooks run after existing ones. A field name that already exists throws `ConfigError`.
+
+Fields added with `extendCollection` inside a plugin are not inferred yet. They exist at runtime but not in the document type.
+
+## Modules
+
+A module is a feature area, for example "Sales". It groups collections for the admin sidebar and for tenancy entitlements.
+
+```ts
+import type { Module } from "@quickben/core";
+
+const sales: Module = {
+  key: "sales",
+  label: "Sales",
+  collections: ["posts"],
+  nav: [
+    { label: "All posts", collection: "posts" },
+    { label: "Reports", href: "/admin/reports" },
+  ],
+};
+```
+
+| Field         | Purpose                                               |
+| ------------- | ----------------------------------------------------- |
+| `key`         | Unique key.                                           |
+| `label`       | Sidebar label.                                        |
+| `collections` | Slugs in this module. Each must exist.                |
+| `nav`         | Extra sidebar links: `{ label, collection?, href? }`. |
+
+Register modules in `defineConfig({ modules })` or in a plugin's `modules`. They end up in `config.modules`.

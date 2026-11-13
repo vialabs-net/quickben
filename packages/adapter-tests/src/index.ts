@@ -516,10 +516,12 @@ export function runAdapterContractTests(
       });
 
       it("reads its own writes and joins nested transactions", async () => {
+        // Adapters may store timestamps in native types, so they get valid ISO strings.
+        const now = new Date().toISOString();
         await db.transaction(async (tx) => {
           await tx.create({
             collection: "tags",
-            data: { id: "tx-1", label: "x", createdAt: "", updatedAt: "" },
+            data: { id: "tx-1", label: "x", createdAt: now, updatedAt: now },
           });
           expect(
             await tx.findOne({

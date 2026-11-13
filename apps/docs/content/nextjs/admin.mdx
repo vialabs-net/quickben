@@ -1,0 +1,48 @@
+---
+title: Admin UI
+description: "@quickben/admin: list, create and edit screens generated from the config. Coming in 0.1."
+---
+
+import { Callout } from "nextra/components";
+
+# Admin UI
+
+<Callout type="warning">
+
+**Coming in 0.1.** `@quickben/admin` is not released yet. This page describes the planned API. Names may change.
+
+</Callout>
+
+One catch-all page renders the admin UI from your config.
+
+```ts filename="app/admin/[[...segments]]/page.tsx"
+import { createAdminPage } from "@quickben/admin";
+
+import config from "../../../quickben.config";
+
+export default createAdminPage(config);
+```
+
+## Planned behavior
+
+| Topic     | Plan                                                                              |
+| --------- | --------------------------------------------------------------------------------- |
+| Rendering | Server components. Mutations use server actions.                                  |
+| Screens   | List, create and edit, generated from fields.                                     |
+| Sidebar   | Built from collections and [modules](/docs/concepts/plugins-and-modules#modules). |
+| Settings  | A settings shell that plugins can add pages to.                                   |
+| Stack     | React 19, Tailwind CSS v4.                                                        |
+
+## Config that the admin reads today
+
+These options exist in `@quickben/core` now:
+
+| Option                                    | Where              | Effect                          |
+| ----------------------------------------- | ------------------ | ------------------------------- |
+| `admin.title`                             | `defineConfig`     | Title of the admin UI.          |
+| `admin.useAsTitle`                        | `defineCollection` | Field used as document title.   |
+| `admin.defaultColumns`                    | `defineCollection` | List view columns.              |
+| `admin.group`, `admin.hidden`             | `defineCollection` | Sidebar group, hide collection. |
+| `labels`                                  | `defineCollection` | Singular and plural names.      |
+| field `label`, `description`              | field options      | Form labels and help text.      |
+| field `admin.hidden`, `readOnly`, `width` | field options      | Form layout.                    |

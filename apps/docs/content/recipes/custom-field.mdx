@@ -1,0 +1,96 @@
+---
+title: Custom field
+description: Build reusable fields from the built-in field types, validation and hooks.
+---
+
+# Custom field
+
+Quickben has a fixed set of field types. To reuse a field with its rules, write a function that returns a built-in field with options.
+
+## A reusable field
+
+```ts filename="fields/money.ts"
+import { fields as f } from "@quickben/core";
+
+/** Amount in cents. Integer, not negative. */
+export function money(options: { required?: true; label?: string } = {}) {
+  return f.number({
+    ...options,
+    integer: true,
+    min: 0,
+    admin: { width: "third" },
+    description: "Amount in cents",
+  });
+}
+```
+
+```ts filename="collections/invoices.ts"
+import { defineCollection, fields as f } from "@quickben/core";
+
+import { money } from "../fields/money";
+
+export const invoices = defineCollection({
+  slug: "invoices",
+  fields: {
+    number: f.text({ required: true, unique: true }),
+    total: money({ required: true }),
+    tax: money(),
+  },
+});
+```
+
+`total` is typed `number`. `tax` is typed `number | null`.
+
+## A field with a hook
+
+Some fields need a value computed from other fields. Return the field and a hook together, and add both to the collection.
+
+```ts filename="fields/slug.ts"
+import { fields as f } from "@quickben/core";
+
+import type { BeforeValidateHook } from "@quickben/core";
+
+const toSlug = (text: string) =>
+  text
+    .toLowerCase()
+    .normalize("NFKD")
+    .replaceAll(/[^\w\s-]/g, "")
+    .trim()
+    .replaceAll(/[\s_]+/g, "-");
+
+/** A unique slug filled from another text field when it is empty. */
+export function slugField(from: string) {
+  const field = f.text({
+    unique: true,
+    validate: (value) => /^[a-z0-9-]+$/.test(value) || "Use lowercase letters, digits and -",
+  });
+  const hook: BeforeValidateHook = ({ data }) => {
+    const source = data[from];
+    if (data.slug || typeof source !== "string") return data;
+    return { ...data, slug: toSlug(source) };
+  };
+  return { field, hook };
+}
+```
+
+```ts filename="collections/pages.ts"
+import { defineCollection, fields as f } from "@quickben/core";
+
+import { slugField } from "../fields/slug";
+
+const slug = slugField("title");
+
+export const pages = defineCollection({
+  slug: "pages",
+  fields: { title: f.text({ required: true }), slug: slug.field },
+  hooks: { beforeValidate: [slug.hook] },
+});
+```
+
+## Limits
+
+| Need                         | Today                                              |
+| ---------------------------- | -------------------------------------------------- |
+| A new stored type            | Not supported. Use `json` with a Zod `schema`.     |
+| A custom admin input         | Not supported yet. Planned with `@quickben/admin`. |
+| Reuse options and validation | Supported, as above.                               |

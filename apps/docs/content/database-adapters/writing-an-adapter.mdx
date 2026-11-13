@@ -1,0 +1,64 @@
+---
+title: Writing an adapter
+description: The DatabaseAdapter interface and the contract tests every adapter runs.
+---
+
+# Writing an adapter
+
+An adapter implements `DatabaseAdapter` from `@quickben/core`. Core does validation, access, hooks, relations and cursors. The adapter stores and queries plain documents.
+
+```ts nocheck
+interface DatabaseAdapter<TRaw = unknown> {
+  readonly name: string;
+  readonly raw: TRaw; // native client for custom queries
+  init(schema: DatabaseSchema): Promise<void>;
+  find(args: FindArgs): Promise<DocumentData[]>; // where, sort, limit, offset, select
+  findOne(args: Omit<FindArgs, "limit" | "offset">): Promise<DocumentData | null>;
+  count(args: { collection: string; where?: WhereNode }): Promise<number>;
+  create(args: { collection: string; data: DocumentData }): Promise<DocumentData>;
+  update(args: {
+    collection: string;
+    id: string;
+    data: DocumentData;
+  }): Promise<DocumentData | null>;
+  delete(args: { collection: string; id: string }): Promise<boolean>;
+  transaction<T>(fn: (tx: DatabaseAdapter<TRaw>) => Promise<T>): Promise<T>;
+  close?(): Promise<void>;
+}
+```
+
+## Rules
+
+| Topic        | Rule                                                                                  |
+| ------------ | ------------------------------------------------------------------------------------- |
+| Ids          | Strings. Core generates UUIDv7 ids, so ids sort by creation time.                     |
+| Relations    | Stored as ids. No joins. Core loads related documents.                                |
+| Values       | Return values as core wrote them. Dates are ISO strings.                              |
+| Unique       | Throw `ConflictError` for a taken unique value or id. `null` never conflicts.         |
+| Filters      | `where` is a normalized `WhereNode` tree. `matchesWhere(doc, node)` is the reference. |
+| Sorting      | `compareBySort` and `compareValues` are the reference. Nulls last ascending.          |
+| Cursors      | Not your concern. Core turns cursors into `where` filters.                            |
+| Transactions | `transaction(fn)` passes an adapter bound to the transaction. Nested calls join it.   |
+
+## `WhereNode`
+
+```ts nocheck
+type WhereNode =
+  { and: WhereNode[] } | { or: WhereNode[] } | { field: string; op: WhereOperator; value: unknown };
+```
+
+## Contract tests
+
+The monorepo has a shared suite. Every adapter runs it:
+
+```ts nocheck filename="packages/db-foo/test/contract.test.ts"
+import { runAdapterContractTests } from "@quickben/adapter-tests";
+
+import { fooAdapter } from "../src";
+
+runAdapterContractTests(() => fooAdapter());
+```
+
+`createAdapter` must return a new, empty adapter for each test. The suite covers CRUD, every `where` operator, sorting with nulls, page and cursor pagination, `select`, `count`, unique conflicts, transaction rollback and relation loading.
+
+`@quickben/adapter-tests` is private to the monorepo. To add an adapter, open a pull request. See [Contributing](/docs/contributing).

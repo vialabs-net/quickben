@@ -12,11 +12,13 @@
       "dependsOn": ["^build"]
     },
     "test": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      "env": ["QUICKBEN_TEST_POSTGRES_URL"]
     },
     "test:coverage": {
       "dependsOn": ["^build"],
-      "outputs": ["coverage/**"]
+      "outputs": ["coverage/**"],
+      "env": ["QUICKBEN_TEST_POSTGRES_URL"]
     },
     "clean": {
       "cache": false

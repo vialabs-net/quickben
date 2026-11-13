@@ -5,3 +5,5 @@ coverage/
 .next/
 CHANGELOG.md
 CODE_OF_CONDUCT.md
+apps/docs/samples/generated/
+apps/docs/public/_pagefind/

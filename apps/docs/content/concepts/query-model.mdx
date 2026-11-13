@@ -1,0 +1,97 @@
+---
+title: Query model
+description: Filters, sorting, page and cursor pagination, select and depth.
+---
+
+# Query model
+
+`find` takes `where`, `sort`, `limit`, `page` or `cursor`, `select` and `depth`. The same model works on every adapter.
+
+```ts
+const result = await qb.find(
+  "posts",
+  {
+    where: { or: [{ status: { eq: "draft" } }, { views: { gte: 10 } }] },
+    sort: ["-publishedAt", "title"],
+    limit: 20,
+    page: 2,
+    select: ["title", "status"],
+    depth: 1,
+  },
+  { user },
+);
+```
+
+## Operators
+
+| Operator                 | Fields                                   | Matches `null`?      |
+| ------------------------ | ---------------------------------------- | -------------------- |
+| `eq`, `in`               | single-value fields except `json`        | no                   |
+| `ne`, `notIn`            | single-value fields except `json`        | yes                  |
+| `lt`, `lte`, `gt`, `gte` | text, number, date, datetime, timestamps | no                   |
+| `contains`, `startsWith` | text-like fields, case-insensitive       | no                   |
+| `exists`                 | all fields                               | `exists: false` does |
+
+On `many` fields the operators mean:
+
+| Operator   | Matches when the array                   |
+| ---------- | ---------------------------------------- |
+| `contains` | has the value                            |
+| `in`       | has any of the values                    |
+| `notIn`    | has none of the values                   |
+| `exists`   | is not empty (`true`) or empty (`false`) |
+
+## Combining filters
+
+| Form               | Meaning                       |
+| ------------------ | ----------------------------- |
+| Keys in one object | AND                           |
+| `and: [a, b]`      | AND. `and: []` matches all.   |
+| `or: [a, b]`       | OR. `or: []` matches nothing. |
+
+```ts
+const where = {
+  status: { eq: "published" },
+  or: [{ title: { contains: "release" } }, { tags: { contains: "tag-id" } }],
+} as const;
+await qb.find("posts", { where }, { user });
+```
+
+## Sorting
+
+| Rule         | Detail                                                   |
+| ------------ | -------------------------------------------------------- |
+| Syntax       | `"field"` ascending, `"-field"` descending, or an array. |
+| Default      | `-createdAt`                                             |
+| Tie-break    | Core appends `id` in the direction of the last key.      |
+| Nulls        | Last when ascending, first when descending.              |
+| Not sortable | `many` fields and `json` fields.                         |
+
+## Pagination
+
+| Mode   | Use                                 | Returns                                                                    |
+| ------ | ----------------------------------- | -------------------------------------------------------------------------- |
+| Page   | `limit` + `page` (default limit 20) | `totalDocs`, `totalPages`, `page`, `hasNextPage`, `nextCursor`             |
+| Cursor | `limit` + `cursor`                  | `hasNextPage`, `nextCursor`. `page`, `totalDocs`, `totalPages` are `null`. |
+
+```ts
+const first = await qb.find("posts", { sort: "-createdAt", limit: 50 }, { user });
+if (first.nextCursor) {
+  const second = await qb.find(
+    "posts",
+    { sort: "-createdAt", limit: 50, cursor: first.nextCursor },
+    { user },
+  );
+}
+```
+
+A cursor only works with the sort it was made for. Do not combine `page` and `cursor`. Cursor mode skips the count query.
+
+## Select and depth
+
+| Option   | Values      | Effect                                                                         |
+| -------- | ----------- | ------------------------------------------------------------------------------ |
+| `select` | field names | Return only these fields and `id`.                                             |
+| `depth`  | 0–3         | Load related documents. One query per related collection and level. Default 0. |
+
+Invalid filters, sort keys, select keys or cursors throw `ValidationError`.

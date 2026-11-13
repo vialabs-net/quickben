@@ -1,0 +1,83 @@
+---
+title: Quick start
+description: Install @quickben/core, define a collection and query it with the local API.
+---
+
+import { Steps } from "nextra/components";
+
+# Quick start
+
+This page uses the in-memory adapter. Data is lost when the process exits. For a real database, see [Drizzle](/docs/database-adapters/drizzle) (coming in 0.1).
+
+<Steps>
+
+### Install
+
+```sh
+pnpm add @quickben/core @quickben/db-memory
+```
+
+### Write the config
+
+```ts filename="quickben.config.ts"
+import { defineCollection, defineConfig, devAuth, fields as f } from "@quickben/core";
+import { memoryAdapter } from "@quickben/db-memory";
+
+const posts = defineCollection({
+  slug: "posts",
+  fields: {
+    title: f.text({ required: true, maxLength: 200 }),
+    status: f.select({ options: ["draft", "published"], required: true, default: "draft" }),
+  },
+  access: {
+    read: () => true,
+    create: ({ user }) => user !== null,
+  },
+});
+
+export default defineConfig({
+  db: memoryAdapter(),
+  collections: [posts],
+  auth: devAuth(),
+});
+```
+
+### Query it
+
+```ts filename="scripts/try.ts"
+import { getQuickben } from "@quickben/core";
+
+import config from "../quickben.config";
+
+const qb = await getQuickben(config);
+const user = { id: "u1" };
+
+await qb.create("posts", { title: "Hello" }, { user });
+
+const page = await qb.find(
+  "posts",
+  { where: { status: { eq: "draft" } }, sort: "-createdAt" },
+  { user },
+);
+console.log(page.docs[0]?.title);
+```
+
+`page.docs` is typed from the fields: `{ id, createdAt, updatedAt, title: string, status: "draft" | "published" }[]`.
+
+</Steps>
+
+## What happened
+
+| Step               | Result                                                               |
+| ------------------ | -------------------------------------------------------------------- |
+| `defineCollection` | Checks the slug and field names. Returns a typed collection.         |
+| `defineConfig`     | Applies plugins, checks slugs and relation targets.                  |
+| `getQuickben`      | Calls `db.init`, runs plugin `onInit` hooks, caches the instance.    |
+| `qb.create`        | Checks access, applies defaults, validates, writes in a transaction. |
+| `qb.find`          | ANDs the read rule with your filter, sorts, returns one page.        |
+
+## Next steps
+
+- [Collections](/docs/concepts/collections) and [Fields](/docs/concepts/fields)
+- [Access control](/docs/concepts/access-control)
+- [Local API](/docs/concepts/local-api)

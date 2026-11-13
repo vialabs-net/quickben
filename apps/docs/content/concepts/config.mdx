@@ -1,0 +1,61 @@
+---
+title: Config
+description: defineConfig combines the database adapter, collections, plugins, auth and admin options.
+---
+
+# Config
+
+An app has one config, usually in `quickben.config.ts`. `defineConfig` returns it typed by collection slug.
+
+```ts filename="quickben.config.ts"
+import { defineCollection, defineConfig, devAuth, fields as f } from "@quickben/core";
+import { memoryAdapter } from "@quickben/db-memory";
+
+const tags = defineCollection({
+  slug: "tags",
+  fields: { name: f.text({ required: true, unique: true }) },
+});
+
+export default defineConfig({
+  db: memoryAdapter(),
+  collections: [tags],
+  plugins: [],
+  auth: devAuth(),
+  admin: { title: "Acme back office" },
+  modules: [{ key: "content", label: "Content", collections: ["tags"] }],
+});
+```
+
+## Options
+
+| Option        | Type                 | Required | Purpose                                                                            |
+| ------------- | -------------------- | -------- | ---------------------------------------------------------------------------------- |
+| `db`          | `DatabaseAdapter`    | yes      | Storage. See [Database adapters](/docs/database-adapters/memory).                  |
+| `collections` | `AnyCollection[]`    | yes      | Your collections, from `defineCollection`.                                         |
+| `plugins`     | `Plugin[]`           | no       | Applied in order. See [Plugins and modules](/docs/concepts/plugins-and-modules).   |
+| `auth`        | `AuthAdapter`        | no       | Resolves the user of a request. See [Auth adapters](/docs/concepts/auth-adapters). |
+| `admin`       | `{ title?: string }` | no       | Admin UI options. `title` defaults to `Quickben`.                                  |
+| `modules`     | `Module[]`           | no       | Feature areas that group collections.                                              |
+
+## What `defineConfig` checks
+
+It throws `ConfigError` when:
+
+| Problem                                   | Example message                                              |
+| ----------------------------------------- | ------------------------------------------------------------ |
+| Two collections share a slug              | `Duplicate collection slug "posts"`                          |
+| A relation points to a missing collection | `Field "posts.author" relates to unknown collection "users"` |
+| Two modules share a key                   | `Duplicate module key "sales"`                               |
+| A module lists a missing collection       | `Module "sales" lists unknown collection "deals"`            |
+| A plugin is applied twice                 | `Plugin "audit" is applied twice`                            |
+
+## Types from the config
+
+```ts
+import type { InferDoc, InferRegistry } from "@quickben/core";
+
+type Registry = InferRegistry<typeof config>;
+type Post = InferDoc<Registry["posts"]>;
+```
+
+`InferRegistry` includes collections added by plugins.

@@ -1,0 +1,85 @@
+---
+title: Collections
+description: defineCollection declares a typed collection with fields, access rules, hooks and admin options.
+---
+
+# Collections
+
+A collection is a set of documents with the same fields. Define one with `defineCollection`.
+
+```ts
+import { defineCollection, fields as f } from "@quickben/core";
+
+export const posts = defineCollection({
+  slug: "posts",
+  labels: { singular: "Post", plural: "Posts" },
+  fields: {
+    title: f.text({ required: true, maxLength: 200 }),
+    status: f.select({ options: ["draft", "published"], required: true, default: "draft" }),
+    publishedAt: f.datetime(),
+  },
+  access: { read: () => true },
+  hooks: { beforeChange: [({ data }) => data] },
+  admin: { useAsTitle: "title", defaultColumns: ["title", "status", "publishedAt"] },
+});
+```
+
+## Options
+
+| Option   | Purpose                                                                        |
+| -------- | ------------------------------------------------------------------------------ |
+| `slug`   | Identifier used in the API, URLs and table names.                              |
+| `labels` | `{ singular, plural }`. Default: humanized slug (`blog-posts` → `Blog posts`). |
+| `fields` | Field definitions keyed by name. See [Fields](/docs/concepts/fields).          |
+| `access` | Rules per operation. See [Access control](/docs/concepts/access-control).      |
+| `hooks`  | Functions per stage. See [Hooks](/docs/concepts/hooks).                        |
+| `admin`  | Admin UI options (below).                                                      |
+
+## Naming rules
+
+| Item       | Allowed                                                                         |
+| ---------- | ------------------------------------------------------------------------------- |
+| Slug       | Lowercase letters, digits, `-`, `_`. Starts with a letter. Up to 63 characters. |
+| Field name | Letters, digits, `_`. Starts with a letter.                                     |
+| Reserved   | `id`, `createdAt`, `updatedAt`, `and`, `or`                                     |
+
+## System fields
+
+Every document has these fields. You do not declare them.
+
+| Field       | Value                                             |
+| ----------- | ------------------------------------------------- |
+| `id`        | String. UUIDv7 unless you pass an `id` on create. |
+| `createdAt` | ISO 8601 UTC string                               |
+| `updatedAt` | ISO 8601 UTC string                               |
+
+## Admin options
+
+| Option           | Purpose                                          |
+| ---------------- | ------------------------------------------------ |
+| `useAsTitle`     | Field shown as the document title. Default `id`. |
+| `defaultColumns` | Columns of the list view.                        |
+| `group`          | Sidebar group label.                             |
+| `hidden`         | Hide the collection from the admin UI.           |
+| `description`    | Text shown under the collection title.           |
+
+## Types
+
+| Type                     | Shape                                                             |
+| ------------------------ | ----------------------------------------------------------------- |
+| `InferDoc<typeof posts>` | System fields plus every field.                                   |
+| `InferCreateInput<…>`    | Required fields without a default are required. `id` is optional. |
+| `InferUpdateInput<…>`    | Every field optional. Only non-required fields accept `null`.     |
+| `InferWhere<…>`          | Filter with operators per field type.                             |
+| `InferSort<…>`           | `"field"`, `"-field"` or an array of them.                        |
+
+```ts
+import type { InferCreateInput, InferDoc } from "@quickben/core";
+
+import { posts } from "./collections";
+
+type Post = InferDoc<typeof posts>;
+type NewPost = InferCreateInput<typeof posts>;
+
+const input: NewPost = { title: "Hello" };
+```
