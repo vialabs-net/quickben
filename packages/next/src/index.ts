@@ -3,7 +3,9 @@ export { errorResponse, HttpError } from "./errors";
 export { createRouteHandlers } from "./handlers";
 export { collectionMeta, getMeta } from "./meta";
 export { parseFindParams, parseReadParams, toSearchParams } from "./query-string";
-export { currentRequest, getQuickben, getRequestContext, getUser, singleton } from "./server";
+export { currentRequest, getRequestContext, getUser, singleton } from "./server";
+/** The same function as in `@quickben/core`: one cached instance per config, per process. */
+export { getQuickben } from "@quickben/core";
 
 export type { CsrfOptions } from "./csrf";
 export type { ErrorBody, HttpErrorCode } from "./errors";

@@ -178,7 +178,7 @@ interface DatabaseAdapter<TRaw = unknown> {
 ### Local API
 
 ```ts
-const qb = await getQuickben(config); // cached per config object
+const qb = await getQuickben(config); // cached per config object, on globalThis
 await qb.find(slug, query, ctx);
 await qb.findById(slug, id, { depth, select }, ctx);
 await qb.count(slug, { where }, ctx);
@@ -308,7 +308,7 @@ export default createAdminPage(config, { serverFunction }); // async server comp
 - Bodies: JSON objects only; `id`, `createdAt`, `updatedAt` are removed.
 - Errors: `{ error: { code, message, details } }` with the status of the error. HTTP-only codes: `METHOD_NOT_ALLOWED` 405, `UNSUPPORTED_MEDIA_TYPE` 415, `INTERNAL` 500 (message hidden, error logged; also for 5xx Quickben errors such as `CONFIG`).
 - CSRF: `POST`, `PATCH` and `DELETE` require a same-origin `Origin` (or a trusted one) when the browser sends one, and reject `Sec-Fetch-Site: cross-site`.
-- Server helpers: `getQuickben` caches instances on `globalThis` (shared across bundles and dev reloads), `getRequestContext` / `getUser` resolve the user from `next/headers`, `singleton(key, create)` keeps database clients per process. No `next.config` wrapper.
+- Server helpers: `getQuickben` is core's (its cache is on `globalThis`, shared across bundles and dev reloads), `getRequestContext` / `getUser` resolve the user from `next/headers`, `singleton(key, create)` keeps database clients per process. No `next.config` wrapper.
 
 ### `@quickben/admin`
 

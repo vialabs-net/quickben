@@ -12,6 +12,8 @@ Access hardening and one API change before 0.1.
 - Core: an update filter also applies to the updated document, so a document cannot leave the filter.
 - Core: `update` and `delete` of a document the user cannot read throw `NotFoundError`.
 - Core: cursor values are validated against the sort fields.
+- Core: `getQuickben` caches on `globalThis`, so every copy of the package shares one instance per config. `@quickben/next` re-exports it.
+- Core: field names must be unique without case; reserved names match in any case.
 - Next: 5xx Quickben errors (such as `ConfigError`) are returned as `INTERNAL` without their message.
 - Memory adapter: an update no longer brings back a document deleted by a concurrent commit.
 - Tenancy: a suspended organization is read-only for its members.

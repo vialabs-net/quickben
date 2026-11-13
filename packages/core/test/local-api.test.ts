@@ -51,6 +51,13 @@ describe("createQuickben and getQuickben", () => {
     ]);
   });
 
+  it("shares the cache between copies of the package", async () => {
+    const config = makeConfig(testAdapter());
+    const qb = await getQuickben(config);
+    const store = globalThis as unknown as Record<symbol, WeakMap<object, unknown>>;
+    expect(await store[Symbol.for("quickben.instances")]?.get(config)).toBe(qb);
+  });
+
   it("caches one instance per config", async () => {
     const config = makeConfig(testAdapter());
     const [first, second] = await Promise.all([getQuickben(config), getQuickben(config)]);

@@ -472,16 +472,32 @@ export async function createQuickben<R extends Registry>(
   return qb as unknown as Quickben<R>;
 }
 
-const instances = new WeakMap<QuickbenConfig, Promise<Quickben>>();
+const instancesKey = Symbol.for("quickben.instances");
 
-/** Return the instance for `config`, creating it on first use. One instance per config object. */
+/**
+ * The instance cache lives on `globalThis`, so every copy of this module shares it: frameworks
+ * such as Next.js can bundle a package more than once (route handlers and pages), and two
+ * instances of one config would open the same database twice.
+ */
+function instances(): WeakMap<QuickbenConfig, Promise<Quickben>> {
+  const store = globalThis as typeof globalThis & Record<symbol, unknown>;
+  store[instancesKey] ??= new WeakMap<QuickbenConfig, Promise<Quickben>>();
+  return store[instancesKey] as WeakMap<QuickbenConfig, Promise<Quickben>>;
+}
+
+/**
+ * Return the instance for `config`, creating it on first use. One instance per config object,
+ * shared by every copy of this package in the process. A failed init is dropped, so the next
+ * call retries.
+ */
 export function getQuickben<R extends Registry>(config: QuickbenConfig<R>): Promise<Quickben<R>> {
   const key = config as QuickbenConfig;
-  let instance = instances.get(key);
+  const cache = instances();
+  let instance = cache.get(key);
   if (!instance) {
     instance = createQuickben(key);
-    instances.set(key, instance);
-    instance.catch(() => instances.delete(key));
+    cache.set(key, instance);
+    instance.catch(() => cache.delete(key));
   }
   return instance as unknown as Promise<Quickben<R>>;
 }
