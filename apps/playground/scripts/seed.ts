@@ -1,9 +1,7 @@
 /**
- * Seed the playground database: `pnpm seed`.
- *
- * With the default in-memory database the data lives only in this process, so this just
- * checks that seeding works; the dev server seeds itself on start. With a persistent database
- * (see lib/db.ts) it fills the database for the dev server.
+ * Seed the playground database: `pnpm seed`. The dev server also seeds an empty database on
+ * start. With `QUICKBEN_DB=memory` the data lives only in this process, so this only checks
+ * that seeding works.
  */
 import { createQuickben } from "@quickben/core";
 

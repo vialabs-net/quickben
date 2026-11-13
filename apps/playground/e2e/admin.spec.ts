@@ -8,12 +8,15 @@ test("list, create, edit and delete a post", async ({ page }) => {
   // Create, with a validation error first.
   await page.getByRole("link", { name: "New post" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "New post" })).toBeVisible();
-  await page.getByLabel("Title", { exact: true }).fill("Smoke test post");
-  await page.getByLabel("Slug", { exact: true }).fill("Not A Slug");
+  await page.getByRole("textbox", { name: "Title", exact: true }).fill("Smoke test post");
+  await page.getByRole("textbox", { name: "Slug", exact: true }).fill("Not A Slug");
   await page.getByRole("button", { name: "Create post" }).click();
   await expect(page.getByText("Use lowercase letters, digits and dashes")).toBeVisible();
-  await expect(page.getByLabel("Slug", { exact: true })).toHaveAttribute("aria-invalid", "true");
-  await page.getByLabel("Slug", { exact: true }).fill("smoke-test-post");
+  await expect(page.getByRole("textbox", { name: "Slug", exact: true })).toHaveAttribute(
+    "aria-invalid",
+    "true",
+  );
+  await page.getByRole("textbox", { name: "Slug", exact: true }).fill("smoke-test-post");
   await page.getByRole("combobox", { name: "Author" }).click();
   await page.getByRole("option", { name: "Ada Lovelace" }).click();
   await page.getByRole("button", { name: "Create post" }).click();
@@ -21,8 +24,8 @@ test("list, create, edit and delete a post", async ({ page }) => {
   await expect(page.getByRole("heading", { level: 1, name: "Smoke test post" })).toBeVisible();
 
   // Edit.
-  await page.getByLabel("Title", { exact: true }).fill("Smoke test post, edited");
-  await page.getByLabel("Status", { exact: true }).selectOption("published");
+  await page.getByRole("textbox", { name: "Title", exact: true }).fill("Smoke test post, edited");
+  await page.getByRole("combobox", { name: "Status", exact: true }).selectOption("published");
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page.getByRole("status")).toContainText("Changes saved");
   await expect(

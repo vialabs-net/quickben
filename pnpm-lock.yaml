@@ -243,18 +243,27 @@ importers:
 
   apps/playground:
     dependencies:
+      '@electric-sql/pglite':
+        specifier: 0.5.16
+        version: 0.5.16
       '@quickben/admin':
         specifier: workspace:*
         version: link:../../packages/admin
       '@quickben/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@quickben/db-drizzle':
+        specifier: workspace:*
+        version: link:../../packages/db-drizzle
       '@quickben/db-memory':
         specifier: workspace:*
         version: link:../../packages/db-memory
       '@quickben/next':
         specifier: workspace:*
         version: link:../../packages/next
+      drizzle-orm:
+        specifier: 0.45.4
+        version: 0.45.4(@electric-sql/pglite@0.5.16)(@libsql/client@0.18.0)(@types/pg@8.23.1)(pg@8.23.1)
       next:
         specifier: 16.4.6
         version: 16.4.6(@playwright/test@1.65.0)(@types/node@22.20.5)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
