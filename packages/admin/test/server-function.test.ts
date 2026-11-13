@@ -39,7 +39,7 @@ describe("handleAdminRequest", () => {
     );
     expect(updated).toEqual({ status: "ok", id });
     const qb = await getQuickben(config);
-    expect(await qb.findById("posts", id, system)).toMatchObject({
+    expect(await qb.findById("posts", id, {}, system)).toMatchObject({
       title: "Bye",
       status: "published",
     });

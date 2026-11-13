@@ -115,17 +115,17 @@ describe("create, read, update, delete", () => {
   it("finds by id, updates and deletes", async () => {
     const { qb } = await setup();
     const post = await qb.create("posts", { title: "Hi" }, system);
-    expect(await qb.findById("posts", post.id, system)).toEqual(post);
+    expect(await qb.findById("posts", post.id, {}, system)).toEqual(post);
     const updated = await qb.update("posts", post.id, { title: "Hello", body: null }, system);
     expect(updated.title).toBe("Hello");
     expect(await qb.delete("posts", post.id, system)).toEqual(updated);
-    await expect(qb.findById("posts", post.id, system)).rejects.toBeInstanceOf(NotFoundError);
+    await expect(qb.findById("posts", post.id, {}, system)).rejects.toBeInstanceOf(NotFoundError);
     await expect(qb.delete("posts", post.id, system)).rejects.toBeInstanceOf(NotFoundError);
   });
 
   it("validates ids, depth, select and paging", async () => {
     const { qb } = await setup();
-    await expect(qb.findById("posts", "", system)).rejects.toBeInstanceOf(ValidationError);
+    await expect(qb.findById("posts", "", {}, system)).rejects.toBeInstanceOf(ValidationError);
     // @ts-expect-error depth is 0..3
     await expect(qb.find("posts", { depth: 4 }, system)).rejects.toBeInstanceOf(ValidationError);
     // @ts-expect-error unknown field
@@ -326,7 +326,9 @@ describe("access", () => {
     expect((await qb.find("secrets", {}, as(bob))).docs.map((doc) => doc.id)).toEqual([mine.id]);
     expect(await qb.count("secrets", {}, as(bob))).toBe(1);
     expect(await qb.count("secrets", {}, system)).toBe(2);
-    await expect(qb.findById("secrets", mine.id, as(alice))).rejects.toBeInstanceOf(NotFoundError);
+    await expect(qb.findById("secrets", mine.id, {}, as(alice))).rejects.toBeInstanceOf(
+      NotFoundError,
+    );
     await expect(qb.count("secrets", {}, as(null))).rejects.toBeInstanceOf(UnauthorizedError);
   });
 
@@ -357,6 +359,72 @@ describe("access", () => {
       ForbiddenError,
     );
     await expect(qb.create("scoped", { team: "blue" }, system)).resolves.toBeDefined();
+  });
+
+  it("keeps updated documents inside the update filter", async () => {
+    const teams = defineCollection({
+      slug: "teams",
+      fields: { team: f.text({ required: true }), note: f.text() },
+      access: {
+        read: () => true,
+        create: () => true,
+        update: ({ user }) => (user ? { team: { eq: user.id } } : false),
+      },
+    });
+    const qb = await createQuickben(defineConfig({ db: testAdapter(), collections: [teams] }));
+    const doc = await qb.create("teams", { team: "bob" }, system);
+    expect((await qb.update("teams", doc.id, { note: "ok" }, as(bob))).note).toBe("ok");
+    await expect(qb.update("teams", doc.id, { team: "alice" }, as(bob))).rejects.toBeInstanceOf(
+      ForbiddenError,
+    );
+    expect((await qb.findById("teams", doc.id, {}, system)).team).toBe("bob");
+  });
+
+  it("reports unreadable documents as not found on update and delete", async () => {
+    const secrets = defineCollection({
+      slug: "secrets",
+      fields: { owner: f.text({ required: true }) },
+      access: {
+        read: ({ user }) => (user ? { owner: { eq: user.id } } : false),
+        update: () => true,
+        delete: () => true,
+      },
+    });
+    const qb = await createQuickben(defineConfig({ db: testAdapter(), collections: [secrets] }));
+    const other = await qb.create("secrets", { owner: "alice" }, system);
+    await expect(qb.update("secrets", other.id, { owner: "bob" }, as(bob))).rejects.toBeInstanceOf(
+      NotFoundError,
+    );
+    await expect(qb.delete("secrets", other.id, as(bob))).rejects.toBeInstanceOf(NotFoundError);
+    expect(await qb.count("secrets", {}, system)).toBe(1);
+  });
+
+  it("only links to related documents the user can read", async () => {
+    const secrets = defineCollection({
+      slug: "secrets",
+      fields: { owner: f.text({ required: true }) },
+      access: { read: ({ user }) => (user ? { owner: { eq: user.id } } : false) },
+    });
+    const hidden = defineCollection({ slug: "hidden", fields: {}, access: { read: () => false } });
+    const links = defineCollection({
+      slug: "links",
+      fields: { secret: f.relation({ to: "secrets" }), hidden: f.relation({ to: "hidden" }) },
+      access: { read: () => true, create: () => true },
+    });
+    const qb = await createQuickben(
+      defineConfig({ db: testAdapter(), collections: [secrets, hidden, links] }),
+    );
+    const mine = await qb.create("secrets", { owner: "bob" }, system);
+    const theirs = await qb.create("secrets", { owner: "alice" }, system);
+    const invisible = await qb.create("hidden", {}, system);
+    expect((await qb.create("links", { secret: mine.id }, as(bob))).secret).toBe(mine.id);
+    await expect(qb.create("links", { secret: theirs.id }, as(bob))).rejects.toMatchObject({
+      issues: [{ path: "secret", message: `No "secrets" document with id "${theirs.id}"` }],
+    });
+    await expect(qb.create("links", { hidden: invisible.id }, as(bob))).rejects.toBeInstanceOf(
+      ValidationError,
+    );
+    await expect(qb.create("links", { secret: theirs.id }, system)).resolves.toBeDefined();
   });
 
   it("passes the request details to access functions", async () => {
@@ -440,12 +508,14 @@ describe("access", () => {
     );
     const target = await other.create("hidden", {}, system);
     const ref = await other.create("refs", { to: target.id }, system);
-    expect((await other.findById("refs", ref.id, { user: bob, depth: 1 })).to).toBe(target.id);
-    expect((await other.findById("refs", ref.id, { ...system, depth: 1 })).to).toMatchObject({
+    expect((await other.findById("refs", ref.id, { depth: 1 }, { user: bob })).to).toBe(target.id);
+    expect((await other.findById("refs", ref.id, { depth: 1 }, system)).to).toMatchObject({
       id: target.id,
     });
     const post = await qb.create("posts", { title: "x", author: author.id }, system);
-    expect((await qb.findById("posts", post.id, { user: null, depth: 1 })).author).toMatchObject({
+    expect(
+      (await qb.findById("posts", post.id, { depth: 1 }, { user: null })).author,
+    ).toMatchObject({
       name: "Alice",
     });
   });
@@ -561,14 +631,10 @@ describe("relations", () => {
       { title: "x", author: author.id, tags: [tag.id] },
       system,
     );
-    const loaded = await qb.findById("posts", post.id, { ...system, depth: 1 });
+    const loaded = await qb.findById("posts", post.id, { depth: 1 }, system);
     expect(loaded.author).toMatchObject({ id: author.id, name: "Alice" });
     expect(loaded.tags).toMatchObject([{ id: tag.id, label: "t" }]);
-    const selected = await qb.findById("posts", post.id, {
-      ...system,
-      depth: 1,
-      select: ["title"],
-    });
+    const selected = await qb.findById("posts", post.id, { depth: 1, select: ["title"] }, system);
     expect(selected).toEqual({ id: post.id, title: "x" });
   });
 

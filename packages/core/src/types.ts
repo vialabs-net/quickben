@@ -650,7 +650,8 @@ export interface Quickben<R extends Registry = Registry> {
   >(
     slug: S,
     id: string,
-    options: RequestContext & ReadOptions<R[S], TSelect, D>,
+    query: ReadOptions<R[S], TSelect, D>,
+    ctx: RequestContext,
   ): Promise<ResultDoc<R, S, TSelect, D>>;
 
   /** Count documents. Applies read access. */

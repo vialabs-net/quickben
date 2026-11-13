@@ -35,10 +35,11 @@ function cookieValue(header: string | null, name: string): string | undefined {
  * Demo auth: `devAuth()` with the user taken from the role cookie. A request that sends the
  * `x-quickben-user` header (e.g. curl) keeps it.
  *
- * `allowInProduction` is on only because the e2e tests run `next start`. Never deploy this.
+ * In a production build it works only with `QUICKBEN_PLAYGROUND_DEMO=1`, which the e2e tests set
+ * for `next start`. Never deploy the playground with it.
  */
 export function playgroundAuth(): AuthAdapter {
-  const dev = devAuth({ allowInProduction: true });
+  const dev = devAuth({ allowInProduction: process.env.QUICKBEN_PLAYGROUND_DEMO === "1" });
   return {
     getUser(req) {
       if (req.headers.has("x-quickben-user")) return dev.getUser(req);

@@ -1,9 +1,19 @@
-import { ForbiddenError, NotFoundError, UnauthorizedError, ValidationError } from "@quickben/core";
+import {
+  createQuickben,
+  defineCollection,
+  defineConfig,
+  fields as f,
+  ForbiddenError,
+  NotFoundError,
+  UnauthorizedError,
+  ValidationError,
+} from "@quickben/core";
+import { memoryAdapter } from "@quickben/db-memory";
 import { describe, expect, it } from "vitest";
 
-import { OrganizationError, resolveTenant } from "../src";
+import { OrganizationError, resolveTenant, tenancy } from "../src";
 
-import { alice, as, bob, carol, dave, inOrg, setup, staff, system } from "./setup";
+import { alice, as, bob, carol, dave, inOrg, posts, setup, staff, system } from "./setup";
 
 describe("active organization", () => {
   it("is the only membership when nothing is requested", async () => {
@@ -118,14 +128,44 @@ describe("tenant-scoped collections", () => {
     expect(await qb.count("posts", {}, inOrg(bob, globex.id))).toBe(1);
     const other = (await qb.find("posts", { where: { title: { eq: "Globex post" } } }, system))
       .docs[0]!;
-    await expect(qb.findById("posts", other.id, as(carol))).rejects.toBeInstanceOf(NotFoundError);
+    await expect(qb.findById("posts", other.id, {}, as(carol))).rejects.toBeInstanceOf(
+      NotFoundError,
+    );
   });
 
   it("rejects a create for another organization", async () => {
-    const { qb, globex } = await setup();
+    const { qb, acme, globex } = await setup();
+    // Carol cannot read globex, so it is not a valid organization for her.
     await expect(
       qb.create("posts", { title: "x", organization: globex.id }, as(carol)),
+    ).rejects.toMatchObject({ code: "VALIDATION", issues: [{ path: "organization" }] });
+    // Bob reads both organizations; the create filter still keeps him in the active one.
+    await expect(
+      qb.create("posts", { title: "x", organization: globex.id }, inOrg(bob, acme.id)),
     ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it("rejects relations to documents of another organization", async () => {
+    const comments = defineCollection({
+      slug: "comments",
+      fields: { post: f.relation({ to: "posts", required: true }), text: f.text() },
+    });
+    const qb = await createQuickben(
+      defineConfig({
+        db: memoryAdapter(),
+        collections: [posts, comments],
+        plugins: [tenancy({ scope: ["posts", "comments"] })],
+      }),
+    );
+    const acme = await qb.create("organizations", { name: "Acme", slug: "acme" }, as(alice));
+    const globex = await qb.create("organizations", { name: "Globex", slug: "globex" }, as(bob));
+    const theirs = await qb.create("posts", { title: "Globex only" }, inOrg(bob, globex.id));
+    const mine = await qb.create("posts", { title: "Acme post" }, inOrg(alice, acme.id));
+    expect((await qb.create("comments", { post: mine.id }, as(alice))).post).toBe(mine.id);
+    await expect(qb.create("comments", { post: theirs.id }, as(alice))).rejects.toMatchObject({
+      code: "VALIDATION",
+      issues: [{ path: "post" }],
+    });
   });
 
   it("ANDs the collection's own rule with the organization filter", async () => {
@@ -145,7 +185,7 @@ describe("tenant-scoped collections", () => {
     );
     await expect(
       qb.update("posts", post.id, { title: "x" }, inOrg(carol, globex.id)),
-    ).rejects.toBeInstanceOf(ForbiddenError);
+    ).rejects.toBeInstanceOf(NotFoundError);
   });
 
   it("does not move documents to another organization", async () => {
@@ -153,16 +193,21 @@ describe("tenant-scoped collections", () => {
     const note = await qb.create("notes", { text: "Mine" }, as(carol));
     await expect(
       qb.update("notes", note.id, { organization: globex.id }, as(carol)),
+    ).rejects.toMatchObject({ code: "VALIDATION", issues: [{ path: "organization" }] });
+    // Bob reads both organizations, but documents still cannot move.
+    const bobs = await qb.create("notes", { text: "Bob's" }, inOrg(bob, acme.id));
+    await expect(
+      qb.update("notes", bobs.id, { organization: globex.id }, inOrg(bob, acme.id)),
     ).rejects.toThrow(/cannot move/);
     expect((await qb.update("notes", note.id, { organization: acme.id }, as(carol))).text).toBe(
       "Mine",
     );
-    const moved = await qb.update(
-      "notes",
-      note.id,
-      { organization: globex.id },
-      inOrg(staff, acme.id),
-    );
+    // Inside one organization the update filter keeps the document there, also for staff.
+    await expect(
+      qb.update("notes", note.id, { organization: globex.id }, inOrg(staff, acme.id)),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    // With no organization selected, platform staff can move it.
+    const moved = await qb.update("notes", note.id, { organization: globex.id }, as(staff));
     expect(moved.organization).toBe(globex.id);
     const back = await qb.update("notes", note.id, { organization: acme.id }, system);
     expect(back.organization).toBe(acme.id);

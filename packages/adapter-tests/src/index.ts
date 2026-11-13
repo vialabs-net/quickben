@@ -133,7 +133,7 @@ export function runAdapterContractTests(
 
     describe("create and read", () => {
       it("returns documents with system fields and every field", async () => {
-        const doc = await qb.findById("posts", ids.Alpha, system);
+        const doc = await qb.findById("posts", ids.Alpha, {}, system);
         expect(doc.id).toMatch(
           /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
         );
@@ -152,7 +152,7 @@ export function runAdapterContractTests(
       });
 
       it("returns null and empty arrays for unset fields", async () => {
-        const doc = await qb.findById("posts", ids["Gamma ray"], system);
+        const doc = await qb.findById("posts", ids["Gamma ray"], {}, system);
         expect(doc).toMatchObject({
           slug: null,
           views: null,
@@ -183,7 +183,7 @@ export function runAdapterContractTests(
 
     describe("update and delete", () => {
       it("merges changes and keeps other fields", async () => {
-        const before = await qb.findById("posts", ids.beta, system);
+        const before = await qb.findById("posts", ids.beta, {}, system);
         const after = await qb.update("posts", ids.beta, { views: 6, body: "text" }, system);
         expect(after).toMatchObject({ title: "beta", views: 6, body: "text", tags: [ids.t2] });
         expect(after.createdAt).toBe(before.createdAt);
@@ -198,7 +198,7 @@ export function runAdapterContractTests(
       it("deletes documents", async () => {
         const deleted = await qb.delete("posts", ids.delta, system);
         expect(deleted.title).toBe("delta");
-        await expect(qb.findById("posts", ids.delta, system)).rejects.toMatchObject({
+        await expect(qb.findById("posts", ids.delta, {}, system)).rejects.toMatchObject({
           code: "NOT_FOUND",
         });
         expect(await qb.count("posts", {}, system)).toBe(4);
@@ -402,6 +402,9 @@ export function runAdapterContractTests(
         ["views"],
         ["-publishedAt"],
         ["published"],
+        ["publishedOn"],
+        ["-rating"],
+        ["-createdAt"],
         [["status", "-views"]],
         [undefined],
       ] as const)("cursor walks every document once (sort %j)", async (sort) => {
@@ -443,12 +446,12 @@ export function runAdapterContractTests(
 
     describe("relations", () => {
       it("depth 0 returns ids", async () => {
-        const post = await qb.findById("posts", ids.Alpha, system);
+        const post = await qb.findById("posts", ids.Alpha, {}, system);
         expect(post.author).toBe(ids.a1);
       });
 
       it("depth 1 loads related documents", async () => {
-        const post = await qb.findById("posts", ids.Alpha, { ...system, depth: 1 });
+        const post = await qb.findById("posts", ids.Alpha, { depth: 1 }, system);
         expect(post.author).toMatchObject({ id: ids.a1, name: "Ada", favoriteTag: ids.t1 });
         expect(post.tags).toMatchObject([{ label: "one" }, { label: "two" }]);
       });
@@ -465,7 +468,7 @@ export function runAdapterContractTests(
 
       it("missing related documents stay ids", async () => {
         await db.delete({ collection: "authors", id: ids.a2 });
-        const post = await qb.findById("posts", ids.beta, { ...system, depth: 1 });
+        const post = await qb.findById("posts", ids.beta, { depth: 1 }, system);
         expect(post.author).toBe(ids.a2);
       });
 
@@ -502,7 +505,7 @@ export function runAdapterContractTests(
           }),
         ).rejects.toThrow("stop");
         expect(await qb.count("tags", {}, system)).toBe(3);
-        expect((await qb.findById("posts", ids.Alpha, system)).views).toBe(10);
+        expect((await qb.findById("posts", ids.Alpha, {}, system)).views).toBe(10);
         expect(await qb.count("posts", {}, system)).toBe(5);
       });
 

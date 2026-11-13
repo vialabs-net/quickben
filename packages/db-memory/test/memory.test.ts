@@ -82,6 +82,14 @@ describe("memoryAdapter", () => {
     ).rejects.toMatchObject({ code: "CONFLICT", field: "id" });
   });
 
+  it("does not bring back a document deleted by a concurrent commit", async () => {
+    await db.transaction(async (tx) => {
+      await tx.update({ collection: "users", id: "u0", data: { email: "late@example.com" } });
+      await db.delete({ collection: "users", id: "u0" });
+    });
+    expect(await db.count({ collection: "users" })).toBe(0);
+  });
+
   it("can delete and create the same id in one transaction", async () => {
     await db.transaction(async (tx) => {
       await tx.delete({ collection: "users", id: "u0" });

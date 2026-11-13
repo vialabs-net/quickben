@@ -26,6 +26,8 @@ export default defineConfig({
       ? `pnpm exec next start --port ${String(port)}`
       : `pnpm exec next dev --port ${String(port)}`,
     url: `${baseURL}/api/_meta`,
+    // Lets the demo auth (devAuth) run under `next start`. See lib/auth.ts.
+    env: { QUICKBEN_PLAYGROUND_DEMO: "1" },
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },

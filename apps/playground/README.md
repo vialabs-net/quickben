@@ -54,7 +54,7 @@ Pick a role in the bar at the top. It sets a cookie that the auth adapter turns 
 | viewer    | read                                    |
 | anonymous | read published posts, authors and tags  |
 
-`devAuth` trusts the client. Do not deploy this app.
+`devAuth` trusts the client. Do not deploy this app. A production build (`next start`) refuses requests unless `QUICKBEN_PLAYGROUND_DEMO=1` is set; the e2e tests set it.
 
 ## Tests
 

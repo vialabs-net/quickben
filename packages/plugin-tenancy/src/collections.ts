@@ -98,16 +98,29 @@ function isTrusted(tenancy: ResolvedTenancy, ctx: RequestContext): boolean {
   return ctx.overrideAccess === true || isPlatform(tenancy, ctx.user);
 }
 
-/** Ids of the organizations where the user's role has `capability`. */
+/**
+ * Ids of the organizations where the user's role has `capability`. Every capability except
+ * `read` also needs an active organization: a suspended one is read-only for its members.
+ */
 async function organizationsWith(
   state: TenancyState,
   args: AccessArgs,
   capability: Capability,
 ): Promise<string[]> {
-  const memberships = await myMemberships(apiOf(state, args.qb), args.ctx);
-  return memberships
+  const qb = apiOf(state, args.qb);
+  const memberships = await myMemberships(qb, args.ctx);
+  const ids = memberships
     .filter((m) => capabilitiesOf(state.tenancy, m.role).includes(capability))
     .map((m) => m.organization);
+  if (capability === "read" || ids.length === 0) return ids;
+  const active = await rawFind(
+    qb,
+    ORGANIZATIONS,
+    { field: "id", op: "in", value: ids },
+    eq("status", "active"),
+  );
+  const activeIds = new Set(active.map((org) => org.id));
+  return ids.filter((id) => activeIds.has(id));
 }
 
 function knownModules(qb: Quickben, keys: readonly string[]): void {

@@ -115,7 +115,7 @@ async function handleGet({ qb, ctx, url, segments, maxLimit }: Call): Promise<Re
     return json(await qb.find(slug, query as never, ctx));
   }
   const options = parseReadParams(url.searchParams);
-  return json(await qb.findById(slug, id, { ...ctx, ...(options as object) }));
+  return json(await qb.findById(slug, id, options as never, ctx));
 }
 
 async function handlePost({ qb, ctx, req, segments }: Call): Promise<Response> {

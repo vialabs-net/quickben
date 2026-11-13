@@ -94,16 +94,20 @@ function applyChanges(
   changes: ReadonlyMap<string, Change>,
 ): Map<string, DocumentData> {
   const docs = new Map(current ?? []);
+  const written: DocumentData[] = [];
   for (const [id, change] of changes) {
     if (change.create && docs.has(id)) {
       throw new ConflictError(`Id "${id}" is already taken in "${slug}"`, "id");
     }
-    if (change.doc) docs.set(id, change.doc);
-    else docs.delete(id);
+    if (!change.doc) {
+      docs.delete(id);
+    } else if (change.create || docs.has(id)) {
+      docs.set(id, change.doc);
+      written.push(change.doc);
+    }
+    // Else the document was updated here but deleted by a concurrent commit: the delete wins.
   }
-  for (const change of changes.values()) {
-    if (change.doc) assertUnique(shared, slug, docs, change.doc);
-  }
+  for (const doc of written) assertUnique(shared, slug, docs, doc);
   return docs;
 }
 

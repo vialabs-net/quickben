@@ -1,4 +1,5 @@
 import { ValidationError } from "./errors";
+import { normalizeWhere } from "./where";
 
 import type { DocumentData, SortSpec, WhereNode } from "./adapter";
 import type { SanitizedCollection } from "./types";
@@ -79,23 +80,40 @@ export function encodeCursor(sort: readonly SortSpec[], doc: DocumentData): stri
 
 /**
  * Turn a cursor into a filter that matches the documents after it (keyset pagination).
- * Throws `ValidationError` when the cursor is malformed or was made for another sort.
+ * Throws `ValidationError` when the cursor is malformed, was made for another sort, or holds
+ * values that do not fit the sort fields (cursors come from clients and can be edited).
  */
-export function cursorWhere(sort: readonly SortSpec[], cursor: string): WhereNode {
+export function cursorWhere(
+  collection: SanitizedCollection,
+  sort: readonly SortSpec[],
+  cursor: string,
+): WhereNode {
   const payload = decodeCursor(cursor);
   if (payload?.s !== signature(sort) || payload.v.length !== sort.length) {
     throw invalid("cursor", "Invalid cursor for this sort");
   }
+  const values = sort.map((spec, index) => cursorValue(collection, spec.field, payload.v[index]));
   const branches: WhereNode[] = [];
   for (const [index, spec] of sort.entries()) {
-    const after = afterValue(spec, payload.v[index] ?? null);
+    const after = afterValue(spec, values[index] ?? null);
     if (!after) continue;
     const ties = sort
       .slice(0, index)
-      .map((previous, i) => equalTo(previous.field, payload.v[i] ?? null));
+      .map((previous, i) => equalTo(previous.field, values[i] ?? null));
     branches.push({ and: [...ties, after] });
   }
   return { or: branches };
+}
+
+/** Check one cursor value against its field, as a `where` operand would be. */
+function cursorValue(collection: SanitizedCollection, field: string, value: unknown): unknown {
+  if (value === null || value === undefined) return null;
+  try {
+    const node = normalizeWhere(collection, { [field]: { eq: value } });
+    return "value" in node ? node.value : null;
+  } catch {
+    throw invalid("cursor", "Invalid cursor for this sort");
+  }
 }
 
 function decodeCursor(cursor: string): CursorPayload | undefined {

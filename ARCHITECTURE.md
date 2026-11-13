@@ -114,7 +114,7 @@ Fields that plugins add with `definePlugin({ addFields })` are inferred. Fields 
 
 - Core builds a Zod 4 schema per collection for create and for update. Unknown keys are rejected.
 - Field `validate(value, { operation, data, original, user })` runs after the schema, for values that are not `null`. It returns `true` or an error message.
-- Related ids must exist. Core checks them with one query per related collection.
+- Related ids must exist and be readable by the user (`overrideAccess`: exist). Core checks them with one query per related collection.
 - Unique values are enforced by the adapter, which throws `ConflictError`.
 - Errors are `ValidationError` with `issues: { path, message }[]`.
 
@@ -180,7 +180,7 @@ interface DatabaseAdapter<TRaw = unknown> {
 ```ts
 const qb = await getQuickben(config); // cached per config object
 await qb.find(slug, query, ctx);
-await qb.findById(slug, id, { ...ctx, depth, select });
+await qb.findById(slug, id, { depth, select }, ctx);
 await qb.count(slug, { where }, ctx);
 await qb.create(slug, data, ctx);
 await qb.update(slug, id, data, ctx);
@@ -192,15 +192,15 @@ qb.collections.posts; // collection metadata
 qb.db.raw; // native client
 ```
 
-`ctx` is `{ user, req?, overrideAccess? }` and is required. `createQuickben(config)` calls `db.init(schema)`, then each plugin's `onInit`. `getQuickben` drops a failed instance so the next call retries.
+`ctx` is `{ user, req?, overrideAccess? }`, is required and is always the last argument (never merged with query options). `createQuickben(config)` calls `db.init(schema)`, then each plugin's `onInit`. `getQuickben` drops a failed instance so the next call retries.
 
 Writes (`create`, `update`, `delete`) run in one transaction together with their hooks. If a hook throws, nothing is written.
 
 **create:** access → defaults → `beforeValidate` → validation → related ids → `beforeChange` → access filter on the new document → write → `afterChange` → `afterRead`.
 
-**update:** load → access (filter must match the stored document) → `beforeValidate` → validation → related ids → `beforeChange` → write → `afterChange` → `afterRead`.
+**update:** load (unreadable = `NOT_FOUND`) → access (filter must match the stored document) → `beforeValidate` → validation → related ids → `beforeChange` → access filter on the updated document → write → `afterChange` → `afterRead`.
 
-**delete:** load → access (filter must match) → `beforeDelete` → delete → `afterDelete` → `afterRead`. Documents that reference the deleted one keep its id.
+**delete:** load (unreadable = `NOT_FOUND`) → access (filter must match) → `beforeDelete` → delete → `afterDelete` → `afterRead`. Documents that reference the deleted one keep its id.
 
 **reads:** access filter AND query → adapter → relations → `afterRead` → `select`. When a collection has `afterRead` hooks, core loads full documents and applies `select` after the hooks.
 
@@ -210,7 +210,7 @@ Writes (`create`, `update`, `delete`) run in one transaction together with their
 | --------- | ------------------- | ---------------------------------------------------------------------------- |
 | `read`    | all documents       | AND-ed with the query. `findById` of a filtered-out document is `NOT_FOUND`. |
 | `create`  | allowed             | The new document (after hooks) must match.                                   |
-| `update`  | allowed             | The stored document must match.                                              |
+| `update`  | allowed             | The stored document and the updated document must match.                     |
 | `delete`  | allowed             | The stored document must match.                                              |
 
 `false` throws `UnauthorizedError` without a user and `ForbiddenError` with one. A missing rule allows authenticated users only. Rules receive `{ user, req, ctx, qb, operation, id, data }`. `ctx` is the whole request context, including keys added by plugins. `qb` is the local API bound to the current transaction; it is `undefined` when UI code calls `checkAccess` itself.
@@ -306,7 +306,7 @@ export default createAdminPage(config, { serverFunction }); // async server comp
 - Route handlers: `GET /_meta`, `GET|POST /:collection`, `GET|PATCH|DELETE /:collection/:id`. They take plain `Request` objects, so tests call them directly.
 - Query string: `where` is JSON; `sort` and `select` are comma-separated; `limit` (≤ `maxLimit`, default 100), `page`, `cursor`, `depth`. Unknown parameters are rejected.
 - Bodies: JSON objects only; `id`, `createdAt`, `updatedAt` are removed.
-- Errors: `{ error: { code, message, details } }` with the status of the error. HTTP-only codes: `METHOD_NOT_ALLOWED` 405, `UNSUPPORTED_MEDIA_TYPE` 415, `INTERNAL` 500 (message hidden, error logged).
+- Errors: `{ error: { code, message, details } }` with the status of the error. HTTP-only codes: `METHOD_NOT_ALLOWED` 405, `UNSUPPORTED_MEDIA_TYPE` 415, `INTERNAL` 500 (message hidden, error logged; also for 5xx Quickben errors such as `CONFIG`).
 - CSRF: `POST`, `PATCH` and `DELETE` require a same-origin `Origin` (or a trusted one) when the browser sends one, and reject `Sec-Fetch-Site: cross-site`.
 - Server helpers: `getQuickben` caches instances on `globalThis` (shared across bundles and dev reloads), `getRequestContext` / `getUser` resolve the user from `next/headers`, `singleton(key, create)` keeps database clients per process. No `next.config` wrapper.
 
@@ -323,7 +323,7 @@ export default createAdminPage(config, { serverFunction }); // async server comp
 ### `@quickben/plugin-tenancy`
 
 - `tenancy({ scope })` adds `organizations` and `memberships` (invitations are memberships with status `invited`), and an `organization` relation (required, indexed, optional in create input) to each scoped collection via `addFields`.
-- Scoped access: the collection's rule AND `{ organization: { eq: active } }`; creates get the active organization; documents cannot move. Reads need the `read` capability, writes `write`; collections in a module need the module.
+- Scoped access: the collection's rule AND `{ organization: { eq: active } }`; creates get the active organization; documents cannot move (platform staff with no organization selected can move them). Relations can only point to documents of the active organization. Reads need the `read` capability, writes `write`; collections in a module need the module.
 - Active organization: `ctx.organizationId`, then a header, then a cookie, then the user's only membership; verified against active memberships. Platform staff (`isPlatformAdmin`) see all organizations or act in one. `OrganizationError` (403) carries a `reason`.
 - Roles are data: capabilities per role, ranked by order. Membership hooks enforce the guard rails: last active owner, no self-demotion for owners and admins, no managing higher roles.
 - Helpers over the local API: `resolveTenant`, `inviteMember`, `acceptInvitation`, `updateMembership`, `removeMember`, `listMyOrganizations`, `listMyInvitations`, `switchOrganization` (returns the cookie), `canUseModule`, `moduleAccess`, `hasCapability`.

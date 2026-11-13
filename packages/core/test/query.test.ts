@@ -252,13 +252,29 @@ describe("sort, paging and cursors", () => {
   it("round-trips cursors and rejects foreign ones", () => {
     const sort = parseSort(collection, ["name", "-count"]);
     const cursor = encodeCursor(sort, { id: "i", name: "ñandú ✓", count: null });
-    const where = cursorWhere(sort, cursor);
+    const where = cursorWhere(collection, sort, cursor);
     expect(matchesWhere({ id: "j", name: "ñandú ✓", count: null }, where)).toBe(false);
     expect(matchesWhere({ id: "a", name: "ñandú ✓", count: null }, where)).toBe(true);
     expect(matchesWhere({ id: "a", name: "ñandú ✓", count: 4 }, where)).toBe(true);
-    expect(issue(() => cursorWhere(parseSort(collection, "name"), cursor))?.path).toBe("cursor");
-    expect(issue(() => cursorWhere(sort, "%%%"))?.path).toBe("cursor");
-    expect(issue(() => cursorWhere(sort, btoa("[1]")))?.path).toBe("cursor");
+    expect(issue(() => cursorWhere(collection, parseSort(collection, "name"), cursor))?.path).toBe(
+      "cursor",
+    );
+    expect(issue(() => cursorWhere(collection, sort, "%%%"))?.path).toBe("cursor");
+    expect(issue(() => cursorWhere(collection, sort, btoa("[1]")))?.path).toBe("cursor");
+  });
+
+  it("rejects cursors whose values do not fit the sort fields", () => {
+    const sort = parseSort(collection, ["name", "-count"]);
+    const forge = (v: unknown[]) =>
+      btoa(JSON.stringify({ s: "name,-count,-id", v })).replaceAll("=", "");
+    for (const v of [
+      [{ gt: 1 }, 1, "i"],
+      ["a", "not a number", "i"],
+      ["a", 1, ["i"]],
+    ]) {
+      expect(issue(() => cursorWhere(collection, sort, forge(v)))?.path).toBe("cursor");
+    }
+    expect(() => cursorWhere(collection, sort, forge(["a", null, "i"]))).not.toThrow();
   });
 });
 

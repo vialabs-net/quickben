@@ -166,7 +166,7 @@ async function renderContent(args: RenderArgs): Promise<ReactNode> {
       />
     );
   }
-  const doc = id === undefined ? null : await qb.findById(route.slug, id, { ...ctx });
+  const doc = id === undefined ? null : await qb.findById(route.slug, id, {}, ctx);
   const relationOptions = await loadRelationOptions(qb, ctx, collection, doc, metas);
   const labels = Object.fromEntries(meta.collections.map((c) => [c.slug, c.labels.plural]));
   return (

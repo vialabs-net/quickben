@@ -106,17 +106,16 @@ Every error has the same body:
 }
 ```
 
-| Code                     | Status | When                                                  | `details`                         |
-| ------------------------ | ------ | ----------------------------------------------------- | --------------------------------- |
-| `VALIDATION`             | 400    | Invalid body or query string                          | `{ issues: [{ path, message }] }` |
-| `UNAUTHORIZED`           | 401    | Access rule denies and there is no user               | `null`                            |
-| `FORBIDDEN`              | 403    | Access rule denies a signed-in user; CSRF check fails | `null`                            |
-| `NOT_FOUND`              | 404    | Unknown document, collection or route                 | `null`                            |
-| `METHOD_NOT_ALLOWED`     | 405    | For example `POST /posts/:id`. Has an `Allow` header. | `null`                            |
-| `CONFLICT`               | 409    | Unique field already used                             | `{ field }`                       |
-| `UNSUPPORTED_MEDIA_TYPE` | 415    | Body without `Content-Type: application/json`         | `null`                            |
-| `CONFIG`                 | 500    | Config error, for example `devAuth()` in production   | `null`                            |
-| `INTERNAL`               | 500    | Any other error. It is logged, and not returned.      | `null`                            |
+| Code                     | Status | When                                                                                                                             | `details`                         |
+| ------------------------ | ------ | -------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| `VALIDATION`             | 400    | Invalid body or query string                                                                                                     | `{ issues: [{ path, message }] }` |
+| `UNAUTHORIZED`           | 401    | Access rule denies and there is no user                                                                                          | `null`                            |
+| `FORBIDDEN`              | 403    | Access rule denies a signed-in user; CSRF check fails                                                                            | `null`                            |
+| `NOT_FOUND`              | 404    | Unknown document, collection or route                                                                                            | `null`                            |
+| `METHOD_NOT_ALLOWED`     | 405    | For example `POST /posts/:id`. Has an `Allow` header.                                                                            | `null`                            |
+| `CONFLICT`               | 409    | Unique field already used                                                                                                        | `{ field }`                       |
+| `UNSUPPORTED_MEDIA_TYPE` | 415    | Body without `Content-Type: application/json`                                                                                    | `null`                            |
+| `INTERNAL`               | 500    | Any other error, including `ConfigError` (for example `devAuth()` in production). It is logged, and its message is not returned. | `null`                            |
 
 `errorResponse(error)` builds the same response in your own route handlers.
 
