@@ -1,3 +1,4 @@
+import { QuickbenError } from "@quickben/core";
 import { getQuickben, getRequestContext } from "@quickben/next";
 
 import config from "@/quickben.config";
@@ -8,11 +9,27 @@ import { RoleBar } from "./role-bar";
 export default async function Home() {
   const qb = await getQuickben(config);
   const ctx = await getRequestContext(config);
-  const posts = await qb.find(
-    "posts",
-    { where: { status: { eq: "published" } }, sort: "-publishedAt", limit: 10, depth: 1 },
-    ctx,
-  );
+  let posts;
+  try {
+    posts = await qb.find(
+      "posts",
+      { where: { status: { eq: "published" } }, sort: "-publishedAt", limit: 10, depth: 1 },
+      ctx,
+    );
+  } catch (error) {
+    // With tenancy on, posts belong to an organization: anonymous visitors and users with
+    // several organizations get an access error here.
+    if (!(error instanceof QuickbenError)) throw error;
+    return (
+      <>
+        <RoleBar />
+        <main className="public">
+          <h1>Published posts</h1>
+          <p className="lead">{error.message}</p>
+        </main>
+      </>
+    );
+  }
   return (
     <>
       <RoleBar />

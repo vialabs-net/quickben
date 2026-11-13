@@ -2,18 +2,23 @@ import { drizzleAdapter } from "@quickben/db-drizzle";
 import { memoryAdapter } from "@quickben/db-memory";
 import { singleton } from "@quickben/next";
 
+import { tenancyEnabled } from "./tenancy";
+
 import type { DatabaseAdapter } from "@quickben/core";
+
+// The tenancy demo adds columns, so it keeps its own PGlite directory.
+const dataDir = tenancyEnabled ? "./.pglite-tenancy" : "./.pglite";
 
 /**
  * Databases the playground can use, chosen with the `QUICKBEN_DB` environment variable.
  *
  * | Value              | Adapter                                                                  |
  * | ------------------ | ------------------------------------------------------------------------ |
- * | `pglite` (default) | `@quickben/db-drizzle` on PGlite in `./.pglite`. Tables are pushed on start. |
+ * | `pglite` (default) | `@quickben/db-drizzle` on PGlite in `./.pglite` (`./.pglite-tenancy` with tenancy). |
  * | `memory`           | `@quickben/db-memory`. Data resets on restart.                           |
  */
 const adapters: Record<string, () => DatabaseAdapter> = {
-  pglite: () => drizzleAdapter({ dialect: "pglite", dataDir: "./.pglite", push: true }),
+  pglite: () => drizzleAdapter({ dialect: "pglite", dataDir, push: true }),
   memory: () => memoryAdapter(),
 };
 
@@ -29,5 +34,5 @@ export function createDb(): DatabaseAdapter {
       `Unknown QUICKBEN_DB "${kind}". Use one of: ${Object.keys(adapters).join(", ")}.`,
     );
   }
-  return singleton(`playground-db-${kind}`, create);
+  return singleton(`playground-db-${kind}${tenancyEnabled ? "-tenancy" : ""}`, create);
 }

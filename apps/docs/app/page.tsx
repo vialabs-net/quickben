@@ -65,8 +65,8 @@ const features: { title: string; text: string; code: string; status: Status; hre
     title: "Plugins, including multi-tenancy",
     text: "A plugin adds collections, hooks and modules. The tenancy plugin adds organizations, memberships and scoped access.",
     code: 'plugins: [tenancy({ scope: ["posts"] })]',
-    status: "Planned",
-    href: "/docs/concepts/plugins-and-modules",
+    status: "Available",
+    href: "/docs/plugins/tenancy",
   },
 ];
 
@@ -94,7 +94,7 @@ const packages: { name: string; status: Status }[] = [
   { name: "@quickben/db-drizzle", status: "Coming in 0.1" },
   { name: "@quickben/next", status: "Coming in 0.1" },
   { name: "@quickben/admin", status: "Coming in 0.1" },
-  { name: "@quickben/plugin-tenancy", status: "Planned" },
+  { name: "@quickben/plugin-tenancy", status: "Available" },
 ];
 
 const statusClass: Record<Status, string | undefined> = {

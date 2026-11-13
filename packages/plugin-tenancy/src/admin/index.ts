@@ -38,7 +38,7 @@ export function tenancyAdmin(
       { path: "members", label: "Members", group, component: createMembersPage(config, key) },
       {
         path: "organization",
-        label: "Settings",
+        label: "Organization settings",
         group,
         component: createOrganizationPage(config, key),
       },

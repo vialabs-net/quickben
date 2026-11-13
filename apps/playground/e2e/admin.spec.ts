@@ -1,5 +1,8 @@
 import { expect, test } from "@playwright/test";
 
+// These tests use the single-tenant playground. `tenancy.spec.ts` covers QUICKBEN_TENANCY=1.
+test.skip(process.env.QUICKBEN_TENANCY === "1", "single-tenant playground only");
+
 test("list, create, edit and delete a post", async ({ page }) => {
   await page.goto("/admin/posts");
   await expect(page.getByRole("heading", { level: 1, name: "Posts" })).toBeVisible();

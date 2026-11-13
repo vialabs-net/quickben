@@ -49,6 +49,8 @@ function MemberRow({
 }: Readonly<RowProps>) {
   const formId = `qb-member-${membership.id}`;
   const self = tenant.membership?.id === membership.id;
+  // Owners and admins cannot change their own role or status (a guard rail of the plugin).
+  const locked = self && tenant.capabilities.includes("members:manage");
   const who = membership.email ?? membership.user ?? membership.id;
   return (
     <Tr>
@@ -65,6 +67,7 @@ function MemberRow({
             form={formId}
             name="role"
             defaultValue={membership.role}
+            disabled={locked}
             aria-label={`Role of ${who}`}
           >
             {roles.map((role) => (
@@ -83,6 +86,7 @@ function MemberRow({
             form={formId}
             name="status"
             defaultValue={membership.status}
+            disabled={locked}
             aria-label={`Status of ${who}`}
           >
             {statuses.map((status) => (

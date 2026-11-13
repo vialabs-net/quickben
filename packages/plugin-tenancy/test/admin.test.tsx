@@ -118,7 +118,7 @@ describe("tenancyAdmin", () => {
     expect(extension.sidebar).toHaveLength(1);
     expect(extension.pages?.map((p) => [p.path, p.label, p.group])).toEqual([
       ["members", "Members", "Organization"],
-      ["organization", "Settings", "Organization"],
+      ["organization", "Organization settings", "Organization"],
     ]);
     expect(tenancyAdmin(config, { basePath: "x", group: "Team" }).pages?.[0]?.group).toBe("Team");
   });
@@ -126,7 +126,7 @@ describe("tenancyAdmin", () => {
   it("switcher: shows the user's organizations and the active one", async () => {
     actAs(bob);
     await renderSidebar();
-    const select = screen.getByRole("combobox", { name: "Organization" });
+    const select = screen.getByRole("combobox", { name: "Active organization" });
     expect(
       within(select)
         .getAllByRole("option")
@@ -164,13 +164,13 @@ describe("tenancyAdmin", () => {
   it("switch action sets the cookie after checking the membership", async () => {
     actAs(bob);
     expect(await run(switchOrganizationAction, form({ organizationId: ids.globex! }))).toBe(
-      "/admin?toast=Organization%20switched",
+      "/admin",
     );
     expect(jar.get("quickben-organization")).toBe(ids.globex);
     expect(navigation.revalidated).toEqual(["/admin"]);
     actAs(carol);
     const denied = await run(switchOrganizationAction, form({ organizationId: ids.globex! }));
-    expect(denied).toMatch(/^\/admin\?error=You%20are%20not%20a%20member/);
+    expect(denied).toMatch(/^\/admin\/organization\?error=You%20are%20not%20a%20member/);
     expect(jar.has("quickben-organization")).toBe(false);
     jar.set("quickben-organization", ids.acme!);
     await run(switchOrganizationAction, form({ organizationId: "" }));
@@ -184,6 +184,10 @@ describe("tenancyAdmin", () => {
     expect(screen.getAllByRole("row")).toHaveLength(5);
     expect(screen.getByText("(you)")).toBeTruthy();
     expect(screen.getByRole("combobox", { name: "Role of carol@example.com" })).toBeTruthy();
+    expect(
+      screen.getByRole<HTMLSelectElement>("combobox", { name: "Role of alice@example.com" })
+        .disabled,
+    ).toBe(true);
     expect(screen.getByRole("button", { name: "Remove dave@example.com" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Invite" })).toBeTruthy();
     expect(screen.getByRole("status").textContent).toContain("Member updated");

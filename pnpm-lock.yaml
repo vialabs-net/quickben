@@ -216,6 +216,9 @@ importers:
       '@quickben/eslint-config':
         specifier: workspace:*
         version: link:../../tooling/eslint-config
+      '@quickben/plugin-tenancy':
+        specifier: workspace:^
+        version: link:../../packages/plugin-tenancy
       '@quickben/tsconfig':
         specifier: workspace:*
         version: link:../../tooling/tsconfig
@@ -261,6 +264,9 @@ importers:
       '@quickben/next':
         specifier: workspace:*
         version: link:../../packages/next
+      '@quickben/plugin-tenancy':
+        specifier: workspace:*
+        version: link:../../packages/plugin-tenancy
       drizzle-orm:
         specifier: 0.45.4
         version: 0.45.4(@electric-sql/pglite@0.5.16)(@libsql/client@0.18.0)(@types/pg@8.23.1)(pg@8.23.1)

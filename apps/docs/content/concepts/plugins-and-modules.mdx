@@ -50,7 +50,8 @@ The plugin adds an `audit-log` collection and an `afterChange` hook on every oth
 | ------------------- | ------------------------- | ---------------------------------------------------------- |
 | `name`              |                           | Unique name. Applying a plugin twice throws `ConfigError`. |
 | `collections`       | first                     | Collections to add. They are typed in the registry.        |
-| `extendCollections` | after `collections`       | Change all collections added so far, including yours.      |
+| `addFields`         | after `collections`       | Add fields to existing collections, keyed by slug. Typed.  |
+| `extendCollections` | after `addFields`         | Change all collections added so far, including yours.      |
 | `modules`           | after `extendCollections` | Modules to register.                                       |
 | `onInit`            | after `db.init`           | Runs once with the local API.                              |
 
@@ -62,7 +63,18 @@ The plugin adds an `audit-log` collection and an `afterChange` hook on every oth
 
 `extendCollection(collection, { fields, hooks })` returns a copy. New hooks run after existing ones. A field name that already exists throws `ConfigError`.
 
-Fields added with `extendCollection` inside a plugin are not inferred yet. They exist at runtime but not in the document type.
+Fields added with `extendCollection` inside `extendCollections` exist at runtime only. To type them, use `addFields`:
+
+```ts
+import { definePlugin, fields as f } from "@quickben/core";
+
+export const ownership = definePlugin({
+  name: "ownership",
+  addFields: { posts: { ownerId: f.text({ index: true }) } },
+});
+```
+
+`InferDoc` of `posts` then has `ownerId: string | null`. A hand-written plugin declares its fields with the type `Plugin<Added, { posts: { ownerId: … } }>`.
 
 ## Modules
 

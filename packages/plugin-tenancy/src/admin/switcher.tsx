@@ -65,7 +65,7 @@ export function createSwitcher(config: QuickbenConfig, key: string, basePath: st
           htmlFor="qb-organization"
           className="qb:text-xs qb:font-semibold qb:tracking-wide qb:text-zinc-400 qb:uppercase"
         >
-          Organization
+          Active organization
         </label>
         <AutoSubmitSelect id="qb-organization" name="organizationId" defaultValue={current ?? ""}>
           {current === null ? (

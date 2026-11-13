@@ -59,7 +59,10 @@ async function attempt(
   return `${path}?toast=${encodeURIComponent(success)}`;
 }
 
-/** Make an organization the active one (sets the cookie), or clear the choice. */
+/**
+ * Make an organization the active one (sets the cookie), or clear the choice. Goes to the
+ * dashboard; an error is shown on the Organization settings page.
+ */
 export async function switchOrganizationAction(key: string, formData: FormData): Promise<void> {
   const { qb, ctx, basePath } = await scopeFor(key);
   const organizationId = text(formData, "organizationId");
@@ -69,10 +72,11 @@ export async function switchOrganizationAction(key: string, formData: FormData):
     const cookie = organizationCookie(qb, null);
     jar.set(cookie.name, cookie.value, cookie.options);
   } else {
-    target = await attempt(basePath, "Organization switched", async () => {
+    const result = await attempt(`${basePath}/organization`, "", async () => {
       const { cookie } = await switchOrganization(qb, ctx, organizationId);
       jar.set(cookie.name, cookie.value, cookie.options);
     });
+    if (result.includes("?error=")) target = result;
   }
   revalidatePath(basePath, "layout");
   redirect(target);

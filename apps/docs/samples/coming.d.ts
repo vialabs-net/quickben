@@ -32,9 +32,3 @@ declare module "@quickben/admin" {
     config: QuickbenConfig<R>,
   ): (props: { params: Promise<{ segments?: string[] }> }) => Promise<ReactNode>;
 }
-
-declare module "@quickben/plugin-tenancy" {
-  import type { Plugin } from "@quickben/core";
-
-  export function tenancy(options: { scope: readonly string[] }): Plugin;
-}

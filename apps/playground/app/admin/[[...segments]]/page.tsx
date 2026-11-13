@@ -1,5 +1,7 @@
 import { createAdminPage, handleAdminRequest } from "@quickben/admin";
+import { tenancyAdmin } from "@quickben/plugin-tenancy/admin";
 
+import { tenancyEnabled } from "@/lib/tenancy";
 import config from "@/quickben.config";
 
 import type { AdminRequest } from "@quickben/admin";
@@ -11,4 +13,7 @@ async function serverFunction(request: AdminRequest) {
   return handleAdminRequest(config, request);
 }
 
-export default createAdminPage(config, { serverFunction });
+export default createAdminPage(config, {
+  serverFunction,
+  extensions: tenancyEnabled ? [tenancyAdmin(config)] : [],
+});

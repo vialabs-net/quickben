@@ -204,7 +204,11 @@ export function organizationsCollection(state: TenancyState) {
         },
       ],
     },
-    admin: { useAsTitle: "name", defaultColumns: ["name", "slug", "status"] },
+    admin: {
+      useAsTitle: "name",
+      defaultColumns: ["name", "slug", "status"],
+      group: "Organization",
+    },
   });
 }
 
@@ -415,7 +419,11 @@ export function membershipsCollection(state: TenancyState) {
         },
       ],
     },
-    admin: { useAsTitle: "email", defaultColumns: ["user", "email", "role", "status"] },
+    admin: {
+      useAsTitle: "email",
+      defaultColumns: ["user", "email", "role", "status"],
+      group: "Organization",
+    },
   });
 }
 
