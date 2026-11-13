@@ -31,7 +31,7 @@ interface DatabaseAdapter<TRaw = unknown> {
 
 | Topic        | Rule                                                                                  |
 | ------------ | ------------------------------------------------------------------------------------- |
-| Ids          | Strings. Core generates UUIDv7 ids, so ids sort by creation time.                     |
+| Ids          | Strings. Core generates UUIDv7 ids when the input has none. Custom ids are kept.      |
 | Relations    | Stored as ids. No joins. Core loads related documents.                                |
 | Values       | Return values as core wrote them. Dates are ISO strings.                              |
 | Unique       | Throw `ConflictError` for a taken unique value or id. `null` never conflicts.         |

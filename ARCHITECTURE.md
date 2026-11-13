@@ -168,7 +168,7 @@ interface DatabaseAdapter<TRaw = unknown> {
 }
 ```
 
-- Ids are strings. Core generates UUIDv7 ids, so ids from one process sort by creation time in every store.
+- Ids are strings. Core generates UUIDv7 ids when the input has none (custom ids are kept), so generated ids from one process sort by creation time in every store.
 - No joins. Relations are stored as ids; core loads related documents (`depth` 0–3, one query per related collection and level). Missing or unreadable related documents stay ids.
 - Adapters return values as core wrote them. Dates are ISO strings.
 - Adapters throw `ConflictError` for taken unique values or ids. `null` never conflicts.
@@ -198,9 +198,9 @@ Writes (`create`, `update`, `delete`) run in one transaction together with their
 
 **create:** access → defaults → `beforeValidate` → validation → related ids → `beforeChange` → access filter on the new document → write → `afterChange` → `afterRead`.
 
-**update:** load (unreadable = `NOT_FOUND`) → access (filter must match the stored document) → `beforeValidate` → validation → related ids → `beforeChange` → access filter on the updated document → write → `afterChange` → `afterRead`.
+**update:** load (needs read access; unreadable = `NOT_FOUND`) → access (filter must match the stored document) → `beforeValidate` → validation → related ids → `beforeChange` → access filter on the updated document → write → `afterChange` → `afterRead`.
 
-**delete:** load (unreadable = `NOT_FOUND`) → access (filter must match) → `beforeDelete` → delete → `afterDelete` → `afterRead`. Documents that reference the deleted one keep its id.
+**delete:** load (needs read access; unreadable = `NOT_FOUND`) → access (filter must match) → `beforeDelete` → delete → `afterDelete` → `afterRead`. Documents that reference the deleted one keep its id.
 
 **reads:** access filter AND query → adapter → relations → `afterRead` → `select`. When a collection has `afterRead` hooks, core loads full documents and applies `select` after the hooks.
 
@@ -323,7 +323,7 @@ export default createAdminPage(config, { serverFunction }); // async server comp
 ### `@quickben/plugin-tenancy`
 
 - `tenancy({ scope })` adds `organizations` and `memberships` (invitations are memberships with status `invited`), and an `organization` relation (required, indexed, optional in create input) to each scoped collection via `addFields`.
-- Scoped access: the collection's rule AND `{ organization: { eq: active } }`; creates get the active organization; documents cannot move (platform staff with no organization selected can move them). Relations can only point to documents of the active organization. Reads need the `read` capability, writes `write`; collections in a module need the module.
+- Scoped access: the collection's rule AND `{ organization: { eq: active } }`; creates get the active organization; documents cannot move (platform staff with no organization selected can move them). Relations can only point to documents of the active organization. Members of a suspended organization can read it and its memberships, nothing else. Reads need the `read` capability, writes `write`; collections in a module need the module.
 - Active organization: `ctx.organizationId`, then a header, then a cookie, then the user's only membership; verified against active memberships. Platform staff (`isPlatformAdmin`) see all organizations or act in one. `OrganizationError` (403) carries a `reason`.
 - Roles are data: capabilities per role, ranked by order. Membership hooks enforce the guard rails: last active owner, no self-demotion for owners and admins, no managing higher roles.
 - Helpers over the local API: `resolveTenant`, `inviteMember`, `acceptInvitation`, `updateMembership`, `removeMember`, `listMyOrganizations`, `listMyInvitations`, `switchOrganization` (returns the cookie), `canUseModule`, `moduleAccess`, `hasCapability`.

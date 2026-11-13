@@ -142,7 +142,7 @@ Anonymous users are denied. If the collection belongs to a module, the user also
 - Relation fields can only point to documents the user can read, so a document cannot link to another organization's documents.
 - Documents of other organizations are `NOT_FOUND`, also for `update` and `delete`.
 - Platform staff move a document by updating `organization` with no organization selected.
-- A suspended organization is read-only for its members: they cannot write, manage members or edit it.
+- In a suspended organization, scoped collections throw `OrganizationError` (`suspended`) for members. They can still read the organization and its memberships, but not manage members or edit it.
 
 ## Modules
 
@@ -222,5 +222,7 @@ export default createAdminPage(config, { extensions: [tenancyAdmin(config)] });
 | Sidebar switcher      | Pick the active organization. Platform staff can pick any, or all.                      |
 | `/admin/members`      | List members, invite, change role, status and modules, remove.                          |
 | `/admin/organization` | Rename the organization. Platform staff set status and modules. Create an organization. |
+
+`tenancyAdmin(config, { basePath, group })`: pass the same `basePath` as `createAdminPage` when it is not `/admin`. `group` is the sidebar group (default `Organization`).
 
 All changes go through the helpers above, so the guard rails apply. The playground runs this with `QUICKBEN_TENANCY=1`.
