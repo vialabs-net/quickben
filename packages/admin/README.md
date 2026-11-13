@@ -26,6 +26,12 @@ export default createAdminPage(config, { serverFunction });
 ```tsx
 // app/admin/layout.tsx
 import "@quickben/admin/styles.css";
+import { generateAdminMetadata } from "@quickben/admin";
+
+import config from "@/quickben.config";
+
+// Title `Admin · <admin.title>`, or `admin.meta.title`. Not indexed.
+export const metadata = generateAdminMetadata(config);
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return children;
@@ -33,6 +39,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 ```
 
 `export default createAdminPage(config)` alone also works. Then the admin uses a built-in server function that finds the config once the page module has loaded. After a restart, or on a new serverless instance, a form submitted from an open tab can arrive first and fail with "Reload the page". Define `serverFunction` in the page file for production: Next.js then loads your config with it.
+
+The page renders its content inside `<Suspense>`, so it works with and without `cacheComponents: true`.
 
 ## Routes
 
@@ -102,10 +110,11 @@ Sidebar order: modules (their `nav`, or their collections), then other collectio
 `@quickben/admin/styles.css` is built with Tailwind CSS v4. You do not need Tailwind in your app.
 
 - Utilities use the `qb:` prefix and theme variables are `--qb-*`, so they do not clash with your own Tailwind classes.
-- There is no global reset. Base styles apply inside `.qb-root`, the element that wraps the admin.
+- There is no global reset. Base styles apply inside `.qb-root`, the element that wraps the admin, in `@layer base`.
+- Utilities are not in a layer, so an unlayered reset in your app (`* { margin: 0; padding: 0 }`) does not override them.
 - If your app uses Tailwind v4 too, nothing needs to change. Its `@source` does not need to scan this package.
 
-The component kit is exported from `@quickben/admin/ui`: `Button`, `ButtonLink`, `Input`, `Textarea`, `Select`, `Checkbox`, `Label`, `Card`, `Badge`, `Table`, `Toast`. Use it in custom components to match the admin.
+The component kit is exported from `@quickben/admin/ui`: `Button`, `ButtonLink`, `Input`, `Textarea`, `Select`, `Checkbox`, `Label` (requires `htmlFor`), `Card`, `Badge`, `Table`, `Toast`. Use it in custom components to match the admin.
 
 ## Limits
 

@@ -6,7 +6,16 @@
   "changelog": "@changesets/cli/changelog",
   "commit": false,
   "ignore": [],
-  "fixed": [],
+  "fixed": [
+    [
+      "create-quickben",
+      "@quickben/admin",
+      "@quickben/core",
+      "@quickben/db-drizzle",
+      "@quickben/db-memory",
+      "@quickben/next"
+    ]
+  ],
   "linked": [],
   "updateInternalDependencies": "patch",
   "privatePackages": {

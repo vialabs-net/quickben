@@ -270,10 +270,14 @@ All errors extend `QuickbenError` with a stable `code` and a suggested HTTP `sta
 ### Drizzle adapter (`@quickben/db-drizzle`)
 
 ```ts
-drizzleAdapter({ dialect: "postgres", url }); // node-postgres
-drizzleAdapter({ dialect: "pglite", dataDir }); // in memory without dataDir
-drizzleAdapter({ dialect: "sqlite", url }); // libSQL; :memory: by default
+import { drizzleAdapter } from "@quickben/db-drizzle/postgres"; // or /pglite, /sqlite
+
+drizzleAdapter({ url }); // node-postgres
+drizzleAdapter({ dataDir }); // /pglite: in memory without dataDir
+drizzleAdapter({ url }); // /sqlite: libSQL; :memory: by default
 ```
+
+- One entry point per dialect, so a bundler resolves only the driver the app imports. The main entry has the types and schema tools.
 
 - `init` builds one Drizzle table per collection (table = slug, column = field name). `push` creates missing tables, columns and indexes; it is on by default for in-memory databases.
 - `quickben-drizzle generate` (or `generateDrizzleSchema(config, { out })`) writes the same tables as a TypeScript schema file for drizzle-kit migrations.
@@ -310,7 +314,8 @@ export default createAdminPage(config, { serverFunction }); // async server comp
 - Writes and relation searches go through one server function (`AdminRequest` → `AdminResult`). It must be defined in the app's page file so Next.js can load the config when it runs; the built-in fallback only works after the page module has loaded in the process.
 - Client components: form (submit, errors, focus), relation picker, JSON editor, delete confirmation, toast. Everything else is server-rendered.
 - Extensions: `components` (custom field inputs, chosen by `admin.component`), `views` (per collection), `pages`, `nav`, and `extensions` from plugins.
-- Styles: Tailwind v4 with the `qb:` prefix, compiled into `@quickben/admin/styles.css`; base styles only inside `.qb-root`.
+- Styles: Tailwind v4 with the `qb:` prefix, compiled into `@quickben/admin/styles.css`; base styles only inside `.qb-root`, in `@layer base`. Utilities are unlayered, so unlayered app resets do not override them.
+- Cache Components: `createAdminPage` renders its content inside `<Suspense>`. `generateAdminMetadata(config)` gives the page title (`admin.meta`).
 - Build: tsdown `unbundle` keeps one file per module so `"use client"` / `"use server"` directives stay at the top of the published files.
 
 ## create-quickben
@@ -319,7 +324,8 @@ export default createAdminPage(config, { serverFunction }); // async server comp
 
 - Templates are layers in `packages/create-quickben/templates`: `base`, `db/<db>`, `example/<example>`. `package.json` files are merged.
 - Templates use `workspace:^` for `@quickben/*`. The build copies them to `dist/templates` with the current versions, so a release installs matching packages.
-- `next.config.ts` lists `@quickben/db-drizzle`, `drizzle-orm` and the drivers in `serverExternalPackages`. Without that, `next build` fails on the drivers that are not installed.
+- `next.config.ts` turns on Cache Components. The pglite layer adds `@electric-sql/pglite` to `serverExternalPackages`.
+- Changesets releases `create-quickben` and the public `@quickben/*` packages as one `fixed` group, so their versions always match.
 - CI job `create-quickben scaffold` installs a generated app from `pnpm pack` tarballs and runs `next build` and `next start`.
 
 ## Planned packages

@@ -1,0 +1,79 @@
+---
+title: Create an app
+description: "create-quickben: a new Next.js app with Quickben, a database and the admin UI, in one command."
+---
+
+# Create an app
+
+`create-quickben` writes a Next.js app with the REST routes, the admin UI and a database adapter. It installs the dependencies and creates a git repository.
+
+```sh
+pnpm create quickben my-app
+npm create quickben@latest my-app
+yarn create quickben my-app
+bun create quickben my-app
+```
+
+The CLI asks for the options you did not pass. With `--yes`, or without a terminal, it uses the defaults.
+
+```sh
+pnpm create quickben my-app --db postgres --example blog --yes
+npm create quickben@latest my-app -- --db postgres --example blog --yes
+```
+
+With npm, put `--` before the options.
+
+## Options
+
+| Option         | Values                                   | Default                     |
+| -------------- | ---------------------------------------- | --------------------------- |
+| `[directory]`  | Path of the new app                      | `quickben-app`              |
+| `--db`         | `pglite`, `postgres`, `sqlite`, `memory` | `pglite`                    |
+| `--example`    | `blank`, `blog`                          | `blank`                     |
+| `--pm`         | `pnpm`, `npm`, `yarn`, `bun`             | The one running the command |
+| `--no-install` | Do not install dependencies              |                             |
+| `--no-git`     | Do not create a git repository           |                             |
+| `-y`, `--yes`  | Use defaults, no prompts                 |                             |
+| `-h`, `-v`     | Help, version                            |                             |
+
+The directory must be new or empty. The git repository is skipped inside an existing work tree.
+
+## Starters
+
+| `--example` | Collections                         | Home page                   |
+| ----------- | ----------------------------------- | --------------------------- |
+| `blank`     | `notes`                             | The latest notes.           |
+| `blog`      | `authors`, `posts`, one seeded post | The latest published posts. |
+
+## Generated files
+
+| File                                 | Purpose                                                  |
+| ------------------------------------ | -------------------------------------------------------- |
+| `quickben.config.ts`                 | Collections, database and auth.                          |
+| `lib/db.ts`                          | Database adapter for the chosen `--db`.                  |
+| `lib/auth.ts`                        | `devAuth()` in development, anonymous in production.     |
+| `app/api/[...quickben]/route.ts`     | REST route handlers.                                     |
+| `app/admin/[[...segments]]/page.tsx` | Admin page with its server function.                     |
+| `app/admin/layout.tsx`               | Admin styles and page title.                             |
+| `app/page.tsx`                       | Home page that reads with the local API.                 |
+| `next.config.ts`                     | Cache Components on. PGlite is not bundled.              |
+| `.env.example`, `.env.local`         | Dev user and database settings. `.env.local` is ignored. |
+
+## Databases
+
+| `--db`     | Adapter                                          | Driver                 |
+| ---------- | ------------------------------------------------ | ---------------------- |
+| `pglite`   | `@quickben/db-drizzle/pglite`, data in `.pglite` | `@electric-sql/pglite` |
+| `postgres` | `@quickben/db-drizzle/postgres`, `DATABASE_URL`  | `pg`                   |
+| `sqlite`   | `@quickben/db-drizzle/sqlite`, `DATABASE_URL`    | `@libsql/client`       |
+| `memory`   | `@quickben/db-memory`, resets on restart         |                        |
+
+The Drizzle adapters create missing tables on start (`push: true`). Use [migrations](/docs/database-adapters/drizzle#migrations) once the database holds real data.
+
+## Dev user and auth
+
+In development, `devAuth()` signs you in as the user in `QUICKBEN_DEV_USER` in `.env.local`. Remove the variable to browse as an anonymous visitor.
+
+In production every visitor is anonymous. Replace `lib/auth.ts` with an [auth adapter](/docs/concepts/auth-adapters) before you deploy.
+
+The `@quickben/*` versions in the app are the versions released with the CLI.

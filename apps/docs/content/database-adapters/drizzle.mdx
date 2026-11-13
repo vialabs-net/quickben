@@ -16,37 +16,47 @@ pnpm add @libsql/client        # SQLite
 
 Install only the driver you use. Drivers are optional peer dependencies. The adapter loads the driver when it starts.
 
-In a Next.js app, add `@quickben/db-drizzle` to `serverExternalPackages` in `next.config.ts`. Without it, the bundler fails on the drivers you did not install.
-
-```ts nocheck
-const nextConfig: NextConfig = {
-  serverExternalPackages: ["@quickben/db-drizzle"],
-};
-```
-
 ## Dialects
 
-```ts
-import { drizzleAdapter } from "@quickben/db-drizzle";
+Each dialect has its own entry point. Each one exports `drizzleAdapter`. Import from the entry point of your dialect: a bundler then resolves only that driver, and Next.js builds without the drivers you did not install.
 
-drizzleAdapter({ dialect: "postgres", url: process.env.DATABASE_URL });
-drizzleAdapter({ dialect: "pglite" }); // in memory
-drizzleAdapter({ dialect: "pglite", dataDir: "./.pglite", push: true });
-drizzleAdapter({ dialect: "sqlite" }); // :memory:
-drizzleAdapter({ dialect: "sqlite", url: "file:./app.db" });
-drizzleAdapter({
-  dialect: "sqlite",
-  url: "libsql://app.turso.io",
-  authToken: process.env.TURSO_AUTH_TOKEN,
-});
+| Entry point                     | Driver                 | Options                                                         |
+| ------------------------------- | ---------------------- | --------------------------------------------------------------- |
+| `@quickben/db-drizzle/postgres` | `pg` (node-postgres)   | `url`, `pool` (extra `pg.Pool` options), or `client` (a `Pool`) |
+| `@quickben/db-drizzle/pglite`   | `@electric-sql/pglite` | `dataDir` (omit for memory), or `client` (a `PGlite`)           |
+| `@quickben/db-drizzle/sqlite`   | `@libsql/client`       | `url` (default `:memory:`), `authToken`, or `client`            |
+| all                             |                        | `push`: create missing tables at startup                        |
+
+**Postgres**
+
+```ts
+import { drizzleAdapter } from "@quickben/db-drizzle/postgres";
+
+drizzleAdapter({ url: process.env.DATABASE_URL });
 ```
 
-| Dialect    | Driver                 | Options                                                         |
-| ---------- | ---------------------- | --------------------------------------------------------------- |
-| `postgres` | `pg` (node-postgres)   | `url`, `pool` (extra `pg.Pool` options), or `client` (a `Pool`) |
-| `pglite`   | `@electric-sql/pglite` | `dataDir` (omit for memory), or `client` (a `PGlite`)           |
-| `sqlite`   | `@libsql/client`       | `url` (default `:memory:`), `authToken`, or `client`            |
-| all        |                        | `push`: create missing tables at startup                        |
+**PGlite**
+
+```ts
+import { drizzleAdapter } from "@quickben/db-drizzle/pglite";
+
+drizzleAdapter(); // in memory
+drizzleAdapter({ dataDir: "./.pglite", push: true });
+```
+
+**SQLite**
+
+```ts
+import { drizzleAdapter } from "@quickben/db-drizzle/sqlite";
+
+drizzleAdapter(); // :memory:
+drizzleAdapter({ url: "file:./app.db" });
+drizzleAdapter({ url: "libsql://app.turso.io", authToken: process.env.TURSO_AUTH_TOKEN });
+```
+
+`dialect` is optional. When you pass it, it must match the entry point. The main entry, `@quickben/db-drizzle`, has the types and the schema tools, and no `drizzleAdapter`.
+
+In Next.js, PGlite must not be bundled: add `serverExternalPackages: ["@electric-sql/pglite"]` to `next.config.ts`. Postgres and SQLite need no entry.
 
 - The adapter closes only clients it created.
 - PGlite and local SQLite have one connection. The adapter runs their operations one at a time.
@@ -55,13 +65,13 @@ In Next.js, create the adapter with `singleton` from `@quickben/next`. Route han
 
 ```ts filename="quickben.config.ts"
 import { defineConfig } from "@quickben/core";
-import { drizzleAdapter } from "@quickben/db-drizzle";
+import { drizzleAdapter } from "@quickben/db-drizzle/postgres";
 import { singleton } from "@quickben/next";
 
 import { posts, tags, users } from "./collections";
 
 export default defineConfig({
-  db: singleton("db", () => drizzleAdapter({ dialect: "postgres", url: process.env.DATABASE_URL })),
+  db: singleton("db", () => drizzleAdapter({ url: process.env.DATABASE_URL })),
   collections: [users, tags, posts],
 });
 ```
