@@ -115,12 +115,14 @@ describe("renderTemplate", () => {
       "react",
       "react-dom",
     ]);
-    expect(files.get("lib/db.ts")).toContain('dialect: "pglite"');
+    expect(files.get("lib/db.ts")).toContain('from "@quickben/db-drizzle/pglite"');
     expect(files.get("app/page.tsx")).toContain('const appName = "my-app";');
     expect(files.get("README.md")).toContain("pnpm install\npnpm dev");
     expect(files.get(".env.example")).toContain("QUICKBEN_DEV_USER=");
     expect(files.get(".env.example")).toContain("PGLITE_DATA_DIR=");
-    expect(files.get("next.config.ts")).toContain("serverExternalPackages");
+    expect(files.get("next.config.ts")).toContain(
+      'serverExternalPackages: ["@electric-sql/pglite"]',
+    );
   });
 
   it.each(databases.flatMap((db) => examples.map((example) => [db, example] as const)))(
@@ -137,6 +139,10 @@ describe("renderTemplate", () => {
       expect(manifest.includes("@quickben/db-drizzle")).toBe(db !== "memory");
       expect(manifest.includes('"pg"')).toBe(db === "postgres");
       expect(manifest.includes("@libsql/client")).toBe(db === "sqlite");
+      expect(files.get("next.config.ts")?.includes("serverExternalPackages")).toBe(db === "pglite");
+      if (db !== "memory") {
+        expect(files.get("lib/db.ts")).toContain(`from "@quickben/db-drizzle/${db}"`);
+      }
     },
   );
 

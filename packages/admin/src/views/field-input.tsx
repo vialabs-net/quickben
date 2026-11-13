@@ -22,6 +22,8 @@ export interface FieldInputContext {
   labels: Readonly<Record<string, string>>;
   /** The whole form is read-only. */
   readOnly: boolean;
+  /** Scope of the control ids, from `formScope`. */
+  scope: string;
 }
 
 const spans = {
@@ -203,7 +205,7 @@ export function FieldInput({
   context: FieldInputContext;
 }>) {
   if (field.admin.hidden) return null;
-  const id = controlId(field.name);
+  const id = controlId(context.scope, field.name);
   const hintId = `${id}-hint`;
   const describedBy = `${hintId} ${id}-error`;
   const disabled = context.readOnly || field.admin.readOnly === true;

@@ -3,6 +3,7 @@ import type { MetaRecord } from "nextra";
 const meta: MetaRecord = {
   index: "Introduction",
   "quick-start": "Quick start",
+  "create-an-app": "Create an app",
   concepts: "Concepts",
   "database-adapters": "Database adapters",
   nextjs: "Next.js integration",

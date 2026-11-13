@@ -1,14 +1,17 @@
 // @vitest-environment happy-dom
 import { getQuickben } from "@quickben/next";
 import { cleanup, render, screen, within } from "@testing-library/react";
+import { Suspense } from "react";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { createAdminPage } from "../src";
+import { createAdminPage, generateAdminMetadata } from "../src";
+import { createAdminContent } from "../src/page";
 
 import { admin, editor, makeConfig } from "./fixtures";
 import { actAs } from "./mocks";
 
 import type { FieldComponentProps, PageProps, SearchParams, ViewProps } from "../src";
+import type { ReactElement } from "react";
 
 const system = { user: null, overrideAccess: true };
 const config = makeConfig();
@@ -41,7 +44,7 @@ function NoteEditor({ id }: Readonly<ViewProps>) {
   return <p>Custom note editor {id ?? "new"}</p>;
 }
 
-const Page = createAdminPage(config, {
+const Page = createAdminContent(config, {
   basePath: "/admin",
   components: { color: ColorInput },
   pages: [{ path: "reports", label: "Reports", component: Reports }],
@@ -286,7 +289,7 @@ describe("edit view", () => {
     const view = await renderPage(["notes", note.docs[0]?.id ?? ""]);
     expect(view.getByText("Custom note editor " + (note.docs[0]?.id ?? ""))).toBeTruthy();
     cleanup();
-    const Plain = createAdminPage(config, { basePath: "/plain/" });
+    const Plain = createAdminContent(config, { basePath: "/plain/" });
     render(
       await Plain({
         params: Promise.resolve({ segments: ["notes", note.docs[0]?.id ?? ""] }),
@@ -296,5 +299,40 @@ describe("edit view", () => {
     expect(screen.getByRole("heading", { name: "Access denied" })).toBeTruthy();
     expect(screen.getByText('Not allowed to read in "notes"')).toBeTruthy();
     expect(screen.getByRole("link", { name: "Dashboard" }).getAttribute("href")).toBe("/plain");
+  });
+});
+
+describe("createAdminPage", () => {
+  it("renders the content inside Suspense", () => {
+    const AdminPage = createAdminPage(config);
+    const props = { params: Promise.resolve({}), searchParams: Promise.resolve({}) };
+    const element = AdminPage(props);
+    expect(element.type).toBe(Suspense);
+    const { fallback, children } = element.props as {
+      fallback: ReactElement;
+      children: ReactElement<typeof props>;
+    };
+    expect(render(fallback).container.firstElementChild?.className).toContain("qb-root");
+    expect(children.props).toEqual(props);
+  });
+});
+
+describe("generateAdminMetadata", () => {
+  it("defaults the title to the admin title and turns off indexing", () => {
+    expect(generateAdminMetadata(config)).toEqual({
+      title: { absolute: "Admin · Test admin" },
+      robots: { index: false, follow: false },
+    });
+  });
+
+  it("uses admin.meta", () => {
+    const custom = {
+      ...config,
+      admin: { title: "App", meta: { title: "Back office", description: "Ops" } },
+    };
+    expect(generateAdminMetadata(custom)).toMatchObject({
+      title: { absolute: "Back office" },
+      description: "Ops",
+    });
   });
 });

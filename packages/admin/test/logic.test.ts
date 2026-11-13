@@ -18,6 +18,7 @@ import {
   formatDatetime,
   relationTitle,
 } from "../src/format";
+import { controlId, formScope } from "../src/ids";
 import {
   columnsOf,
   filterFields,
@@ -474,5 +475,13 @@ describe("extensions and registry", () => {
   it("describes collections for the admin", async () => {
     const qb = await getQuickben(makeConfig());
     expect(await collectionMeta(qb.collections.secrets, { user: null })).toBeNull();
+  });
+});
+
+describe("formScope", () => {
+  it("is unique per document and safe in a selector", () => {
+    expect(formScope("posts", null)).toBe("posts-new");
+    expect(formScope("posts", "a.b:c")).toBe("posts-a_b_c");
+    expect(controlId(formScope("posts", "01"), "title")).toBe("qb-posts-01-title");
   });
 });

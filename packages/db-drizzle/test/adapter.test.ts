@@ -9,7 +9,11 @@ import { count, eq } from "drizzle-orm";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { drizzleAdapter } from "../src";
+import { drizzleAdapter as pgliteAdapter } from "../src/pglite";
+import { drizzleAdapter as postgresAdapter } from "../src/postgres";
+import { drizzleAdapter as sqliteAdapter } from "../src/sqlite";
+
+import { drizzleAdapter } from "./drizzle";
 
 import type {
   DrizzleAdapter,
@@ -214,11 +218,14 @@ describe("connections", () => {
     await withUrl.close?.();
   });
 
-  it("rejects an unknown dialect", async () => {
-    const db = drizzleAdapter({ dialect: "mysql" } as unknown as DrizzleAdapterOptions & {
-      dialect: "sqlite";
-    });
-    await expect(db.init(schema)).rejects.toThrow('unknown dialect "mysql"');
+  it("takes the dialect from the entry point", async () => {
+    const db = pgliteAdapter();
+    expect(db.dialect).toBe("pglite");
+    expect(sqliteAdapter({ dialect: "sqlite" }).dialect).toBe("sqlite");
+    expect(postgresAdapter({ url: "postgres://localhost:1/none" }).dialect).toBe("postgres");
+    await db.init(schema);
+    expect(await db.count({ collection: "notes" })).toBe(0);
+    await db.close?.();
   });
 });
 

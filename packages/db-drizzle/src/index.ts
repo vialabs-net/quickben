@@ -1,4 +1,3 @@
-export { drizzleAdapter } from "./adapter";
 export { columnKind, sqlTypes, tableSpec, tableSpecs } from "./columns";
 export { generateDrizzleSchema, schemaOf, schemaSource } from "./generate";
 

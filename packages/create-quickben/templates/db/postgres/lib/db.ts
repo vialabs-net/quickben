@@ -1,4 +1,4 @@
-import { drizzleAdapter } from "@quickben/db-drizzle";
+import { drizzleAdapter } from "@quickben/db-drizzle/postgres";
 import { singleton } from "@quickben/next";
 
 import type { DatabaseAdapter } from "@quickben/core";
@@ -13,6 +13,6 @@ import type { DatabaseAdapter } from "@quickben/core";
  */
 export function createDb(): DatabaseAdapter {
   return singleton("quickben-db", () =>
-    drizzleAdapter({ dialect: "postgres", url: process.env.DATABASE_URL, push: true }),
+    drizzleAdapter({ url: process.env.DATABASE_URL, push: true }),
   );
 }

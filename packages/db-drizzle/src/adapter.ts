@@ -2,14 +2,13 @@ import { ConfigError } from "@quickben/core";
 import { count, eq } from "drizzle-orm";
 
 import { familyOf, tableSpecs } from "./columns";
-import { connect } from "./connect";
 import { toConflict } from "./errors";
 import { pushTables } from "./push";
 import { buildTable, decodeValue, encodeValue } from "./tables";
 import { orderToSql, whereToSql } from "./where";
 
 import type { Dialect, Family } from "./columns";
-import type { Connection, DrizzleAdapterOptions, DrizzleDatabase } from "./connect";
+import type { Connection, Connector, DrizzleAdapterOptions, DrizzleDatabase } from "./connect";
 import type { RuntimeTable } from "./tables";
 import type {
   DatabaseAdapter,
@@ -92,6 +91,7 @@ interface QueryRunner {
 
 interface State {
   options: DrizzleAdapterOptions;
+  connect: Connector;
   family: Family;
   connection: Connection | undefined;
   connecting: Promise<Connection> | undefined;
@@ -162,29 +162,28 @@ function tableColumn(table: RuntimeTable, name: string) {
 }
 
 /**
- * Create a Quickben database adapter on Drizzle ORM.
+ * Create a Quickben database adapter on Drizzle ORM. Each dialect entry point
+ * (`@quickben/db-drizzle/postgres`, `/pglite`, `/sqlite`) calls this with its driver, so a
+ * bundler only sees the driver of the dialect the app imports.
  *
  * Tables are generated from the collections in `init`. With `push` (the default for in-memory
  * databases) missing tables, columns and indexes are created. For persistent databases, write
  * a schema file with `generateDrizzleSchema` and run drizzle-kit migrations.
- *
- * @example
- * drizzleAdapter({ dialect: "postgres", url: process.env.DATABASE_URL })
- * drizzleAdapter({ dialect: "pglite" }) // in memory
- * drizzleAdapter({ dialect: "sqlite", url: "file:./app.db" })
  */
-export function drizzleAdapter<D extends Dialect>(
-  options: Extract<DrizzleAdapterOptions, { dialect: D }>,
-): DrizzleAdapter<D> {
+export function createDrizzleAdapter<O extends DrizzleAdapterOptions>(
+  options: O,
+  connect: Connector<O>,
+): DrizzleAdapter<O["dialect"]> {
   const state: State = {
     options,
+    connect: connect as Connector,
     family: familyOf(options.dialect),
     connection: undefined,
     connecting: undefined,
     tables: new Map(),
     queue: Promise.resolve(),
   };
-  return createAdapter(state, undefined) as DrizzleAdapter<D>;
+  return createAdapter(state, undefined);
 }
 
 function createAdapter(state: State, tx: QueryRunner | undefined): DrizzleAdapter {
@@ -254,7 +253,7 @@ function createAdapter(state: State, tx: QueryRunner | undefined): DrizzleAdapte
 
     async init(schema: DatabaseSchema) {
       if (!state.connection) {
-        state.connecting ??= connect(state.options);
+        state.connecting ??= state.connect(state.options);
         state.connection = await state.connecting;
       }
       const specs = tableSpecs(schema);

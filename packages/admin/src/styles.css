@@ -4,14 +4,21 @@
  * Utilities use the `qb:` prefix and theme variables are named `--qb-*`, so this file does not
  * clash with an app's own Tailwind CSS. There is no global reset: base styles apply only
  * inside `.qb-root`, the element that wraps the admin.
+ *
+ * The `qb:` utilities are not in a cascade layer. Unlayered rules beat layered ones, so an
+ * unlayered app reset such as `* { margin: 0; padding: 0 }` would otherwise win over every
+ * utility. Unlayered, a utility (one class) beats such resets (`*` or element selectors).
+ * The base styles stay in `@layer base`, so the app's own Tailwind classes still win inside
+ * custom admin components.
  */
 @layer theme, base, components, utilities;
 @import "tailwindcss/theme.css" layer(theme) prefix(qb);
-@import "tailwindcss/utilities.css" layer(utilities);
+@import "tailwindcss/utilities.css";
 @source "./";
 
 @layer base {
   .qb-root {
+    color-scheme: light;
     font-family: var(--qb-font-sans);
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;

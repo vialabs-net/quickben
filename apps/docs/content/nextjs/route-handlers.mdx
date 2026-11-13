@@ -162,12 +162,22 @@ In Next.js apps, use `getQuickben` from `@quickben/next`, not from `@quickben/co
 
 ```tsx filename="app/posts/page.tsx"
 import { getQuickben, getRequestContext } from "@quickben/next";
+import { Suspense } from "react";
 
 import config from "../../quickben.config";
 
-export default async function PostsPage() {
+export default function PostsPage() {
+  return (
+    <Suspense fallback={<p>Loading…</p>}>
+      <Posts />
+    </Suspense>
+  );
+}
+
+async function Posts() {
+  const ctx = await getRequestContext(config);
   const qb = await getQuickben(config);
-  const posts = await qb.find("posts", { limit: 10 }, await getRequestContext(config));
+  const posts = await qb.find("posts", { limit: 10 }, ctx);
   return (
     <ul>
       {posts.docs.map((post) => (
@@ -177,6 +187,8 @@ export default async function PostsPage() {
   );
 }
 ```
+
+With [Cache Components](https://nextjs.org/docs/app/getting-started/caching) (`cacheComponents: true`), a component that reads the request (`getRequestContext`, `getUser`) or the database must render inside `<Suspense>`. Without Cache Components the same code works.
 
 **Server action**
 
@@ -199,9 +211,5 @@ export async function createPost(formData: FormData) {
 **Database client**
 
 ```ts nocheck
-db: singleton("db", () => drizzleAdapter({ dialect: "pglite", dataDir: "./.pglite" })),
+db: singleton("db", () => drizzleAdapter({ dataDir: "./.pglite" })),
 ```
-
-## Limits
-
-[Cache Components](https://nextjs.org/docs/app/getting-started/caching) (`cacheComponents: true`) is not supported yet. Pages that call the local API fail to prerender. Create apps with `create-next-app --no-cache-components`, or remove `cacheComponents` from `next.config.ts`.

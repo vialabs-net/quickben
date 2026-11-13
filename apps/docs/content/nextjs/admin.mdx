@@ -35,12 +35,22 @@ export default createAdminPage(config, { serverFunction });
 ```tsx filename="app/admin/layout.tsx"
 import "@quickben/admin/styles.css";
 
+import { generateAdminMetadata } from "@quickben/admin";
+
+import config from "../../quickben.config";
+
 import type { ReactNode } from "react";
+
+export const metadata = generateAdminMetadata(config);
 
 export default function AdminLayout({ children }: Readonly<{ children: ReactNode }>) {
   return children;
 }
 ```
+
+`generateAdminMetadata(config)` sets the page title to `Admin · <admin.title>` and tells search engines not to index the admin. Set `admin.meta.title` and `admin.meta.description` in `defineConfig` to change them.
+
+The page renders its content inside `<Suspense>`. It builds with and without `cacheComponents: true`.
 
 ### Why the page file defines `serverFunction`
 
@@ -119,6 +129,7 @@ Validation errors from the local API are shown next to their field. The first in
 | Option                 | Where              | Effect                                                                     |
 | ---------------------- | ------------------ | -------------------------------------------------------------------------- |
 | `admin.title`          | `defineConfig`     | Title in the sidebar and dashboard.                                        |
+| `admin.meta`           | `defineConfig`     | `title` and `description` for `generateAdminMetadata`.                     |
 | `labels`               | `defineCollection` | Singular and plural names.                                                 |
 | `admin.useAsTitle`     | `defineCollection` | Document title, search field, relation labels.                             |
 | `admin.defaultColumns` | `defineCollection` | List columns.                                                              |
@@ -253,15 +264,13 @@ export function Reports({ user, segments }: PageProps) {
 | No global reset         | Base styles apply only inside `.qb-root`, the element around the admin.  |
 | Tailwind v4 in your app | Works with no change. Your `@source` does not need to scan this package. |
 
-The admin styles are in CSS cascade layers. Unlayered CSS in your app wins over them. A global reset such as `* { margin: 0; padding: 0 }` outside a layer removes the admin's spacing. Put such rules in `@layer base { … }`.
+The `qb:` utilities are not in a cascade layer, so a global reset in your app such as `* { margin: 0; padding: 0 }` does not remove the admin's spacing. The base styles inside `.qb-root` are in `@layer base`, so your own Tailwind classes still apply in custom components.
 
-`@quickben/admin/ui` exports the component kit: `Button`, `ButtonLink`, `Input`, `Textarea`, `Select`, `Checkbox`, `Label`, `Card`, `CardHeader`, `CardBody`, `Badge`, `Table`, `Toast`. Use it in custom components to match the admin.
+`@quickben/admin/ui` exports the component kit: `Button`, `ButtonLink`, `Input`, `Textarea`, `Select`, `Checkbox`, `Label` (requires `htmlFor`), `Card`, `CardHeader`, `CardBody`, `Badge`, `Table`, `Toast`. Use it in custom components to match the admin.
 
 ## Limits
 
-| Limit                                                                   | Effect                                                          |
-| ----------------------------------------------------------------------- | --------------------------------------------------------------- |
-| Document id `new`                                                       | Cannot be opened. `/admin/:collection/new` is the create form.  |
-| Datetimes                                                               | Edited in UTC.                                                  |
-| [Cache Components](https://nextjs.org/docs/app/getting-started/caching) | Not supported yet. `next build` fails on the admin page.        |
-| Page `<title>`                                                          | Not set by the admin. Set `metadata` in `app/admin/layout.tsx`. |
+| Limit             | Effect                                                         |
+| ----------------- | -------------------------------------------------------------- |
+| Document id `new` | Cannot be opened. `/admin/:collection/new` is the create form. |
+| Datetimes         | Edited in UTC.                                                 |

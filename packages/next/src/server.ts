@@ -1,5 +1,6 @@
 import { createQuickben } from "@quickben/core";
 import { cookies, headers } from "next/headers";
+import { connection } from "next/server";
 
 import type {
   Quickben,
@@ -73,7 +74,8 @@ export async function currentRequest(): Promise<Request> {
 
 /**
  * Request context for the local API in server components and server actions: the user from
- * `config.auth` and the current request.
+ * `config.auth` and the current request. With `cacheComponents`, call it inside `<Suspense>`
+ * and before the database.
  *
  * ```ts
  * const qb = await getQuickben(config);
@@ -81,6 +83,9 @@ export async function currentRequest(): Promise<Request> {
  * ```
  */
 export async function getRequestContext(config: QuickbenConfig): Promise<RequestContext> {
+  // Mark the render as request-time. With `cacheComponents`, database reads that follow are
+  // then never run while prerendering (also not in runtime prefetches).
+  await connection();
   const req = await currentRequest();
   const user = config.auth ? await config.auth.getUser(req) : null;
   return { user, req };

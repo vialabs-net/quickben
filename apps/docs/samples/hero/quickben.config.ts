@@ -1,5 +1,5 @@
 import { defineCollection, defineConfig, devAuth, fields as f } from "@quickben/core";
-import { drizzleAdapter } from "@quickben/db-drizzle";
+import { drizzleAdapter } from "@quickben/db-drizzle/postgres";
 import { tenancy } from "@quickben/plugin-tenancy";
 
 const users = defineCollection({
@@ -28,7 +28,7 @@ const posts = defineCollection({
 });
 
 export default defineConfig({
-  db: drizzleAdapter({ dialect: "postgres", url: process.env.DATABASE_URL }),
+  db: drizzleAdapter({ url: process.env.DATABASE_URL }),
   collections: [users, posts],
   plugins: [tenancy({ scope: ["posts"] })],
   auth: devAuth(),

@@ -1,4 +1,5 @@
 export { createAdminPage, resolveRoute } from "./page";
+export { generateAdminMetadata } from "./metadata";
 export { handleAdminRequest } from "./server-function";
 
 export type { AdminPageProps, AdminRoute } from "./page";

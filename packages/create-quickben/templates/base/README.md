@@ -25,7 +25,7 @@ A Next.js app built with [Quickben](https://quickben.vialabs.net). Database: {{d
 | `app/api/[...quickben]/route.ts`     | REST route handlers.                                |
 | `app/admin/[[...segments]]/page.tsx` | Admin page and its server function.                 |
 | `app/page.tsx`                       | Home page.                                          |
-| `next.config.ts`                     | Keeps database drivers out of the server bundle.    |
+| `next.config.ts`                     | Cache Components on. PGlite is not bundled.         |
 | `.env.local`                         | Local settings, from `.env.example`. Not committed. |
 
 ## Database
