@@ -52,7 +52,7 @@ export function quickben({ tsconfigRootDir }) {
       },
     },
     {
-      files: ["**/*.test.ts", "**/*.test-d.ts", "**/test/**/*.ts"],
+      files: ["**/*.test.ts", "**/*.test.tsx", "**/*.test-d.ts", "**/test/**/*.{ts,tsx}", "**/e2e/**/*.ts"],
       rules: {
         "@typescript-eslint/no-non-null-assertion": "off",
         "@typescript-eslint/no-floating-promises": "off",
