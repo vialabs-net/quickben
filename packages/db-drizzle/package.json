@@ -1,0 +1,95 @@
+{
+  "name": "@quickben/db-drizzle",
+  "version": "0.0.0",
+  "description": "Drizzle ORM database adapter for Quickben: Postgres, PGlite and SQLite (libSQL).",
+  "keywords": [
+    "quickben",
+    "database",
+    "adapter",
+    "drizzle",
+    "postgres",
+    "pglite",
+    "sqlite",
+    "libsql"
+  ],
+  "homepage": "https://quickben.vialabs.net",
+  "bugs": "https://github.com/vialabs-net/quickben/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vialabs-net/quickben.git",
+    "directory": "packages/db-drizzle"
+  },
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "quickben-drizzle": "./dist/bin.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsdown",
+    "lint": "eslint .",
+    "typecheck": "tsc",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "clean": "rm -rf dist coverage .turbo"
+  },
+  "dependencies": {
+    "jiti": "^2.7.0"
+  },
+  "peerDependencies": {
+    "@electric-sql/pglite": ">=0.3.0",
+    "@libsql/client": ">=0.15.0",
+    "@quickben/core": "workspace:^",
+    "drizzle-orm": "^0.45.0",
+    "pg": ">=8.11.0"
+  },
+  "peerDependenciesMeta": {
+    "@electric-sql/pglite": {
+      "optional": true
+    },
+    "@libsql/client": {
+      "optional": true
+    },
+    "pg": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.16",
+    "@libsql/client": "0.18.0",
+    "@quickben/adapter-tests": "workspace:*",
+    "@quickben/core": "workspace:^",
+    "@quickben/db-memory": "workspace:*",
+    "@quickben/eslint-config": "workspace:*",
+    "@quickben/tsconfig": "workspace:*",
+    "@types/node": "22.20.5",
+    "@types/pg": "8.23.1",
+    "@vitest/coverage-v8": "5.1.0",
+    "drizzle-kit": "0.31.11",
+    "drizzle-orm": "0.45.4",
+    "eslint": "10.14.0",
+    "pg": "8.23.1",
+    "publint": "0.3.25",
+    "tsdown": "0.23.7",
+    "typescript": "6.0.3",
+    "vite": "8.3.8",
+    "vitest": "5.1.0"
+  }
+}

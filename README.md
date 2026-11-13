@@ -39,9 +39,10 @@ const page = await qb.find(
 | --------------------------------------------------- | --------------------------------------------------------------------------------- |
 | [`@quickben/core`](packages/core)                   | Config, fields, collections, access, hooks, plugins, local API, adapter contract. |
 | [`@quickben/db-memory`](packages/db-memory)         | In-memory database adapter for tests and demos.                                   |
+| [`@quickben/db-drizzle`](packages/db-drizzle)       | Drizzle ORM adapter: Postgres, PGlite and SQLite (libSQL).                        |
 | [`@quickben/adapter-tests`](packages/adapter-tests) | Contract tests every database adapter must pass. Private.                         |
 
-Planned: `@quickben/db-drizzle` (Postgres, PGlite, SQLite), `@quickben/next` (route handlers), `@quickben/admin`, `@quickben/plugin-tenancy`.
+Planned: `@quickben/next` (route handlers), `@quickben/admin`, `@quickben/plugin-tenancy`.
 
 ## Requirements
 
