@@ -1,0 +1,29 @@
+{
+  "name": "@quickben/adapter-tests",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Contract test suite that every Quickben database adapter must pass.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc"
+  },
+  "peerDependencies": {
+    "@quickben/core": "workspace:*",
+    "vitest": "^5.0.0"
+  },
+  "devDependencies": {
+    "@quickben/core": "workspace:*",
+    "@quickben/eslint-config": "workspace:*",
+    "@quickben/tsconfig": "workspace:*",
+    "@types/node": "22.20.5",
+    "eslint": "10.14.0",
+    "typescript": "6.0.3",
+    "vite": "8.3.8",
+    "vitest": "5.1.0"
+  }
+}
