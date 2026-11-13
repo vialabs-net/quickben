@@ -135,17 +135,23 @@ export interface SelectField<
   readonly options: readonly TOption[];
 }
 
-/** Relation to documents of another collection, stored as ids. `many: true` stores an array. */
+/**
+ * Relation to documents of another collection, stored as ids. `many: true` stores an array.
+ * `THasDefault` is `false` for `fields.relation()`. Plugins that fill a relation in a hook
+ * (for example the tenancy `organization` field) type it as `true`, so create input may leave
+ * it out.
+ */
 export interface RelationField<
   TTo extends string = string,
   TMany extends boolean = boolean,
   TRequired extends boolean = boolean,
+  THasDefault extends boolean = boolean,
 > extends FieldBase<
   "relation",
   TMany extends true ? string[] : string,
   TMany extends true ? string[] : string,
   TRequired,
-  false,
+  THasDefault,
   TMany
 > {
   readonly to: TTo;
@@ -404,7 +410,7 @@ function relation<
   return {
     ...base("relation", options, options.many ?? false),
     to: options.to,
-  } as unknown as RelationField<TTo, NoInfer<TMany>, NoInfer<TRequired>>;
+  } as unknown as RelationField<TTo, NoInfer<TMany>, NoInfer<TRequired>, false>;
 }
 
 /** Any JSON value. Pass a Zod `schema` to validate and type it. */

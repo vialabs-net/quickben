@@ -189,6 +189,13 @@ export type AccessOperation = "read" | "create" | "update" | "delete";
 export interface AccessArgs {
   user: QuickbenUser | null;
   req: Request | undefined;
+  /** The whole request context of the call, including keys added by plugins. */
+  ctx: RequestContext;
+  /**
+   * Local API bound to the current transaction. Set when the local API runs the rule. UI code
+   * that calls `checkAccess` itself may leave it out.
+   */
+  qb: Quickben | undefined;
   operation: AccessOperation;
   /** Document id, for `update`, `delete` and reads by id. */
   id: string | undefined;
@@ -217,6 +224,8 @@ export interface CollectionAccess<F extends Fields = Fields> {
 export interface HookArgs {
   user: QuickbenUser | null;
   req: Request | undefined;
+  /** The whole request context of the call, including keys added by plugins. */
+  ctx: RequestContext;
   /** Local API bound to the current transaction. */
   qb: Quickben;
   collection: SanitizedCollection;
@@ -416,15 +425,25 @@ export interface PluginConfig {
   plugins: readonly string[];
 }
 
+/** Fields a plugin adds to existing collections, keyed by collection slug. */
+export type FieldExtensions = Readonly<Record<string, Fields>>;
+
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- no fields added
+type NoExtensions = {};
+
 /**
  * A plugin is a function that takes the config and returns a new one. Plugins run in the
- * order they are listed. Use `definePlugin` to type the collections it adds.
+ * order they are listed. Use `definePlugin` to type the collections it adds (`TAdded`) and the
+ * fields it adds to existing collections (`TExtends`, keyed by slug).
  */
-export type Plugin<TAdded extends AnyCollection = never> = ((
-  config: PluginConfig,
-) => PluginConfig) & {
+export type Plugin<
+  TAdded extends AnyCollection = never,
+  TExtends extends FieldExtensions = NoExtensions,
+> = ((config: PluginConfig) => PluginConfig) & {
   /** Type-level only. */
   readonly "~collections"?: TAdded;
+  /** Type-level only. */
+  readonly "~extends"?: TExtends;
 };
 
 /** Collections added by a plugin, as a union. */
@@ -434,10 +453,50 @@ export type PluginCollections<P> = P extends { readonly "~collections"?: infer C
     : never
   : never;
 
+/** Field extensions declared by a plugin (or a union of plugins), as a union. */
+export type PluginExtensions<P> = P extends { readonly "~extends"?: infer X }
+  ? X extends FieldExtensions
+    ? X
+    : never
+  : never;
+
+type UnionToIntersection<U> = (U extends unknown ? (arg: U) => void : never) extends (
+  arg: infer I,
+) => void
+  ? I
+  : never;
+
+/** Extra fields for slug `K` from a union of extensions. `never` when none adds any. */
+type ExtraFieldsFor<X, K> = X extends unknown ? (K extends keyof X ? X[K] : never) : never;
+
+type WithFields<C extends AnyCollection, F> = F extends Fields
+  ? Collection<C["slug"], C["fields"] & F>
+  : C;
+
+/** Apply plugin field extensions to a registry. Collections no plugin extends stay as they are. */
+export type ExtendRegistry<R extends Registry, X> = [X] extends [never]
+  ? R
+  : {
+      [K in keyof R]: R[K] extends infer C extends AnyCollection
+        ? [ExtraFieldsFor<X, K>] extends [never]
+          ? C
+          : WithFields<C, UnionToIntersection<ExtraFieldsFor<X, K>>>
+        : never;
+    };
+
+/** Registry built by `defineConfig` from its collections and plugins. */
+export type ConfigRegistry<C extends AnyCollection, P> = ExtendRegistry<
+  RegistryOf<C | PluginCollections<P>>,
+  PluginExtensions<P>
+>;
+
+/** Any plugin, whatever it adds. */
+export type AnyPlugin = Plugin<AnyCollection, FieldExtensions>;
+
 /** Input of `defineConfig`. */
 export interface ConfigInput<
   C extends readonly AnyCollection[] = readonly AnyCollection[],
-  P extends readonly Plugin<AnyCollection>[] = readonly Plugin<AnyCollection>[],
+  P extends readonly AnyPlugin[] = readonly AnyPlugin[],
 > {
   db: DatabaseAdapter;
   collections: C;

@@ -2,7 +2,13 @@ import { ForbiddenError, UnauthorizedError } from "./errors";
 import { normalizeWhere } from "./where";
 
 import type { WhereNode } from "./adapter";
-import type { AccessArgs, AccessOperation, RequestContext, SanitizedCollection } from "./types";
+import type {
+  AccessArgs,
+  AccessOperation,
+  Quickben,
+  RequestContext,
+  SanitizedCollection,
+} from "./types";
 
 /** Access when a collection does not define a rule: authenticated users only. */
 export function defaultAccess({ user }: AccessArgs): boolean {
@@ -17,13 +23,15 @@ export async function checkAccess(
   collection: SanitizedCollection,
   operation: AccessOperation,
   ctx: RequestContext,
-  details: { id?: string; data?: Readonly<Record<string, unknown>> } = {},
+  details: { id?: string; data?: Readonly<Record<string, unknown>>; qb?: Quickben } = {},
 ): Promise<AccessResult> {
   if (ctx.overrideAccess === true) return true;
   const rule = collection.access[operation] ?? defaultAccess;
   const result = await rule({
     user: ctx.user,
     req: ctx.req,
+    ctx,
+    qb: details.qb,
     operation,
     id: details.id,
     data: details.data,
