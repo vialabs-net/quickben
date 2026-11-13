@@ -17,8 +17,9 @@
     "format:check": "prettier --check .",
     "changeset": "changeset",
     "version-packages": "changeset version && pnpm install --lockfile-only",
-    "release": "turbo run build --filter=./packages/* && changeset publish",
-    "clean": "turbo run clean && rm -rf .turbo"
+    "release": "turbo run build --filter=./packages/* && node scripts/publish.mjs && changeset tag",
+    "clean": "turbo run clean && rm -rf .turbo",
+    "release:local": "turbo run build --filter=./packages/* && node scripts/publish.mjs --local"
   },
   "devDependencies": {
     "@changesets/cli": "3.0.3",
