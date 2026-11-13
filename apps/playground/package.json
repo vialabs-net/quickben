@@ -16,7 +16,8 @@
     "clean": "rm -rf .next .turbo test-results playwright-report",
     "db:reset": "rm -rf .pglite .pglite-tenancy .better-auth.sqlite",
     "dev:tenancy": "QUICKBEN_TENANCY=1 next dev --port 3000",
-    "dev:better-auth": "QUICKBEN_AUTH=better-auth next dev --port 3000"
+    "dev:better-auth": "QUICKBEN_AUTH=better-auth next dev --port 3000",
+    "dev:connections": "QUICKBEN_CONNECTIONS=1 next dev --port 3000"
   },
   "dependencies": {
     "@electric-sql/pglite": "0.5.16",
@@ -26,6 +27,7 @@
     "@quickben/db-drizzle": "workspace:*",
     "@quickben/db-memory": "workspace:*",
     "@quickben/next": "workspace:*",
+    "@quickben/plugin-connections": "workspace:*",
     "@quickben/plugin-tenancy": "workspace:*",
     "better-auth": "1.7.22",
     "drizzle-orm": "0.45.4",

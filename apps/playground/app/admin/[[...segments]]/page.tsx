@@ -1,7 +1,9 @@
 import { createAdminPage, handleAdminRequest } from "@quickben/admin";
+import { connectionsAdmin } from "@quickben/plugin-connections/admin";
 import { tenancyAdmin } from "@quickben/plugin-tenancy/admin";
 
 import { betterAuthEnabled } from "@/lib/better-auth";
+import { connectionsEnabled } from "@/lib/connections";
 import { tenancyEnabled } from "@/lib/tenancy";
 import config from "@/quickben.config";
 
@@ -16,6 +18,9 @@ async function serverFunction(request: AdminRequest) {
 
 export default createAdminPage(config, {
   serverFunction,
-  extensions: tenancyEnabled ? [tenancyAdmin(config)] : [],
+  extensions: [
+    ...(tenancyEnabled ? [tenancyAdmin(config)] : []),
+    ...(connectionsEnabled ? [connectionsAdmin(config)] : []),
+  ],
   signInHref: betterAuthEnabled ? "/sign-in" : undefined,
 });
