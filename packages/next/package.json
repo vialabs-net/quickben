@@ -1,6 +1,6 @@
 {
   "name": "@quickben/next",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Next.js App Router integration for Quickben: REST route handlers and server helpers.",
   "keywords": [
     "quickben",

@@ -1,6 +1,6 @@
 {
   "name": "@quickben/plugin-tenancy",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Multi-tenancy for Quickben: organizations, memberships, roles, module entitlements and tenant-scoped collections.",
   "keywords": [
     "quickben",
