@@ -4,3 +4,6 @@ packages:
   - tooling/*
 minimumReleaseAgeExclude:
   - prettier@3.10.1
+allowBuilds:
+  # drizzle-kit (dev only). esbuild works from its platform package without the install script.
+  esbuild: false
