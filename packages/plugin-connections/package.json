@@ -1,6 +1,6 @@
 {
   "name": "@quickben/plugin-connections",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Connections and credentials for Quickben: a provider registry, AES-256-GCM encrypted secrets, connection tests and an admin UI.",
   "keywords": [
     "quickben",
