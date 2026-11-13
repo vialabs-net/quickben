@@ -4,11 +4,18 @@ packages:
   - tooling/*
 minimumReleaseAgeExclude:
   - prettier@3.10.1
+  - "@ai-sdk/gateway@4.0.145"
+  - "@ai-sdk/provider-utils@5.0.81"
+  - "@ai-sdk/provider@4.0.38"
+  - ai@7.0.172
+  - bullmq@6.7.6
 allowBuilds:
   # @tailwindcss/cli (dev only). The watcher is not used by builds.
   "@parcel/watcher": false
   # drizzle-kit and tsx (dev only). esbuild works from its platform package without the install script.
   esbuild: false
+  # bullmq (plugin-doc-reader, dev only). msgpackr works without its native extension.
+  msgpackr-extract: false
 overrides:
   # Nextra 4.6 schemas break on zod >= 4.4 (missing `children` key fails z.custom).
   nextra>zod: 4.3.6

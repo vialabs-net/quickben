@@ -1,0 +1,289 @@
+---
+title: Document reading
+description: Read fields from PDFs and images with @quickben/plugin-doc-reader. Versioned document types, text-layer and vision-LLM extractors, a test bench, budgets and a job queue.
+---
+
+# Document reading
+
+`@quickben/plugin-doc-reader` reads fields out of documents. A document type says which fields to read and which extractors to try, in order. Free extractors run first; paid ones run only for what is still missing.
+
+```sh
+pnpm add @quickben/plugin-doc-reader ai
+```
+
+## Setup
+
+```ts filename="quickben.config.ts"
+import { defineConfig, devAuth } from "@quickben/core";
+import { memoryAdapter } from "@quickben/db-memory";
+import { docReader, memoryFileStore } from "@quickben/plugin-doc-reader";
+
+import type { DocumentTypeInput } from "@quickben/plugin-doc-reader";
+
+const invoice: DocumentTypeInput = {
+  key: "invoice",
+  version: 1,
+  label: "Invoice",
+  fields: [
+    { key: "number", label: "Invoice number", type: "text", required: true },
+    { key: "total", label: "Total", type: "number" },
+  ],
+  pipeline: { steps: [{ extractor: "text-layer", config: { template: "invoice" } }] },
+};
+
+export default defineConfig({
+  db: memoryAdapter(),
+  collections: [],
+  plugins: [
+    docReader({
+      files: memoryFileStore(),
+      types: [invoice],
+      templates: {
+        invoice: {
+          match: ["INVOICE"],
+          fields: {
+            number: [{ pattern: "INVOICE NO\\.? ([A-Z\\d-]+)" }],
+            total: [{ pattern: "TOTAL:? \\$?([\\d.,]+)" }],
+          },
+        },
+      },
+    }),
+  ],
+  auth: devAuth(),
+});
+```
+
+```ts filename="read.ts"
+import { getQuickben } from "@quickben/core";
+import { getReading, readDocument } from "@quickben/plugin-doc-reader";
+
+import config from "./quickben.config";
+
+export async function read(file: File) {
+  const qb = await getQuickben(config);
+  const ctx = { user: { id: "u1" } };
+  const reading = await readDocument(qb, { type: "invoice", file, wait: 10_000 }, ctx);
+  // reading.fields.total: { value: "1234.5", confidence: 0.9, evidence: { page, text, box } }
+  return reading.state === "done" ? reading : getReading(qb, reading.id, ctx);
+}
+```
+
+Without `wait`, `readDocument` returns the queued reading at once. Read it later with `getReading`.
+
+## What the plugin adds
+
+| Collection      | Holds                                                                  |
+| --------------- | ---------------------------------------------------------------------- |
+| `doc-types`     | One row per type version: `draft` or `published`, with its definition. |
+| `doc-samples`   | Test documents of a type, with the values they should read to.         |
+| `doc-test-runs` | Test bench runs: per sample and field, expected vs read.               |
+| `doc-jobs`      | Readings: state, result, attempts, cost.                               |
+| `doc-usage`     | One row per paid extractor call: tokens, pages, cost.                  |
+| `doc-quotas`    | Monthly USD budgets per tenant, and the platform cap (tenant `*`).     |
+
+All collections are hidden from the generic admin. `@quickben/plugin-doc-reader/admin` adds their pages.
+
+## Document types
+
+```ts nocheck
+const invoice: DocumentTypeInput = {
+  key: "invoice",
+  version: 1,
+  label: "Invoice",
+  fields: [
+    { key: "number", label: "Invoice number", type: "text", required: true, transform: "compact" },
+    { key: "issuedOn", label: "Issue date", type: "date", required: true },
+    { key: "total", label: "Total", type: "number" },
+  ],
+  params: [{ key: "issuerIds", label: "Issuer ids", type: "string-list", excludes: ["buyerId"] }],
+  classification: { text: ["INVOICE"], fileName: ["invoice"] },
+  pipeline: {
+    steps: [
+      { extractor: "text-layer", config: { template: "invoice" } },
+      { extractor: "vision-llm", config: { connectionId: "openai-main", model: "gpt-vision" } },
+    ],
+    threshold: 0.8,
+    stopWhen: "required",
+  },
+};
+```
+
+| Field type | Stored value                                                     |
+| ---------- | ---------------------------------------------------------------- |
+| `text`     | Whitespace collapsed.                                            |
+| `date`     | `YYYY-MM-DD`. `dateOrder: "dmy"` (default) or `"mdy"` for input. |
+| `number`   | Plain decimal (`1234.5`). `decimalSeparator: "."` or `","`.      |
+| `email`    | Lowercase.                                                       |
+| `phone`    | Digits, with `+` when printed.                                   |
+
+Every field also takes `transform` (`upper`, `compact`: uppercase without spaces, dots and dashes) and `pattern` (a regular expression the value must match). A value that fails is dropped, also from a model.
+
+A parameter with `excludes` lists values that can never be the value of those fields, for example the issuer's own tax id.
+
+## Pipeline
+
+Steps run in order. Per field, the first value at or above `threshold` wins. The run stops when the `stopWhen` fields (`required` or `all`) are read, so free steps spare paid ones.
+
+| Extractor    | Cost | Config                                                                                                |
+| ------------ | ---- | ----------------------------------------------------------------------------------------------------- |
+| `text-layer` | free | `template` (a key of `templates`, or an inline template) or `reader` (a key of `readers`). PDFs only. |
+| `vision-llm` | paid | `connectionId`, `model` (default: the connection's), `maxPages`.                                      |
+| your own     | any  | Pass `extractors: [{ key, paid, extract }]`.                                                          |
+
+Templates are regular expressions over the text, whitespace collapsed:
+
+```ts nocheck
+docReader({
+  templates: {
+    invoice: {
+      match: ["INVOICE"],
+      fields: { number: [{ pattern: "INVOICE NO\\.? ([A-Z\\d-]+)" }] },
+    },
+  },
+});
+```
+
+Results: `OK`, `INCOMPLETE` (required fields missing), `NO_MATCH`, `NO_TEXT`, `ERROR`. Each step is recorded in `attempts`, with `SKIPPED` for paid steps over budget.
+
+## Models
+
+`vision-llm` uses the [AI SDK](https://ai-sdk.dev) (`generateText` with `Output.object`). The plugin never sees a key: `resolveModel` returns a ready model and its prices.
+
+```ts nocheck
+docReader({
+  resolveModel: async (connectionId, modelId) => ({
+    connection: { id: connectionId, name: "OpenAI" },
+    model: {
+      id: "gpt-vision",
+      vision: true,
+      structuredOutput: true,
+      maxPages: 4,
+      inputPerMTokUsd: 2.5,
+      outputPerMTokUsd: 10,
+    },
+    languageModel: openai("gpt-vision"),
+  }),
+  listModels: async () => [
+    { connectionId: "openai-main", connectionName: "OpenAI", models: [{ id: "gpt-vision" }] },
+  ],
+});
+```
+
+- Cost = tokens × the model's prices per million. A billed call that returns no fields still records its usage.
+- One call per step, no retries, 60 s deadline (`modelTimeoutMs`). Provider errors show a fixed message.
+- The answer schema has no nullable or union types: Anthropic rejects schemas with more than 16 union parameters.
+- Boxes are read as `x0,y0,x1,y1` in thousandths of the page and stored as fractions 0..1.
+- PDF pages are rendered with `unpdf` and the optional peer `@napi-rs/canvas`. In Next.js add `@napi-rs/canvas` to `serverExternalPackages`, or pass your own `rasterize`.
+
+## Running jobs
+
+| Runner                              | Where jobs run                                                          |
+| ----------------------------------- | ----------------------------------------------------------------------- |
+| `inProcessRunner()`                 | Default. The process that queued them.                                  |
+| `inProcessRunner({ defer: after })` | Serverless: Next.js `after` keeps the function alive.                   |
+| `bullmqRunner(options)`             | Worker processes, through Redis (`@quickben/plugin-doc-reader/bullmq`). |
+
+With the in-process runner, readings still `queued` at start are queued again and readings `running` for 30 minutes are marked `failed`.
+
+**Separate worker**
+
+```ts filename="quickben.config.ts" nocheck
+import { bullmqRunner } from "@quickben/plugin-doc-reader/bullmq";
+
+const runner = bullmqRunner({
+  connection: { url: process.env.REDIS_URL! },
+  worker: process.env.DOC_READER_WORKER === "1" ? { concurrency: 4 } : false,
+});
+```
+
+```ts filename="worker.ts" nocheck
+import { getQuickben } from "@quickben/core";
+
+import config from "./quickben.config";
+
+await getQuickben(config); // starts the BullMQ worker; keep the process running
+```
+
+Run `DOC_READER_WORKER=1 node worker.js` next to the web app. Both processes use the same database, file store and `prefix`.
+
+## Files
+
+| Store                 | Use                                 |
+| --------------------- | ----------------------------------- |
+| `memoryFileStore()`   | Default. Tests and demos.           |
+| `localFileStore(dir)` | One server or a shared volume.      |
+| your own `FileStore`  | S3, GCS: `read`, `write`, `delete`. |
+
+Uploads are checked by their first bytes: PDF, JPEG, PNG or WebP, at most `maxFileBytes` (20 MB).
+
+## Studio
+
+| Function                                            | Does                                                            |
+| --------------------------------------------------- | --------------------------------------------------------------- |
+| `createDocType(qb, ctx, { key, label })`            | New type as draft v1.                                           |
+| `createDraft(qb, ctx, key, from?)`                  | New draft copied from a version. One draft per type.            |
+| `saveDraft(qb, ctx, key, version, def)`             | Save a draft. Published versions never change.                  |
+| `addSample`, `updateSample`, `removeSample`         | Test documents and their expected values.                       |
+| `startTestRun(qb, ctx, key, version, { variants })` | Test on the samples; two `variants` compare models, each alone. |
+| `publishDraft(qb, ctx, key, version)`               | Needs a finished test run of the draft as it is now.            |
+
+Refusals throw `StudioError` (409) with a `rule`: `type-exists`, `draft-exists`, `published`, `not-tested`, `no-samples`, `changed`.
+
+## Budgets
+
+| Function                               | Does                                                   |
+| -------------------------------------- | ------------------------------------------------------ |
+| `setQuota(qb, ctx, tenant, usd)`       | Monthly budget of a tenant. `0`: no paid reads.        |
+| `setPlatformCap(qb, ctx, usd \| null)` | Cap for all paid reads, including test runs.           |
+| `quotaStatus(qb, tenant)`              | Spend and limits this month (UTC).                     |
+| `usageReport(qb, ctx, "2026-11")`      | Totals by tenant, model and type, and a 6-month trend. |
+
+A reading checks budgets once, before it starts. At 100 % paid steps are skipped; free steps still run.
+
+## Access
+
+| Collection                                                | Default                                                                                                  |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `doc-types`, `doc-samples`, `doc-test-runs`, `doc-quotas` | Staff only.                                                                                              |
+| `doc-jobs`                                                | Signed-in users create and read their own; staff read all and retry or cancel. Replace with `jobAccess`. |
+| `doc-usage`                                               | Staff read. Only the plugin writes.                                                                      |
+
+Staff: `isStaff(user)`, default `user.roles` includes `platform-admin`.
+
+## Multi-tenancy
+
+List `doc-jobs` in `tenancy({ scope })` and put `tenancy()` after `docReader()`. Readings then belong to the active organization and are billed to it. Pass `tenant` to `readDocument` to bill another id.
+
+## Admin
+
+```tsx nocheck
+import { docReaderAdmin } from "@quickben/plugin-doc-reader/admin";
+
+export default createAdminPage(config, { serverFunction, extensions: [docReaderAdmin(config)] });
+```
+
+| Page           | Path                                                                            |
+| -------------- | ------------------------------------------------------------------------------- |
+| Document types | `/admin/document-types`: list, editor, test bench, model comparison, publish.   |
+| Readings       | `/admin/document-queue`: filters, one reading with attempts and a file preview. |
+| Usage          | `/admin/document-usage`: spend, budgets, platform cap.                          |
+
+## Options
+
+| Option                 | Default               | Purpose                                         |
+| ---------------------- | --------------------- | ----------------------------------------------- |
+| `files`                | `memoryFileStore()`   | Where uploads and samples are kept.             |
+| `runner`               | `inProcessRunner()`   | How jobs reach a worker.                        |
+| `resolveModel`         | none                  | Models for `vision-llm` steps.                  |
+| `listModels`           | none                  | Model pickers in the admin.                     |
+| `templates`, `readers` | none                  | What `text-layer` steps can name.               |
+| `extractors`           | none                  | More extractors, or replacements by `key`.      |
+| `types`                | none                  | Types added as published versions when missing. |
+| `isStaff`              | `platform-admin` role | Platform staff.                                 |
+| `jobAccess`            | own readings          | Access rules of `doc-jobs`.                     |
+| `maxWaitMs`            | `30000`               | Longest `wait`.                                 |
+| `maxFileBytes`         | 20 MB                 | Largest upload.                                 |
+| `rasterize`            | unpdf + canvas        | Page images for vision models.                  |
+| `modelTimeoutMs`       | `60000`               | Deadline of one model call.                     |
+| `onReadingDone`        | none                  | Called when a reading ends.                     |
+| `log`                  | `console.warn`        | Failures that do not fail a reading.            |

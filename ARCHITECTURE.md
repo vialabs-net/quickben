@@ -19,20 +19,21 @@ This file describes what exists. Sections marked **Planned** describe agreed des
 
 ## Repository
 
-| Path                       | Package                                     | Status |
-| -------------------------- | ------------------------------------------- | ------ |
-| `packages/core`            | `@quickben/core`                            | Exists |
-| `packages/db-memory`       | `@quickben/db-memory`                       | Exists |
-| `packages/adapter-tests`   | `@quickben/adapter-tests` (private)         | Exists |
-| `tooling/tsconfig`         | `@quickben/tsconfig` (private)              | Exists |
-| `tooling/eslint-config`    | `@quickben/eslint-config` (private)         | Exists |
-| `packages/db-drizzle`      | `@quickben/db-drizzle`                      | Exists |
-| `packages/next`            | `@quickben/next`                            | Exists |
-| `packages/admin`           | `@quickben/admin`                           | Exists |
-| `packages/plugin-tenancy`  | `@quickben/plugin-tenancy`                  | Exists |
-| `packages/create-quickben` | `create-quickben`                           | Exists |
-| `apps/docs`                | Nextra site at https://quickben.vialabs.net | Exists |
-| `apps/playground`          | Next.js app using everything (PGlite)       | Exists |
+| Path                         | Package                                     | Status |
+| ---------------------------- | ------------------------------------------- | ------ |
+| `packages/core`              | `@quickben/core`                            | Exists |
+| `packages/db-memory`         | `@quickben/db-memory`                       | Exists |
+| `packages/adapter-tests`     | `@quickben/adapter-tests` (private)         | Exists |
+| `tooling/tsconfig`           | `@quickben/tsconfig` (private)              | Exists |
+| `tooling/eslint-config`      | `@quickben/eslint-config` (private)         | Exists |
+| `packages/db-drizzle`        | `@quickben/db-drizzle`                      | Exists |
+| `packages/next`              | `@quickben/next`                            | Exists |
+| `packages/admin`             | `@quickben/admin`                           | Exists |
+| `packages/plugin-tenancy`    | `@quickben/plugin-tenancy`                  | Exists |
+| `packages/plugin-doc-reader` | `@quickben/plugin-doc-reader`               | Exists |
+| `packages/create-quickben`   | `create-quickben`                           | Exists |
+| `apps/docs`                  | Nextra site at https://quickben.vialabs.net | Exists |
+| `apps/playground`            | Next.js app using everything (PGlite)       | Exists |
 
 Dependencies point one way: adapters and other packages depend on `@quickben/core` (as a peer dependency). Core depends only on Zod.
 
@@ -329,6 +330,15 @@ export default createAdminPage(config, { serverFunction }); // async server comp
 - Roles are data: capabilities per role, ranked by order. Membership hooks enforce the guard rails (`TenancyRuleError` with a `rule`): last active owner, no self-demotion for owners and admins, no managing higher roles. Invitations by email need `emailVerified` not `false`.
 - Helpers over the local API: `resolveTenant`, `inviteMember`, `acceptInvitation`, `updateMembership`, `removeMember`, `listMyOrganizations`, `listMyInvitations`, `switchOrganization` (returns the cookie), `canUseModule`, `moduleAccess`, `hasCapability`.
 - `@quickben/plugin-tenancy/admin`: `tenancyAdmin(config)` is an admin extension with an organization switcher, a Members page and an Organization settings page. Server actions use a registry keyed by base path, like the admin's default server function. They redirect with `?toast=` / `?error=` codes that the pages map to fixed messages.
+
+### `@quickben/plugin-doc-reader`
+
+- `docReader(options)` adds `doc-types` (one row per version, `draft` or `published`), `doc-samples`, `doc-test-runs`, `doc-jobs`, `doc-usage` and `doc-quotas`, all hidden from the generic admin.
+- A document type is JSON validated with Zod: fields (`text`, `date`, `number`, `email`, `phone`, with `transform` and `pattern`), parameters, classification hints and a pipeline. Steps run in order; per field the first value at the threshold wins; the run stops once the `stopWhen` fields are read. A skip hook drops paid steps over budget.
+- Extractors: `text-layer` (unpdf text, regex templates or reader functions, boxes from text runs) and `vision-llm` (AI SDK `generateText` + `Output.object`; no nullable or union types in the answer schema). Models come from `resolveModel(connectionId, modelId)`; cost is computed from the model's prices.
+- `readDocument(qb, input, ctx)` checks the file by its first bytes, stores it in a `FileStore`, creates a job and queues it through a `JobRunner` (`inProcessRunner` by default, `bullmqRunner` in `/bullmq`). A run claims a job by queue version, so cancelled or retried jobs keep the newer state.
+- Studio rules: one draft per type, published versions never change, publishing needs a finished test run of the draft's current revision.
+- `@quickben/plugin-doc-reader/admin`: `docReaderAdmin(config)` adds Document types, Readings and Usage pages. Server actions redirect with fixed `?toast=` / `?error=` codes.
 
 ## create-quickben
 

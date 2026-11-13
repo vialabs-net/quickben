@@ -3,6 +3,7 @@ import { tenancy } from "@quickben/plugin-tenancy";
 
 import { playgroundAuth } from "./lib/auth";
 import { createDb } from "./lib/db";
+import { docReaderEnabled, playgroundDocReader } from "./lib/doc-reader";
 import { seedIfEmpty } from "./lib/seed";
 import { tenancyEnabled } from "./lib/tenancy";
 
@@ -106,7 +107,12 @@ const multiTenant = tenancy({
 const config = defineConfig({
   db: createDb(),
   collections: [authors, tags, posts, settings],
-  plugins: tenancyEnabled ? [demo, multiTenant] : [demo],
+  plugins: [
+    demo,
+    // With QUICKBEN_DOC_READER=1: document types, readings and usage, with a fake model.
+    ...(docReaderEnabled ? [playgroundDocReader] : []),
+    ...(tenancyEnabled ? [multiTenant] : []),
+  ],
   auth: playgroundAuth(),
   admin: { title: "Quickben Playground" },
 });

@@ -43,6 +43,10 @@ Start with `QUICKBEN_TENANCY=1` (or `pnpm dev:tenancy`) to add `@quickben/plugin
 
 The admin gets an organization switcher in the sidebar, a Members page and an Organization settings page. `e2e/tenancy.spec.ts` runs only in this mode.
 
+## Document reading
+
+Start with `QUICKBEN_DOC_READER=1` (or `pnpm dev:doc-reader`) to add `@quickben/plugin-doc-reader` with a fake vision model: no API key, no network. The admin gets Document types, Readings and Usage pages. Files go to `./.doc-reader-files`. `e2e/doc-reader.spec.ts` runs only in this mode.
+
 ## Roles
 
 Pick a role in the bar at the top. It sets a cookie that the auth adapter turns into a `devAuth` user. Without the cookie you are `admin`.

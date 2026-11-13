@@ -1,6 +1,8 @@
 import { createAdminPage, handleAdminRequest } from "@quickben/admin";
+import { docReaderAdmin } from "@quickben/plugin-doc-reader/admin";
 import { tenancyAdmin } from "@quickben/plugin-tenancy/admin";
 
+import { docReaderEnabled } from "@/lib/doc-reader";
 import { tenancyEnabled } from "@/lib/tenancy";
 import config from "@/quickben.config";
 
@@ -15,5 +17,8 @@ async function serverFunction(request: AdminRequest) {
 
 export default createAdminPage(config, {
   serverFunction,
-  extensions: tenancyEnabled ? [tenancyAdmin(config)] : [],
+  extensions: [
+    ...(tenancyEnabled ? [tenancyAdmin(config)] : []),
+    ...(docReaderEnabled ? [docReaderAdmin(config)] : []),
+  ],
 });
