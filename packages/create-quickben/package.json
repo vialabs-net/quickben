@@ -1,6 +1,6 @@
 {
   "name": "create-quickben",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Create a Next.js app with Quickben: pnpm create quickben my-app.",
   "keywords": [
     "quickben",

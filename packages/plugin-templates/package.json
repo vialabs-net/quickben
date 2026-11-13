@@ -1,6 +1,6 @@
 {
   "name": "@quickben/plugin-templates",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Document templates for Quickben: brands, versioned templates per kind, a safe expression language, HTML and PDF rendering, and a TipTap editor in the admin.",
   "keywords": [
     "quickben",

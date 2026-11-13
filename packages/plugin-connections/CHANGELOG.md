@@ -1,5 +1,13 @@
 # @quickben/plugin-connections
 
+## 0.2.0
+
+### Patch Changes
+
+- @quickben/admin@0.2.0
+  - @quickben/core@0.2.0
+  - @quickben/next@0.2.0
+
 ## 0.1.0
 
 ### Minor Changes
