@@ -5,7 +5,12 @@ import { currentRequest, getQuickben, getRequestContext, getUser, singleton } fr
 import { editor, makeConfig } from "./fixtures";
 
 const incoming = new Headers();
-vi.mock("next/headers", () => ({ headers: () => Promise.resolve(incoming) }));
+const jar = new Map<string, string>();
+vi.mock("next/headers", () => ({
+  headers: () => Promise.resolve(incoming),
+  cookies: () =>
+    Promise.resolve({ getAll: () => [...jar].map(([name, value]) => ({ name, value })) }),
+}));
 
 describe("singleton", () => {
   it("creates a value once per key", () => {
@@ -47,6 +52,15 @@ describe("request helpers", () => {
     expect(await getUser(config)).toMatchObject({ id: "e1", roles: ["editor"] });
     const ctx = await getRequestContext({ ...config, auth: undefined });
     expect(ctx.user).toBeNull();
+  });
+
+  it("takes cookies from the cookie store, including ones set in this request", async () => {
+    incoming.set("cookie", "stale=1");
+    jar.set("session", "a b;c");
+    jar.set("theme", "dark");
+    expect((await currentRequest()).headers.get("cookie")).toBe("session=a%20b%3Bc; theme=dark");
+    jar.clear();
+    expect((await currentRequest()).headers.get("cookie")).toBeNull();
   });
 
   it("honours forwarded headers", async () => {

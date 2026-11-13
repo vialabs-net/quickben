@@ -1,5 +1,5 @@
 import { createQuickben } from "@quickben/core";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 
 import type {
   Quickben,
@@ -53,12 +53,22 @@ export function getQuickben<R extends Registry>(config: QuickbenConfig<R>): Prom
 /**
  * Build a `Request` from the headers of the current Next.js request, for auth adapters.
  * Works in server components, server actions and route handlers.
+ *
+ * The `cookie` header comes from `cookies()`, so a cookie set earlier in the same server
+ * action (for example by a sign-in) is already visible to the auth adapter.
  */
 export async function currentRequest(): Promise<Request> {
-  const incoming = await headers();
+  const [incoming, jar] = await Promise.all([headers(), cookies()]);
   const host = incoming.get("x-forwarded-host") ?? incoming.get("host") ?? "localhost";
   const protocol = incoming.get("x-forwarded-proto") ?? "http";
-  return new Request(`${protocol}://${host}/`, { headers: new Headers(incoming) });
+  const forwarded = new Headers(incoming);
+  const cookieHeader = jar
+    .getAll()
+    .map((cookie) => `${cookie.name}=${encodeURIComponent(cookie.value)}`)
+    .join("; ");
+  if (cookieHeader === "") forwarded.delete("cookie");
+  else forwarded.set("cookie", cookieHeader);
+  return new Request(`${protocol}://${host}/`, { headers: forwarded });
 }
 
 /**

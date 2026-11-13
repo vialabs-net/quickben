@@ -1,7 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { createContext, startTransition, use, useActionState, useEffect, useRef } from "react";
+import {
+  createContext,
+  startTransition,
+  use,
+  useActionState,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { idleState } from "../form-state";
 import { controlId } from "../ids";
@@ -58,6 +66,12 @@ export function DocumentForm({
     idleState,
   );
   const formRef = useRef<HTMLFormElement>(null);
+  // The form only works with JavaScript. Keep submit disabled until it is hydrated, so an
+  // early click cannot fall back to a native submit.
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    setReady(true);
+  }, []);
 
   useEffect(() => {
     const form = formRef.current;
@@ -88,7 +102,7 @@ export function DocumentForm({
 
   return (
     <FormStateContext value={state}>
-      <form ref={formRef} onSubmit={onSubmit} aria-busy={pending}>
+      <form ref={formRef} method="post" onSubmit={onSubmit} aria-busy={pending}>
         {state.status === "error" ? (
           <div
             role="alert"
@@ -100,7 +114,7 @@ export function DocumentForm({
         <div className="qb:p-5">{children}</div>
         {readOnly ? null : (
           <div className="qb:flex qb:items-center qb:gap-3 qb:border-t qb:border-zinc-200 qb:bg-zinc-50 qb:px-5 qb:py-3 qb:rounded-b-lg">
-            <Button type="submit" variant="primary" disabled={pending}>
+            <Button type="submit" variant="primary" disabled={pending || !ready}>
               {pending ? "Saving…" : submitLabel}
             </Button>
             {secondary}

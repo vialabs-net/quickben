@@ -3,7 +3,10 @@ import { afterEach, vi } from "vitest";
 
 import { incoming, router } from "./mocks";
 
-vi.mock("next/headers", () => ({ headers: () => Promise.resolve(incoming) }));
+vi.mock("next/headers", () => ({
+  headers: () => Promise.resolve(incoming),
+  cookies: () => Promise.resolve({ getAll: () => [] }),
+}));
 
 vi.mock("next/navigation", () => ({
   notFound: () => {
