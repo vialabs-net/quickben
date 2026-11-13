@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@quickben/db-memory": "workspace:^"
+  }
+}

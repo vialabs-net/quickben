@@ -6,6 +6,16 @@ Declare typed collections in one config and get a typed server API, access rules
 
 ## Quick start
 
+```sh
+pnpm create quickben my-app
+cd my-app
+pnpm dev
+```
+
+Then open http://localhost:3000/admin. The app uses PGlite, so no database server is needed. See [`create-quickben`](packages/create-quickben) for the options.
+
+To add Quickben to code you already have:
+
 ```ts
 import { defineCollection, defineConfig, devAuth, fields as f, getQuickben } from "@quickben/core";
 import { memoryAdapter } from "@quickben/db-memory";
@@ -42,6 +52,7 @@ const page = await qb.find(
 | [`@quickben/db-drizzle`](packages/db-drizzle)       | Drizzle ORM adapter: Postgres, PGlite and SQLite (libSQL).                        |
 | [`@quickben/next`](packages/next)                   | Next.js REST route handlers and server helpers.                                   |
 | [`@quickben/admin`](packages/admin)                 | Admin UI generated from collections.                                              |
+| [`create-quickben`](packages/create-quickben)       | CLI that creates a Next.js app with Quickben.                                     |
 | [`@quickben/adapter-tests`](packages/adapter-tests) | Contract tests every database adapter must pass. Private.                         |
 
 [`apps/playground`](apps/playground) uses everything: `pnpm dev`, then open http://localhost:3000/admin.
