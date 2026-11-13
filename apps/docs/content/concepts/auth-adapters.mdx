@@ -1,0 +1,63 @@
+---
+title: Auth adapters
+description: An AuthAdapter resolves the user of a request. Core stores no passwords.
+---
+
+# Auth adapters
+
+Quickben does not sign users in. An `AuthAdapter` reads the user from a request, using the auth library you already have.
+
+```ts nocheck
+interface AuthAdapter {
+  getUser(req: Request): Promise<QuickbenUser | null>;
+}
+
+interface QuickbenUser {
+  id: string;
+  email?: string;
+  roles?: string[];
+}
+```
+
+Return `null` for anonymous requests. The route handlers (coming in 0.1) call `getUser` and pass the user to the local API.
+
+## Extra user fields
+
+Add fields to `QuickbenUser` with declaration merging. Access rules and hooks then see them.
+
+```ts filename="types/quickben.d.ts"
+declare module "@quickben/core" {
+  interface QuickbenUser {
+    organizationId?: string;
+  }
+}
+
+export {};
+```
+
+## `devAuth()`
+
+A development adapter. It trusts a header, so any client can act as any user.
+
+```ts
+import { defineConfig, devAuth } from "@quickben/core";
+import { memoryAdapter } from "@quickben/db-memory";
+
+export default defineConfig({
+  db: memoryAdapter(),
+  collections: [],
+  auth: devAuth({ header: "x-quickben-user", env: "QUICKBEN_DEV_USER" }),
+});
+```
+
+| Option              | Default             | Purpose                                               |
+| ------------------- | ------------------- | ----------------------------------------------------- |
+| `header`            | `x-quickben-user`   | Request header with the user.                         |
+| `env`               | `QUICKBEN_DEV_USER` | Environment variable used when the header is missing. |
+| `allowInProduction` | `false`             | Allow use when `NODE_ENV` is `production`.            |
+
+The value is a user id (`u1`) or JSON (`{"id":"u1","roles":["admin"]}`). Invalid JSON gives `null`. When `NODE_ENV` is `production`, `getUser` rejects with `ConfigError` unless `allowInProduction` is `true`.
+
+## Real auth
+
+See the recipe [Auth adapter for Better Auth or Firebase](/docs/recipes/auth-adapter).

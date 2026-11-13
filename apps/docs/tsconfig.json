@@ -1,0 +1,16 @@
+{
+  "extends": "@quickben/tsconfig/nextjs.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    "*.config.mjs",
+    "eslint.config.js"
+  ],
+  "exclude": ["node_modules", ".next/cache", "public", "samples/generated"]
+}

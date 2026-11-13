@@ -1,0 +1,60 @@
+---
+title: Introduction
+description: What Quickben is, what it does today and which packages exist.
+---
+
+# Introduction
+
+Quickben is a framework for business apps on Next.js. You declare **collections** in one config file: typed data with fields, access rules and hooks. Quickben gives you:
+
+| You get                        | Package                    | Status        |
+| ------------------------------ | -------------------------- | ------------- |
+| Typed server API (local API)   | `@quickben/core`           | Available     |
+| Access rules and hooks         | `@quickben/core`           | Available     |
+| In-memory database adapter     | `@quickben/db-memory`      | Available     |
+| Postgres, PGlite, SQLite       | `@quickben/db-drizzle`     | Coming in 0.1 |
+| REST route handlers            | `@quickben/next`           | Coming in 0.1 |
+| Admin UI generated from config | `@quickben/admin`          | Coming in 0.1 |
+| Multi-tenancy                  | `@quickben/plugin-tenancy` | Planned       |
+
+Quickben is **alpha**. APIs change without notice until 1.0. The code is on [GitHub](https://github.com/vialabs-net/quickben) under Apache-2.0.
+
+## What a collection looks like
+
+```ts
+import { defineCollection, fields as f } from "@quickben/core";
+
+export const posts = defineCollection({
+  slug: "posts",
+  fields: {
+    title: f.text({ required: true, maxLength: 200 }),
+    status: f.select({ options: ["draft", "published"], required: true, default: "draft" }),
+    author: f.relation({ to: "users" }),
+  },
+  access: {
+    read: () => true,
+    update: ({ user }) => (user ? { author: { eq: user.id } } : false),
+  },
+});
+```
+
+Document, input and filter types come from the field definitions. There is no code generation step.
+
+## Design rules
+
+| Rule                  | Meaning                                                                            |
+| --------------------- | ---------------------------------------------------------------------------------- |
+| One config            | `defineConfig({ db, collections, plugins, auth, admin })` in `quickben.config.ts`. |
+| Storage-agnostic core | `@quickben/core` never imports a database library. Adapters do.                    |
+| Plain objects         | Collections, fields, access rules, hooks and plugins are objects and functions.    |
+| Secure by default     | Without an access rule, only signed-in users get access.                           |
+| No global state       | One cached instance per config object.                                             |
+
+## Requirements
+
+Node.js 22.18 or later. ESM only. TypeScript 5.8 or later is recommended for inference.
+
+## Next steps
+
+- [Quick start](/docs/quick-start): install, define a collection, run a query.
+- [Concepts](/docs/concepts/config): every part of the config.

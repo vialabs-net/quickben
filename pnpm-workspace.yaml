@@ -4,3 +4,7 @@ packages:
   - tooling/*
 minimumReleaseAgeExclude:
   - prettier@3.10.1
+overrides:
+  # Nextra 4.6 schemas break on zod >= 4.4 (missing `children` key fails z.custom).
+  nextra>zod: 4.3.6
+  nextra-theme-docs>zod: 4.3.6
