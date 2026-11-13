@@ -18,6 +18,15 @@ const dryRun = process.argv.includes("--dry-run");
 const root = path.resolve(import.meta.dirname, "..");
 const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { stdio: "inherit", ...opts });
 
+function exists(name) {
+  try {
+    execFileSync("npm", ["view", name, "name"], { stdio: "pipe" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function isPublished(name, version) {
   try {
     execFileSync("npm", ["view", `${name}@${version}`, "version"], { stdio: "pipe" });
@@ -38,6 +47,14 @@ try {
   for (const { dir, pkg } of packages) {
     if (pkg.version === "0.0.0") {
       console.log(`skip ${pkg.name}: version 0.0.0 (run changeset version first)`);
+      continue;
+    }
+    // Trusted Publishing only works for packages that already exist on npm.
+    // A new package must be published once by hand (see docs/releasing.md).
+    if (!local && !exists(pkg.name)) {
+      console.log(
+        `::warning::${pkg.name} is not on npm yet. Publish it once with "pnpm release:local", then add its trusted publisher.`,
+      );
       continue;
     }
     if (isPublished(pkg.name, pkg.version)) {
