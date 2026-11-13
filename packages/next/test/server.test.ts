@@ -1,0 +1,61 @@
+import { describe, expect, it, vi } from "vitest";
+
+import { currentRequest, getQuickben, getRequestContext, getUser, singleton } from "../src";
+
+import { editor, makeConfig } from "./fixtures";
+
+const incoming = new Headers();
+vi.mock("next/headers", () => ({ headers: () => Promise.resolve(incoming) }));
+
+describe("singleton", () => {
+  it("creates a value once per key", () => {
+    const create = vi.fn(() => ({ n: 1 }));
+    const first = singleton("test-key", create);
+    expect(singleton("test-key", create)).toBe(first);
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("getQuickben", () => {
+  it("caches one instance per config", async () => {
+    const config = makeConfig();
+    const qb = await getQuickben(config);
+    expect(await getQuickben(config)).toBe(qb);
+    expect(await getQuickben(makeConfig())).not.toBe(qb);
+  });
+
+  it("drops a failed init so the next call retries", async () => {
+    const config = makeConfig();
+    const init = vi
+      .spyOn(config.db, "init")
+      .mockRejectedValueOnce(new Error("down"))
+      .mockResolvedValue();
+    await expect(getQuickben(config)).rejects.toThrow("down");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await expect(getQuickben(config)).resolves.toBeDefined();
+    expect(init).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("request helpers", () => {
+  it("build a request from next/headers and resolve the user", async () => {
+    incoming.set("host", "example.test");
+    incoming.set("x-quickben-user", editor);
+    const req = await currentRequest();
+    expect(req.url).toBe("http://example.test/");
+    const config = makeConfig();
+    expect(await getUser(config)).toMatchObject({ id: "e1", roles: ["editor"] });
+    const ctx = await getRequestContext({ ...config, auth: undefined });
+    expect(ctx.user).toBeNull();
+  });
+
+  it("honours forwarded headers", async () => {
+    incoming.set("x-forwarded-host", "public.example");
+    incoming.set("x-forwarded-proto", "https");
+    expect((await currentRequest()).url).toBe("https://public.example/");
+    incoming.delete("x-forwarded-host");
+    incoming.delete("x-forwarded-proto");
+    incoming.delete("host");
+    expect((await currentRequest()).url).toBe("http://localhost/");
+  });
+});
