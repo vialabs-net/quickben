@@ -43,6 +43,10 @@ Start with `QUICKBEN_TENANCY=1` (or `pnpm dev:tenancy`) to add `@quickben/plugin
 
 The admin gets an organization switcher in the sidebar, a Members page and an Organization settings page. `e2e/tenancy.spec.ts` runs only in this mode.
 
+## Connections
+
+Start with `QUICKBEN_CONNECTIONS=1` (or `pnpm dev:connections`) to add `@quickben/plugin-connections`. The admin gets an Integrations group with Connections and Credentials. Secrets use `QUICKBEN_MASTER_KEY`, or a fixed demo key when it is unset. `e2e/connections.spec.ts` runs only in this mode; it tests an HTTP API connection against the playground's own `/api/_meta`.
+
 ## Roles
 
 Pick a role in the bar at the top. It sets a cookie that the auth adapter turns into a `devAuth` user. Without the cookie you are `admin`.

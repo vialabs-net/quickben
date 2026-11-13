@@ -1,7 +1,9 @@
 import { defineCollection, defineConfig, definePlugin, fields as f } from "@quickben/core";
+import { connections } from "@quickben/plugin-connections";
 import { tenancy } from "@quickben/plugin-tenancy";
 
 import { playgroundAuth } from "./lib/auth";
+import { connectionsEnabled, demoMasterKey } from "./lib/connections";
 import { createDb } from "./lib/db";
 import { seedIfEmpty } from "./lib/seed";
 import { tenancyEnabled } from "./lib/tenancy";
@@ -103,10 +105,17 @@ const multiTenant = tenancy({
   isPlatformAdmin: (user) => user.roles?.includes("admin") === true,
 });
 
+// With QUICKBEN_CONNECTIONS=1, the admin gets Integrations: connections and credentials.
+const integrations = connections({ masterKey: demoMasterKey });
+
 const config = defineConfig({
   db: createDb(),
   collections: [authors, tags, posts, settings],
-  plugins: tenancyEnabled ? [demo, multiTenant] : [demo],
+  plugins: [
+    demo,
+    ...(tenancyEnabled ? [multiTenant] : []),
+    ...(connectionsEnabled ? [integrations] : []),
+  ],
   auth: playgroundAuth(),
   admin: { title: "Quickben Playground" },
 });

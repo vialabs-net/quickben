@@ -14,6 +14,7 @@
       "@quickben/db-drizzle",
       "@quickben/db-memory",
       "@quickben/next",
+      "@quickben/plugin-connections",
       "@quickben/plugin-tenancy"
     ]
   ],
