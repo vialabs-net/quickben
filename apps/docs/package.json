@@ -27,6 +27,8 @@
   "devDependencies": {
     "@next/eslint-plugin-next": "16.4.6",
     "@quickben/admin": "workspace:^",
+    "@quickben/auth-better-auth": "workspace:^",
+    "@quickben/auth-firebase": "workspace:^",
     "@quickben/core": "workspace:^",
     "@quickben/db-drizzle": "workspace:^",
     "@quickben/db-memory": "workspace:^",

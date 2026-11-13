@@ -16,7 +16,13 @@ allowBuilds:
   esbuild: false
   # bullmq (plugin-doc-reader, dev only). msgpackr works without its native extension.
   msgpackr-extract: false
+  # firebase / firebase-admin: postinstall scripts only print notices.
+  "@firebase/util": false
+  protobufjs: false
 overrides:
   # Nextra 4.6 schemas break on zod >= 4.4 (missing `children` key fails z.custom).
   nextra>zod: 4.3.6
   nextra-theme-docs>zod: 4.3.6
+  # firebase-admin and better-auth ask for different versions. One version keeps a single
+  # drizzle-orm instance, so its types match across packages.
+  "@opentelemetry/api": 1.10.0

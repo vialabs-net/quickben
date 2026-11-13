@@ -2,6 +2,7 @@ import { createAdminPage, handleAdminRequest } from "@quickben/admin";
 import { docReaderAdmin } from "@quickben/plugin-doc-reader/admin";
 import { tenancyAdmin } from "@quickben/plugin-tenancy/admin";
 
+import { betterAuthEnabled } from "@/lib/better-auth";
 import { docReaderEnabled } from "@/lib/doc-reader";
 import { tenancyEnabled } from "@/lib/tenancy";
 import config from "@/quickben.config";
@@ -21,4 +22,5 @@ export default createAdminPage(config, {
     ...(tenancyEnabled ? [tenancyAdmin(config)] : []),
     ...(docReaderEnabled ? [docReaderAdmin(config)] : []),
   ],
+  signInHref: betterAuthEnabled ? "/sign-in" : undefined,
 });

@@ -47,6 +47,19 @@ The admin gets an organization switcher in the sidebar, a Members page and an Or
 
 Start with `QUICKBEN_DOC_READER=1` (or `pnpm dev:doc-reader`) to add `@quickben/plugin-doc-reader` with a fake vision model: no API key, no network. The admin gets Document types, Readings and Usage pages. Files go to `./.doc-reader-files`. `e2e/doc-reader.spec.ts` runs only in this mode.
 
+## Better Auth
+
+Start with `QUICKBEN_AUTH=better-auth` (or `pnpm dev:better-auth`) to sign in with `@quickben/auth-better-auth` instead of the role switcher. Users are stored in SQLite (`node:sqlite`) in `./.better-auth.sqlite`, or in memory with `QUICKBEN_DB=memory`.
+
+| Account              | Password              | Role   |
+| -------------------- | --------------------- | ------ |
+| `admin@example.com`  | `playground-password` | admin  |
+| `editor@example.com` | `playground-password` | editor |
+| `viewer@example.com` | `playground-password` | viewer |
+| a new account        | your choice           | viewer |
+
+Sign in at `/sign-in`. `e2e/better-auth.spec.ts` runs only in this mode.
+
 ## Roles
 
 Pick a role in the bar at the top. It sets a cookie that the auth adapter turns into a `devAuth` user. Without the cookie you are `admin`.
