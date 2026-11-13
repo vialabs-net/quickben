@@ -1,4 +1,7 @@
+import { betterAuthAdapter } from "@quickben/auth-better-auth";
 import { devAuth } from "@quickben/core";
+
+import { betterAuthEnabled, demoAccounts, getAuth } from "./better-auth";
 
 import type { AuthAdapter, QuickbenUser } from "@quickben/core";
 
@@ -39,6 +42,7 @@ function cookieValue(header: string | null, name: string): string | undefined {
  * for `next start`. Never deploy the playground with it.
  */
 export function playgroundAuth(): AuthAdapter {
+  if (betterAuthEnabled) return playgroundBetterAuth();
   const dev = devAuth({ allowInProduction: process.env.QUICKBEN_PLAYGROUND_DEMO === "1" });
   return {
     getUser(req) {
@@ -49,6 +53,19 @@ export function playgroundAuth(): AuthAdapter {
       const headers = new Headers(req.headers);
       headers.set("x-quickben-user", JSON.stringify(demoUsers[role]));
       return dev.getUser(new Request(req.url, { headers }));
+    },
+  };
+}
+
+/** With `QUICKBEN_AUTH=better-auth`: the Better Auth session, with demo roles by email. */
+function playgroundBetterAuth(): AuthAdapter {
+  return {
+    async getUser(req) {
+      const adapter = betterAuthAdapter({
+        auth: await getAuth(),
+        roles: ({ user }) => [demoAccounts[user.email ?? ""] ?? "viewer"],
+      });
+      return adapter.getUser(req);
     },
   };
 }

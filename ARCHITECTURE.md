@@ -264,7 +264,7 @@ interface QuickbenUser {
 }
 ```
 
-Extend `QuickbenUser` with declaration merging. Auth adapters should set `emailVerified`; `false` stops email-based features such as accepting tenancy invitations by email. `devAuth()` reads the user from the `x-quickben-user` header or the `QUICKBEN_DEV_USER` variable (an id or JSON). It throws when `NODE_ENV` is `production` unless `allowInProduction: true`. Core stores no passwords. **Planned:** recipes for Better Auth and Firebase.
+Extend `QuickbenUser` with declaration merging. Auth adapters should set `emailVerified`; `false` stops email-based features such as accepting tenancy invitations by email. `devAuth()` reads the user from the `x-quickben-user` header or the `QUICKBEN_DEV_USER` variable (an id or JSON). It throws when `NODE_ENV` is `production` unless `allowInProduction: true`. Core stores no passwords. `@quickben/auth-firebase` (Firebase session cookies) and `@quickben/auth-better-auth` (Better Auth sessions, organization bridge to tenancy) are adapters for real auth.
 
 ### Errors
 

@@ -56,6 +56,19 @@ Pick a role in the bar at the top of each page. It sets a cookie that the auth a
 
 `devAuth()` trusts the client. Do not deploy the playground.
 
+## Better Auth
+
+`QUICKBEN_AUTH=better-auth pnpm dev` replaces the role switcher with [Better Auth](/docs/auth/better-auth) email and password sign-in at `/sign-in`. Users are stored in SQLite (`node:sqlite`) in `./.better-auth.sqlite`, or in memory with `QUICKBEN_DB=memory`.
+
+| Account              | Role   |
+| -------------------- | ------ |
+| `admin@example.com`  | admin  |
+| `editor@example.com` | editor |
+| `viewer@example.com` | viewer |
+| a new account        | viewer |
+
+The demo accounts use the password `playground-password`.
+
 ## Database
 
 | `QUICKBEN_DB`      | Storage                                                                                             |
@@ -63,10 +76,10 @@ Pick a role in the bar at the top of each page. It sets a cookie that the auth a
 | `pglite` (default) | PGlite in `./.pglite` (`./.pglite-tenancy` with `QUICKBEN_TENANCY=1`). Tables are created on start. |
 | `memory`           | In memory. Resets on restart.                                                                       |
 
-| Command                                       | Effect                                      |
-| --------------------------------------------- | ------------------------------------------- |
-| `pnpm --filter @quickben/playground seed`     | Seed an empty database.                     |
-| `pnpm --filter @quickben/playground db:reset` | Delete `./.pglite` and `./.pglite-tenancy`. |
+| Command                                       | Effect                                                               |
+| --------------------------------------------- | -------------------------------------------------------------------- |
+| `pnpm --filter @quickben/playground seed`     | Seed an empty database.                                              |
+| `pnpm --filter @quickben/playground db:reset` | Delete `./.pglite`, `./.pglite-tenancy` and `./.better-auth.sqlite`. |
 
 ## Tests
 
@@ -82,3 +95,4 @@ Playwright runs against `next start`. Without `CI`, the tests start `next dev` o
 | List, create, edit and delete a post                  | Admin forms and the server function.         |
 | The role switcher changes what the admin shows        | Access rules in the sidebar and forms.       |
 | The public page and the API read through access rules | Filters for anonymous users, REST responses. |
+| Better Auth sign-in, roles and sign-out               | `QUICKBEN_AUTH=better-auth` only.            |

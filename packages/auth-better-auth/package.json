@@ -1,0 +1,65 @@
+{
+  "name": "@quickben/auth-better-auth",
+  "version": "0.0.0",
+  "description": "Better Auth for Quickben: an auth adapter that reads the Better Auth session, with organization plugin support and a bridge to Quickben tenancy.",
+  "keywords": [
+    "quickben",
+    "auth",
+    "better-auth",
+    "organizations"
+  ],
+  "homepage": "https://quickben.vialabs.net",
+  "bugs": "https://github.com/vialabs-net/quickben/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vialabs-net/quickben.git",
+    "directory": "packages/auth-better-auth"
+  },
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsdown",
+    "lint": "eslint .",
+    "typecheck": "tsc",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "clean": "rm -rf dist coverage .turbo"
+  },
+  "peerDependencies": {
+    "@quickben/core": "workspace:^"
+  },
+  "devDependencies": {
+    "@quickben/core": "workspace:^",
+    "@quickben/db-memory": "workspace:^",
+    "@quickben/eslint-config": "workspace:*",
+    "@quickben/plugin-tenancy": "workspace:^",
+    "@quickben/tsconfig": "workspace:*",
+    "@types/node": "22.20.5",
+    "@vitest/coverage-v8": "5.1.0",
+    "better-auth": "1.7.22",
+    "eslint": "10.14.0",
+    "publint": "0.3.25",
+    "tsdown": "0.23.7",
+    "typescript": "6.0.3",
+    "vite": "8.3.8",
+    "vitest": "5.1.0"
+  }
+}

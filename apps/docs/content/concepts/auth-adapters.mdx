@@ -59,6 +59,19 @@ export default defineConfig({
 
 The value is a user id (`u1`) or JSON (`{"id":"u1","roles":["admin"]}`). Invalid JSON gives `null`. When `NODE_ENV` is `production`, `getUser` rejects with `ConfigError` unless `allowInProduction` is `true`.
 
-## Real auth
+## Packages
 
-See the recipe [Auth adapter for Better Auth or Firebase](/docs/recipes/auth-adapter).
+| Package                      | Sessions                                       | Page                                  |
+| ---------------------------- | ---------------------------------------------- | ------------------------------------- |
+| `@quickben/auth-firebase`    | Firebase session cookies                       | [Firebase](/docs/auth/firebase)       |
+| `@quickben/auth-better-auth` | Better Auth sessions, with organization plugin | [Better Auth](/docs/auth/better-auth) |
+
+## Writing your own
+
+| Rule                                         | Reason                                                               |
+| -------------------------------------------- | -------------------------------------------------------------------- |
+| Return `null` for missing or invalid tokens. | Access rules then treat the request as anonymous.                    |
+| Throw only for server errors.                | A throw becomes a 500 response.                                      |
+| Keep it fast.                                | It runs on every request.                                            |
+| Set `emailVerified`.                         | Features that trust the email, such as tenancy invitations, need it. |
+| Add extra fields with declaration merging.   | See [Extra user fields](#extra-user-fields).                         |
