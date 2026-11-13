@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { getQuickben } from "@quickben/next";
+import { getQuickben } from "@quickben/core";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { Suspense } from "react";
 import { beforeAll, describe, expect, it } from "vitest";

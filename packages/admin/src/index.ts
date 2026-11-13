@@ -1,8 +1,8 @@
-export { createAdminPage, resolveRoute } from "./page";
+export { createAdminPage } from "./page";
 export { generateAdminMetadata } from "./metadata";
 export { handleAdminRequest } from "./server-function";
 
-export type { AdminPageProps, AdminRoute } from "./page";
+export type { AdminPageProps } from "./page";
 export type {
   AdminExtension,
   AdminNavItem,

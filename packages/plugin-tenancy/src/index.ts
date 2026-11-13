@@ -2,6 +2,7 @@ export {
   acceptInvitation,
   hasCapability,
   inviteMember,
+  isSecureRequest,
   listMyInvitations,
   listMyOrganizations,
   organizationCookie,
@@ -14,7 +15,7 @@ export {
 export { defaultRoles, getTenancy, MEMBERSHIPS, ORGANIZATIONS } from "./options";
 export { tenancy } from "./plugin";
 export { canUseModule, moduleAccess } from "./scope";
-export { OrganizationError, requestedOrganization } from "./tenant";
+export { OrganizationError, requestedOrganization, TenancyRuleError } from "./tenant";
 
 export type {
   InviteMemberInput,
@@ -33,4 +34,5 @@ export type {
   OrganizationErrorReason,
   OrganizationRecord,
   Tenant,
+  TenancyRule,
 } from "./tenant";

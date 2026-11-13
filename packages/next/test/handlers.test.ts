@@ -107,6 +107,93 @@ describe("POST /:collection", () => {
   });
 });
 
+describe("body size limit", () => {
+  const small = createRouteHandlers(makeConfig(), { maxBodyBytes: 64 });
+
+  async function expectTooLarge(response: Response) {
+    expect(response.status).toBe(413);
+    expect((await body<ErrorBody>(response)).error).toMatchObject({
+      code: "PAYLOAD_TOO_LARGE",
+      message: "The request body is larger than 64 bytes",
+      details: null,
+    });
+  }
+
+  it("accepts a body up to the limit", async () => {
+    const data = JSON.stringify({ title: "x".repeat(50) });
+    expect(new TextEncoder().encode(data).byteLength).toBeLessThanOrEqual(64);
+    const response = await small.POST(request("POST", "/api/posts", { user: editor, body: data }));
+    expect(response.status).toBe(201);
+  });
+
+  it("returns 413 for a larger body on POST and PATCH", async () => {
+    const data = { title: "x".repeat(100) };
+    await expectTooLarge(
+      await small.POST(request("POST", "/api/posts", { user: editor, body: data })),
+    );
+    const { id } = await createPost({ title: "A" });
+    await expectTooLarge(
+      await small.PATCH(request("PATCH", `/api/posts/${id}`, { user: editor, body: data })),
+    );
+  });
+
+  it("counts bytes, not characters", async () => {
+    const response = await small.POST(
+      request("POST", "/api/posts", { user: editor, body: { title: "é".repeat(30) } }),
+    );
+    await expectTooLarge(response);
+  });
+
+  it("rejects a large Content-Length before reading the body", async () => {
+    const response = await small.POST(
+      request("POST", "/api/posts", {
+        user: editor,
+        body: { title: "A" },
+        headers: { "content-length": "1000000" },
+      }),
+    );
+    await expectTooLarge(response);
+  });
+
+  it("stops reading a streamed body at the limit", async () => {
+    let pulls = 0;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulls += 1;
+        controller.enqueue(new TextEncoder().encode("x".repeat(40)));
+      },
+    });
+    const req = new Request("http://localhost:3000/api/posts", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-quickben-user": editor },
+      body: stream,
+      duplex: "half",
+    });
+    await expectTooLarge(await small.POST(req));
+    expect(pulls).toBeLessThan(5);
+  });
+
+  it("treats a missing body as invalid JSON", async () => {
+    const response = await small.POST(
+      request("POST", "/api/posts", {
+        user: editor,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    expect(response.status).toBe(400);
+  });
+
+  it("defaults to 1 MB", async () => {
+    const response = await api.POST(
+      request("POST", "/api/posts", {
+        user: editor,
+        body: { title: "x".repeat(1_048_577) },
+      }),
+    );
+    expect(response.status).toBe(413);
+  });
+});
+
 describe("GET /:collection", () => {
   beforeEach(async () => {
     await createPost({ title: "Draft", views: 1 });

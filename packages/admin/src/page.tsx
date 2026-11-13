@@ -1,5 +1,5 @@
-import { QuickbenError } from "@quickben/core";
-import { getMeta, getQuickben, getRequestContext } from "@quickben/next";
+import { getQuickben, QuickbenError } from "@quickben/core";
+import { getMeta, getRequestContext } from "@quickben/next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 

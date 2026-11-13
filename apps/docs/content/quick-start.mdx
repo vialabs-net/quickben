@@ -167,7 +167,8 @@ curl -X POST http://localhost:3000/api/posts \
 Server components call the local API directly. Access rules apply with the current user.
 
 ```tsx filename="app/posts/page.tsx"
-import { getQuickben, getRequestContext } from "@quickben/next";
+import { getQuickben } from "@quickben/core";
+import { getRequestContext } from "@quickben/next";
 import { Suspense } from "react";
 
 import config from "../../quickben.config";

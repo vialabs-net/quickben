@@ -8,7 +8,8 @@ import {
   Input,
   Select,
 } from "@quickben/admin/ui";
-import { getQuickben, getRequestContext } from "@quickben/next";
+import { getQuickben } from "@quickben/core";
+import { getRequestContext } from "@quickben/next";
 
 import { createOrganizationAction, updateOrganizationAction } from "./actions";
 import { Feedback, Field, Heading, Notice, tenantOrMessage } from "./shared";

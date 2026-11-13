@@ -165,19 +165,21 @@ Use `moduleAccess` for collections outside `scope`.
 
 ## Guard rails
 
-| Rule                                                                            | Error             |
-| ------------------------------------------------------------------------------- | ----------------- |
-| Membership changes need `members:manage` in the organization.                   | `ForbiddenError`  |
-| The last active owner cannot be demoted, disabled or removed.                   | `ForbiddenError`  |
-| Owners and admins cannot change their own role or status, or remove themselves. | `ForbiddenError`  |
-| Nobody grants or manages a role ranked above their own.                         | `ForbiddenError`  |
-| A membership keeps its organization, and its user once set.                     | `ValidationError` |
-| Granted modules must be enabled for the organization.                           | `ValidationError` |
-| One membership per user or email per organization.                              | `ConflictError`   |
+| Rule                                                                            | Error                                           |
+| ------------------------------------------------------------------------------- | ----------------------------------------------- |
+| Membership changes need `members:manage` in the organization.                   | `ForbiddenError`                                |
+| The last active owner cannot be demoted, disabled or removed.                   | `TenancyRuleError` `last-owner`                 |
+| Owners and admins cannot change their own role or status, or remove themselves. | `TenancyRuleError` `own-role`, `own-membership` |
+| Nobody grants or manages a role ranked above their own.                         | `TenancyRuleError` `higher-role`                |
+| A membership keeps its organization, and its user once set.                     | `ValidationError`                               |
+| Granted modules must be enabled for the organization.                           | `ValidationError`                               |
+| One membership per user or email per organization.                              | `ConflictError`                                 |
 
 Platform staff and `overrideAccess` skip the role rules. The last-owner rule always applies.
 
-`acceptInvitation` matches an email invitation against `user.email` from your auth adapter. Return only verified email addresses there, or anyone who signs up with an invited address can join.
+`TenancyRuleError` extends `ForbiddenError`; `rule` says which rule failed.
+
+Invitations by email need a verified address. Set `emailVerified` on the user in your auth adapter: with `emailVerified: false`, `acceptInvitation` throws `ForbiddenError`, and `listMyInvitations` and membership reads ignore the email. Invitations by user id do not check it. When the field is missing, the email is trusted, so return only verified addresses in `email`.
 
 ## Helpers
 
@@ -206,6 +208,8 @@ const { cookie } = await switchOrganization(qb, ctx, "org-id");
 // In a server action: (await cookies()).set(cookie.name, cookie.value, cookie.options)
 ```
 
+The cookie is `HttpOnly`, `SameSite=Lax` and `Path=/`. It is `Secure` when the request is https (`x-forwarded-proto`, else the request URL), so it also works on `http://localhost`. `organizationCookie(qb, id, req)` without `req` always sets `Secure`. `isSecureRequest(req)` is the check.
+
 ## Admin UI
 
 ```tsx nocheck filename="app/admin/[[...segments]]/page.tsx"
@@ -225,4 +229,4 @@ export default createAdminPage(config, { extensions: [tenancyAdmin(config)] });
 
 `tenancyAdmin(config, { basePath, group })`: pass the same `basePath` as `createAdminPage` when it is not `/admin`. `group` is the sidebar group (default `Organization`).
 
-All changes go through the helpers above, so the guard rails apply. The playground runs this with `QUICKBEN_TENANCY=1`.
+All changes go through the helpers above, so the guard rails apply. Actions redirect with a code (`?toast=member-updated`, `?error=last-owner`). The pages map codes to fixed messages and ignore unknown codes, so the URL never puts text on the page. The playground runs this with `QUICKBEN_TENANCY=1`.

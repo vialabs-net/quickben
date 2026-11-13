@@ -12,6 +12,11 @@ import { ConfigError } from "./errors";
 export interface QuickbenUser {
   id: string;
   email?: string;
+  /**
+   * Whether `email` is verified. Set it in your auth adapter: `false` stops features that trust
+   * the email, such as accepting tenancy invitations sent to that address.
+   */
+  emailVerified?: boolean;
   roles?: string[];
 }
 

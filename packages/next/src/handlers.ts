@@ -19,6 +19,8 @@ export interface RouteHandlerOptions {
    * off (only for token auth that never uses cookies).
    */
   csrf?: CsrfOptions | false;
+  /** Largest request body of `POST` and `PATCH`, in bytes. Default `1_048_576` (1 MB). */
+  maxBodyBytes?: number;
 }
 
 /** A Next.js route handler. */
@@ -44,6 +46,7 @@ interface Call {
   req: Request;
   segments: string[];
   maxLimit: number;
+  maxBodyBytes: number;
 }
 
 function trimSlashes(path: string): string {
@@ -83,7 +86,42 @@ function allowedMethods(segments: readonly string[]): Method[] {
   return [];
 }
 
-async function readBody(req: Request): Promise<Record<string, unknown>> {
+function tooLarge(maxBodyBytes: number): HttpError {
+  return new HttpError(
+    413,
+    "PAYLOAD_TOO_LARGE",
+    `The request body is larger than ${String(maxBodyBytes)} bytes`,
+  );
+}
+
+/** Read the body as text, stopping as soon as it passes `maxBodyBytes`. */
+async function readText(req: Request, maxBodyBytes: number): Promise<string> {
+  const declared = Number(req.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > maxBodyBytes) throw tooLarge(maxBodyBytes);
+  if (!req.body) return "";
+  const reader = (req.body as ReadableStream<Uint8Array>).getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > maxBodyBytes) {
+      await reader.cancel();
+      throw tooLarge(maxBodyBytes);
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
+}
+
+async function readBody(req: Request, maxBodyBytes: number): Promise<Record<string, unknown>> {
   const type = req.headers.get("content-type") ?? "";
   if (!/^application\/([\w.-]+\+)?json\b/i.test(type)) {
     throw new HttpError(
@@ -92,9 +130,10 @@ async function readBody(req: Request): Promise<Record<string, unknown>> {
       "Send a JSON body with Content-Type: application/json",
     );
   }
+  const text = await readText(req, maxBodyBytes);
   let body: unknown;
   try {
-    body = await req.json();
+    body = JSON.parse(text);
   } catch {
     throw new ValidationError([{ path: "", message: "Invalid JSON body" }]);
   }
@@ -117,14 +156,14 @@ async function handleGet({ qb, ctx, url, segments, maxLimit }: Call): Promise<Re
   return json(await qb.findById(slug, id, options as never, ctx));
 }
 
-async function handlePost({ qb, ctx, req, segments }: Call): Promise<Response> {
+async function handlePost({ qb, ctx, req, segments, maxBodyBytes }: Call): Promise<Response> {
   const [slug] = segments as [string];
-  return json(await qb.create(slug, await readBody(req), ctx), 201);
+  return json(await qb.create(slug, await readBody(req, maxBodyBytes), ctx), 201);
 }
 
-async function handlePatch({ qb, ctx, req, segments }: Call): Promise<Response> {
+async function handlePatch({ qb, ctx, req, segments, maxBodyBytes }: Call): Promise<Response> {
   const [slug, id] = segments as [string, string];
-  return json(await qb.update(slug, id, await readBody(req), ctx));
+  return json(await qb.update(slug, id, await readBody(req, maxBodyBytes), ctx));
 }
 
 async function handleDelete({ qb, ctx, segments }: Call): Promise<Response> {
@@ -156,7 +195,8 @@ const dispatch: Record<Method, (call: Call) => Promise<Response>> = {
  * | `PATCH /:collection/:id`     | `qb.update`                        | 200     |
  * | `DELETE /:collection/:id`    | `qb.delete`                        | 200     |
  *
- * The user comes from `config.auth.getUser(req)` on every request. Errors are JSON:
+ * The user comes from `config.auth.getUser(req)` on every request. Bodies larger than
+ * `maxBodyBytes` (default 1 MB) get `413 PAYLOAD_TOO_LARGE`. Errors are JSON:
  * `{ error: { code, message, details } }` with the status of the error.
  */
 export function createRouteHandlers(
@@ -165,6 +205,7 @@ export function createRouteHandlers(
 ): RouteHandlers {
   const basePath = normalizeBasePath(options.basePath ?? "/api");
   const maxLimit = options.maxLimit ?? 100;
+  const maxBodyBytes = options.maxBodyBytes ?? 1_048_576;
   const csrf = options.csrf ?? {};
 
   const handler =
@@ -183,7 +224,15 @@ export function createRouteHandlers(
         if (method !== "GET" && csrf !== false) assertSameOrigin(req, csrf);
         const qb = await getQuickben(config);
         const user = config.auth ? await config.auth.getUser(req) : null;
-        return await dispatch[method]({ qb, ctx: { user, req }, url, req, segments, maxLimit });
+        return await dispatch[method]({
+          qb,
+          ctx: { user, req },
+          url,
+          req,
+          segments,
+          maxLimit,
+          maxBodyBytes,
+        });
       } catch (error) {
         return errorResponse(error);
       }

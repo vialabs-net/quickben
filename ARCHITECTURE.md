@@ -259,11 +259,12 @@ interface AuthAdapter {
 interface QuickbenUser {
   id: string;
   email?: string;
+  emailVerified?: boolean; // false: features that trust the email refuse it
   roles?: string[];
 }
 ```
 
-Extend `QuickbenUser` with declaration merging. `devAuth()` reads the user from the `x-quickben-user` header or the `QUICKBEN_DEV_USER` variable (an id or JSON). It throws when `NODE_ENV` is `production` unless `allowInProduction: true`. Core stores no passwords. **Planned:** recipes for Better Auth and Firebase.
+Extend `QuickbenUser` with declaration merging. Auth adapters should set `emailVerified`; `false` stops email-based features such as accepting tenancy invitations by email. `devAuth()` reads the user from the `x-quickben-user` header or the `QUICKBEN_DEV_USER` variable (an id or JSON). It throws when `NODE_ENV` is `production` unless `allowInProduction: true`. Core stores no passwords. **Planned:** recipes for Better Auth and Firebase.
 
 ### Errors
 
@@ -305,10 +306,10 @@ export default createAdminPage(config, { serverFunction }); // async server comp
 
 - Route handlers: `GET /_meta`, `GET|POST /:collection`, `GET|PATCH|DELETE /:collection/:id`. They take plain `Request` objects, so tests call them directly.
 - Query string: `where` is JSON; `sort` and `select` are comma-separated; `limit` (≤ `maxLimit`, default 100), `page`, `cursor`, `depth`. Unknown parameters are rejected.
-- Bodies: JSON objects only; `id`, `createdAt`, `updatedAt` are removed.
-- Errors: `{ error: { code, message, details } }` with the status of the error. HTTP-only codes: `METHOD_NOT_ALLOWED` 405, `UNSUPPORTED_MEDIA_TYPE` 415, `INTERNAL` 500 (message hidden, error logged; also for 5xx Quickben errors such as `CONFIG`).
+- Bodies: JSON objects only, at most `maxBodyBytes` (default 1 MB); `id`, `createdAt`, `updatedAt` are removed.
+- Errors: `{ error: { code, message, details } }` with the status of the error. HTTP-only codes: `METHOD_NOT_ALLOWED` 405, `PAYLOAD_TOO_LARGE` 413, `UNSUPPORTED_MEDIA_TYPE` 415, `INTERNAL` 500 (message hidden, error logged; also for 5xx Quickben errors such as `CONFIG`).
 - CSRF: `POST`, `PATCH` and `DELETE` require a same-origin `Origin` (or a trusted one) when the browser sends one, and reject `Sec-Fetch-Site: cross-site`.
-- Server helpers: `getQuickben` is core's (its cache is on `globalThis`, shared across bundles and dev reloads), `getRequestContext` / `getUser` resolve the user from `next/headers`, `singleton(key, create)` keeps database clients per process. No `next.config` wrapper.
+- Server helpers: `getRequestContext` / `getUser` resolve the user from `next/headers`, `singleton(key, create)` keeps database clients per process. No `next.config` wrapper.
 
 ### `@quickben/admin`
 
@@ -324,10 +325,10 @@ export default createAdminPage(config, { serverFunction }); // async server comp
 
 - `tenancy({ scope })` adds `organizations` and `memberships` (invitations are memberships with status `invited`), and an `organization` relation (required, indexed, optional in create input) to each scoped collection via `addFields`.
 - Scoped access: the collection's rule AND `{ organization: { eq: active } }`; creates get the active organization; documents cannot move (platform staff with no organization selected can move them). Relations can only point to documents of the active organization. Members of a suspended organization can read it and its memberships, nothing else. Reads need the `read` capability, writes `write`; collections in a module need the module.
-- Active organization: `ctx.organizationId`, then a header, then a cookie, then the user's only membership; verified against active memberships. Platform staff (`isPlatformAdmin`) see all organizations or act in one. `OrganizationError` (403) carries a `reason`.
-- Roles are data: capabilities per role, ranked by order. Membership hooks enforce the guard rails: last active owner, no self-demotion for owners and admins, no managing higher roles.
+- Active organization: `ctx.organizationId`, then a header, then a cookie (`Secure` only on https), then the user's only membership; verified against active memberships. Platform staff (`isPlatformAdmin`) see all organizations or act in one. `OrganizationError` (403) carries a `reason`.
+- Roles are data: capabilities per role, ranked by order. Membership hooks enforce the guard rails (`TenancyRuleError` with a `rule`): last active owner, no self-demotion for owners and admins, no managing higher roles. Invitations by email need `emailVerified` not `false`.
 - Helpers over the local API: `resolveTenant`, `inviteMember`, `acceptInvitation`, `updateMembership`, `removeMember`, `listMyOrganizations`, `listMyInvitations`, `switchOrganization` (returns the cookie), `canUseModule`, `moduleAccess`, `hasCapability`.
-- `@quickben/plugin-tenancy/admin`: `tenancyAdmin(config)` is an admin extension with an organization switcher, a Members page and an Organization settings page. Server actions use a registry keyed by base path, like the admin's default server function.
+- `@quickben/plugin-tenancy/admin`: `tenancyAdmin(config)` is an admin extension with an organization switcher, a Members page and an Organization settings page. Server actions use a registry keyed by base path, like the admin's default server function. They redirect with `?toast=` / `?error=` codes that the pages map to fixed messages.
 
 ## create-quickben
 

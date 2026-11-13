@@ -1,4 +1,4 @@
-import { getQuickben } from "@quickben/next";
+import { getQuickben } from "@quickben/core";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { defaultServerFunction } from "../src/actions";
