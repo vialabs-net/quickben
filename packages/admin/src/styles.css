@@ -1,0 +1,61 @@
+/*
+ * Styles of @quickben/admin. Import once: `import "@quickben/admin/styles.css"`.
+ *
+ * Utilities use the `qb:` prefix and theme variables are named `--qb-*`, so this file does not
+ * clash with an app's own Tailwind CSS. There is no global reset: base styles apply only
+ * inside `.qb-root`, the element that wraps the admin.
+ */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme) prefix(qb);
+@import "tailwindcss/utilities.css" layer(utilities);
+@source "./";
+
+@layer base {
+  .qb-root {
+    font-family: var(--qb-font-sans);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  .qb-root *,
+  .qb-root ::before,
+  .qb-root ::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border: 0 solid var(--qb-color-zinc-200);
+  }
+
+  .qb-root :where(h1, h2, h3, h4, p) {
+    overflow-wrap: break-word;
+  }
+
+  .qb-root :where(a) {
+    color: inherit;
+    text-decoration: inherit;
+  }
+
+  .qb-root :where(ul, ol) {
+    list-style: none;
+  }
+
+  .qb-root :where(button, input, select, textarea) {
+    font: inherit;
+    color: inherit;
+    background-color: transparent;
+  }
+
+  .qb-root :where(button, [role="option"]) {
+    cursor: pointer;
+  }
+
+  .qb-root :where(table) {
+    border-collapse: collapse;
+    text-indent: 0;
+  }
+
+  .qb-root :where(textarea) {
+    resize: vertical;
+  }
+}

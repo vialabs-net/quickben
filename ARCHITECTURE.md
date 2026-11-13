@@ -12,7 +12,7 @@ This file describes what exists. Sections marked **Planned** describe agreed des
 
 1. **One config, full inference.** `defineConfig({ db, collections, plugins, auth, admin })` in `quickben.config.ts`. Document, input and filter types are inferred from field definitions. No code generation for types.
 2. **Storage-agnostic core.** `@quickben/core` never imports a database library. Adapters implement a small `DatabaseAdapter` interface with a portable query model. Relational and document stores can both implement it. Adapters expose their native client for custom queries.
-3. **Next.js App Router native.** Two catch-all files wire everything (**Planned**, see below).
+3. **Next.js App Router native.** Two catch-all files wire everything (see [Next.js integration](#nextjs-integration)).
 4. **Small surface, plain objects.** Collections, fields, access, hooks, plugins, modules, nav. Each is a plain object or function, with a `define*` helper where inference needs one.
 5. **Secure by default.** Without an access rule only authenticated users get access. The local API enforces access unless `overrideAccess: true`. Input is validated with Zod schemas generated from fields.
 6. **Monorepo, small packages, independent tests.** pnpm workspaces, Turborepo, Changesets. ESM only, TypeScript strict, `exports` maps, tsdown builds, Vitest.
@@ -27,12 +27,12 @@ This file describes what exists. Sections marked **Planned** describe agreed des
 | `tooling/tsconfig`         | `@quickben/tsconfig` (private)              | Exists  |
 | `tooling/eslint-config`    | `@quickben/eslint-config` (private)         | Exists  |
 | `packages/db-drizzle`      | `@quickben/db-drizzle`                      | Exists  |
-| `packages/next`            | `@quickben/next`                            | Planned |
-| `packages/admin`           | `@quickben/admin`                           | Planned |
+| `packages/next`            | `@quickben/next`                            | Exists  |
+| `packages/admin`           | `@quickben/admin`                           | Exists  |
 | `packages/plugin-tenancy`  | `@quickben/plugin-tenancy`                  | Planned |
 | `packages/create-quickben` | `create-quickben`                           | Planned |
 | `apps/docs`                | Nextra site at https://quickben.vialabs.net | Exists  |
-| `apps/playground`          | Next.js app using everything (PGlite)       | Planned |
+| `apps/playground`          | Next.js app using everything (PGlite)       | Exists  |
 
 Dependencies point one way: adapters and other packages depend on `@quickben/core` (as a peer dependency). Core depends only on Zod.
 
@@ -84,7 +84,7 @@ const posts = defineCollection({
 | `relation`         | id, or ids with `many: true`              | `to`, `many`                          |
 | `json`             | JSON value                                | `schema` (Zod) types and validates it |
 
-Common options: `required`, `unique`, `index`, `default` (value or function), `label`, `description`, `validate`, `admin { hidden, readOnly, width }`.
+Common options: `required`, `unique`, `index`, `default` (value or function), `label`, `description`, `validate`, `admin { hidden, readOnly, width, component }`. `component` names a custom admin input (see `@quickben/admin`); core stores only the name.
 
 Rules:
 
@@ -215,6 +215,8 @@ Writes (`create`, `update`, `delete`) run in one transaction together with their
 
 `false` throws `UnauthorizedError` without a user and `ForbiddenError` with one. A missing rule allows authenticated users only. Rules receive `{ user, req, operation, id, data }`.
 
+`checkAccess(collection, operation, ctx)` evaluates a rule without touching data and returns `true`, `false` or a normalized filter. The HTTP layer and the admin use it to decide what to show.
+
 ### Hooks
 
 Arrays per stage, run in order. Each gets `{ user, req, qb, collection }` plus stage data. `qb` is bound to the current transaction.
@@ -279,19 +281,39 @@ drizzleAdapter({ dialect: "sqlite", url }); // libSQL; :memory: by default
 - Postgres stores datetimes as `timestamp(3) with time zone` and `many` fields as `text[]`. SQLite stores datetimes as ISO text and `many` fields as JSON arrays.
 - PGlite and local SQLite have one connection, so operations run one at a time.
 
-## Planned packages
-
-### Next.js integration (`@quickben/next`, `@quickben/admin`)
+## Next.js integration
 
 ```ts
 // app/api/[...quickben]/route.ts
 export const { GET, POST, PATCH, DELETE } = createRouteHandlers(config);
 
 // app/admin/[[...segments]]/page.tsx
-export default createAdminPage(config); // server component
+async function serverFunction(request: AdminRequest) {
+  "use server";
+  return handleAdminRequest(config, request);
+}
+export default createAdminPage(config, { serverFunction }); // async server component
 ```
 
-Server actions for admin mutations. Works with React Server Components; no client-only data fetching. Admin UI: React 19, Tailwind v4, list/edit/create generated from fields, sidebar from collections and modules, settings shell.
+### `@quickben/next`
+
+- Route handlers: `GET /_meta`, `GET|POST /:collection`, `GET|PATCH|DELETE /:collection/:id`. They take plain `Request` objects, so tests call them directly.
+- Query string: `where` is JSON; `sort` and `select` are comma-separated; `limit` (≤ `maxLimit`, default 100), `page`, `cursor`, `depth`. Unknown parameters are rejected.
+- Bodies: JSON objects only; `id`, `createdAt`, `updatedAt` are removed.
+- Errors: `{ error: { code, message, details } }` with the status of the error. HTTP-only codes: `METHOD_NOT_ALLOWED` 405, `UNSUPPORTED_MEDIA_TYPE` 415, `INTERNAL` 500 (message hidden, error logged).
+- CSRF: `POST`, `PATCH` and `DELETE` require a same-origin `Origin` (or a trusted one) when the browser sends one, and reject `Sec-Fetch-Site: cross-site`.
+- Server helpers: `getQuickben` caches instances on `globalThis` (shared across bundles and dev reloads), `getRequestContext` / `getUser` resolve the user from `next/headers`, `singleton(key, create)` keeps database clients per process. No `next.config` wrapper.
+
+### `@quickben/admin`
+
+- `createAdminPage(config, options)` returns one async server component that renders the shell, dashboard, list, create and edit views and custom pages. Data is loaded on the server with the local API and the current user.
+- Writes and relation searches go through one server function (`AdminRequest` → `AdminResult`). It must be defined in the app's page file so Next.js can load the config when it runs; the built-in fallback only works after the page module has loaded in the process.
+- Client components: form (submit, errors, focus), relation picker, JSON editor, delete confirmation, toast. Everything else is server-rendered.
+- Extensions: `components` (custom field inputs, chosen by `admin.component`), `views` (per collection), `pages`, `nav`, and `extensions` from plugins.
+- Styles: Tailwind v4 with the `qb:` prefix, compiled into `@quickben/admin/styles.css`; base styles only inside `.qb-root`.
+- Build: tsdown `unbundle` keeps one file per module so `"use client"` / `"use server"` directives stay at the top of the published files.
+
+## Planned packages
 
 ### Tenancy (`@quickben/plugin-tenancy`)
 
