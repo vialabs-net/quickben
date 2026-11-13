@@ -11,6 +11,8 @@ vi.mock("next/headers", () => ({
   cookies: () =>
     Promise.resolve({ getAll: () => [...jar].map(([name, value]) => ({ name, value })) }),
 }));
+const connection = vi.hoisted(() => vi.fn(() => Promise.resolve()));
+vi.mock("next/server", () => ({ connection }));
 
 describe("singleton", () => {
   it("creates a value once per key", () => {
@@ -52,6 +54,7 @@ describe("request helpers", () => {
     expect(await getUser(config)).toMatchObject({ id: "e1", roles: ["editor"] });
     const ctx = await getRequestContext({ ...config, auth: undefined });
     expect(ctx.user).toBeNull();
+    expect(connection).toHaveBeenCalled();
   });
 
   it("takes cookies from the cookie store, including ones set in this request", async () => {

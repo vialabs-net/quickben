@@ -7,6 +7,7 @@ import { DeleteButton } from "../src/client/delete-button";
 import { DocumentForm } from "../src/client/document-form";
 import { JsonEditor } from "../src/client/json-editor";
 import { RelationPicker } from "../src/client/relation-picker";
+import { formScope } from "../src/ids";
 import { Badge, Button, ButtonLink, Card, CardBody, CardHeader, Toast } from "../src/ui";
 import { FieldInput } from "../src/views/field-input";
 
@@ -42,6 +43,7 @@ function renderForm(fn: AdminServerFunction, id: string | null = null) {
           labels: {},
           readOnly: false,
           serverFunction: fn,
+          scope: formScope("posts", id),
         }}
       />
     </DocumentForm>,
@@ -87,7 +89,9 @@ describe("DocumentForm", () => {
     });
     expect(document.activeElement).toBe(input);
     expect(input.value).toBe("Changed");
-    expect(input.getAttribute("aria-describedby")).toBe("qb-field-title-hint qb-field-title-error");
+    expect(input.getAttribute("aria-describedby")).toBe(
+      "qb-posts-new-title-hint qb-posts-new-title-error",
+    );
   });
 
   it("ignores unexpected results", async () => {

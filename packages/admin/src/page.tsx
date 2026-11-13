@@ -1,6 +1,7 @@
 import { QuickbenError } from "@quickben/core";
 import { getMeta, getQuickben, getRequestContext } from "@quickben/next";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 
 import { defaultServerFunction } from "./actions";
 import { assertPages, normalizeBasePath, resolveExtensions } from "./extensions";
@@ -221,12 +222,36 @@ function toastFor(
  * export default createAdminPage(config);
  * ```
  *
- * It is an async server component. Routes: the dashboard, `/:collection` (list),
+ * It is a server component. Routes: the dashboard, `/:collection` (list),
  * `/:collection/new`, `/:collection/:id` (edit) and custom pages. Every read and write goes
  * through the local API with the user from `config.auth`, so access rules apply.
  * Import `@quickben/admin/styles.css` once, e.g. in `app/admin/layout.tsx`.
+ *
+ * The content reads the request (params, search params, headers) and the database, so it
+ * renders inside `<Suspense>`. That makes the page work with `cacheComponents: true`, where
+ * the fallback is the prerendered shell, and without it.
  */
 export function createAdminPage(
+  config: QuickbenConfig,
+  options: AdminOptions = {},
+): (props: Readonly<AdminPageProps>) => ReactElement {
+  const AdminContent = createAdminContent(config, options);
+  function AdminPage(props: Readonly<AdminPageProps>): ReactElement {
+    return (
+      <Suspense fallback={<AdminFallback />}>
+        <AdminContent {...props} />
+      </Suspense>
+    );
+  }
+  return AdminPage;
+}
+
+function AdminFallback(): ReactElement {
+  return <div className="qb-root qb:min-h-screen qb:bg-zinc-50" aria-busy="true" />;
+}
+
+/** The async server component inside {@link createAdminPage}'s `<Suspense>`. */
+export function createAdminContent(
   config: QuickbenConfig,
   options: AdminOptions = {},
 ): (props: Readonly<AdminPageProps>) => Promise<ReactElement> {
@@ -238,12 +263,14 @@ export function createAdminPage(
     options.serverFunction ?? defaultServerFunction.bind(null, key);
   const slugs = new Set(config.collections.map((collection) => collection.slug));
 
-  async function AdminPage(props: Readonly<AdminPageProps>): Promise<ReactElement> {
+  async function AdminContent(props: Readonly<AdminPageProps>): Promise<ReactElement> {
     const [{ segments = [] }, searchParams] = await Promise.all([props.params, props.searchParams]);
     // Register again on render: after a dev reload the latest config wins.
     registerAdmin({ config, basePath });
-    const qb = await getQuickben(config);
+    // Read the request before the database: with `cacheComponents`, this ends the prerender
+    // here, so the database is never opened while prerendering.
     const ctx = await getRequestContext(config);
+    const qb = await getQuickben(config);
     const meta = await getMeta(qb, ctx);
     const route = resolveRoute(segments.map(decodeURIComponent), slugs, extensions.pages);
     const metas = new Map(meta.collections.map((collection) => [collection.slug, collection]));
@@ -288,5 +315,5 @@ export function createAdminPage(
       </Shell>
     );
   }
-  return AdminPage;
+  return AdminContent;
 }

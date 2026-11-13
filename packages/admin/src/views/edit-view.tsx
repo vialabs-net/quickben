@@ -1,6 +1,7 @@
 import { DeleteButton } from "../client/delete-button";
 import { DocumentForm } from "../client/document-form";
 import { documentTitle, formatDatetime } from "../format";
+import { formScope } from "../ids";
 import { Badge } from "../ui/badge";
 import { ButtonLink } from "../ui/button";
 import { Card, CardBody, CardHeader } from "../ui/card";
@@ -19,7 +20,7 @@ export interface EditViewProps {
   /** The stored document, or `null` on create. */
   doc: Record<string, unknown> | null;
   serverFunction: AdminServerFunction;
-  context: Omit<FieldInputContext, "readOnly" | "serverFunction">;
+  context: Omit<FieldInputContext, "readOnly" | "serverFunction" | "scope">;
 }
 
 function initialValue(field: CollectionMeta["fields"][number]): unknown {
@@ -36,6 +37,8 @@ export function EditView({
   context,
 }: Readonly<EditViewProps>) {
   const listHref = `${basePath}/${collection.slug}`;
+  const id = doc ? String(doc.id) : null;
+  const scope = formScope(collection.slug, id);
   const creating = doc === null;
   const readOnly = creating ? !collection.access.create : !collection.access.update;
   const title = creating
@@ -57,7 +60,7 @@ export function EditView({
             serverFunction={serverFunction}
             basePath={basePath}
             slug={collection.slug}
-            id={doc ? String(doc.id) : null}
+            id={id}
             submitLabel={
               creating ? `Create ${collection.labels.singular.toLowerCase()}` : "Save changes"
             }
@@ -74,7 +77,7 @@ export function EditView({
                   key={field.name}
                   field={field}
                   value={doc ? doc[field.name] : initialValue(field)}
-                  context={{ ...context, serverFunction, readOnly }}
+                  context={{ ...context, serverFunction, readOnly, scope }}
                 />
               ))}
             </div>
