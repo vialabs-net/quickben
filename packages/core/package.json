@@ -1,6 +1,6 @@
 {
   "name": "@quickben/core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Collections, fields, access rules, hooks, plugins and the typed local API for Quickben.",
   "keywords": [
     "quickben",
