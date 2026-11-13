@@ -35,6 +35,7 @@
     "@quickben/eslint-config": "workspace:*",
     "@quickben/next": "workspace:^",
     "@quickben/plugin-connections": "workspace:^",
+    "@quickben/plugin-doc-reader": "workspace:^",
     "@quickben/plugin-templates": "workspace:^",
     "@quickben/plugin-tenancy": "workspace:^",
     "@quickben/tsconfig": "workspace:*",

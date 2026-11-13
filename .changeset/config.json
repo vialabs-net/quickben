@@ -17,6 +17,7 @@
       "@quickben/db-memory",
       "@quickben/next",
       "@quickben/plugin-connections",
+      "@quickben/plugin-doc-reader",
       "@quickben/plugin-templates",
       "@quickben/plugin-tenancy"
     ]

@@ -19,4 +19,5 @@ test-results/
 playwright-report/
 .pglite/
 .pglite-tenancy/
+.doc-reader-files/
 .better-auth.sqlite
