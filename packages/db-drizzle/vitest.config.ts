@@ -5,6 +5,9 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     include: ["test/**/*.test.ts"],
+    // PGlite starts a WebAssembly Postgres per test; CI runners are slow.
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
     typecheck: { enabled: true, include: ["test/**/*.test-d.ts"] },
     coverage: {
       provider: "v8",
