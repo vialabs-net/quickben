@@ -48,6 +48,12 @@ export interface PageProps {
   searchParams: SearchParams;
 }
 
+/** Props of a sidebar component. */
+export interface SidebarProps {
+  user: QuickbenUser | null;
+  basePath: string;
+}
+
 /** A custom page inside the admin shell, at `<basePath>/<path>`. */
 export interface AdminPageDefinition {
   /** First path segment. Lowercase letters, digits and `-`. Must not be a collection slug. */
@@ -76,6 +82,11 @@ export interface AdminExtension {
   pages?: readonly AdminPageDefinition[];
   /** Extra sidebar links. */
   nav?: readonly AdminNavItem[];
+  /**
+   * Components shown at the top of the sidebar, under the title, in extension order. For
+   * example an organization switcher.
+   */
+  sidebar?: readonly ComponentType<SidebarProps>[];
 }
 
 /** Options of `createAdminPage`. */
@@ -110,6 +121,7 @@ export interface ResolvedExtensions {
   views: Record<string, { list?: ComponentType<ViewProps>; edit?: ComponentType<ViewProps> }>;
   pages: AdminPageDefinition[];
   nav: AdminNavItem[];
+  sidebar: ComponentType<SidebarProps>[];
 }
 
 /** An option of a relation picker. */

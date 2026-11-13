@@ -82,7 +82,8 @@ export default createAdminPage(config, {
   views: { posts: { list: PostBoard } }, // replace the list or edit view of a collection
   pages: [{ path: "reports", label: "Reports", component: Reports }],
   nav: [{ label: "Docs", href: "https://quickben.vialabs.net", group: "Help" }],
-  extensions: [tenancyAdmin()], // same shape, from plugins; applied first
+  sidebar: [TeamPicker], // shown at the top of the sidebar
+  extensions: [tenancyAdmin(config)], // same shape, from plugins; applied first
   signInHref: "/sign-in",
 });
 ```
@@ -92,6 +93,7 @@ export default createAdminPage(config, {
 | `components` | `FieldComponentProps`: `field`, `name`, `id`, `value`, `required`, `disabled`, `describedBy` |
 | `views`      | `ViewProps`: `collection`, `user`, `basePath`, `searchParams`, `id?`                         |
 | `pages`      | `PageProps`: `user`, `basePath`, `segments`, `searchParams`                                  |
+| `sidebar`    | `SidebarProps`: `user`, `basePath`                                                           |
 
 Props are plain data, so components can be server or client components. A custom field component renders controls named `name`; the value is read like the built-in input of that field type (JSON text for `json`).
 

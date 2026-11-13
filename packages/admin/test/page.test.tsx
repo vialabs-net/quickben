@@ -33,6 +33,17 @@ function Reports({ segments, user }: Readonly<PageProps>) {
   );
 }
 
+function OrgPicker({
+  user,
+  basePath,
+}: Readonly<{ user: { id: string } | null; basePath: string }>) {
+  return (
+    <p>
+      Org picker for {user?.id ?? "nobody"} at {basePath}
+    </p>
+  );
+}
+
 function TagBoard({ collection }: Readonly<ViewProps>) {
   return <p>Custom board of {collection.labels.plural}</p>;
 }
@@ -47,6 +58,7 @@ const Page = createAdminPage(config, {
   pages: [{ path: "reports", label: "Reports", component: Reports }],
   views: { tags: { list: TagBoard }, notes: { edit: NoteEditor } },
   signInHref: "/login",
+  extensions: [{ sidebar: [OrgPicker] }],
 });
 
 async function renderPage(segments: string[] = [], searchParams: SearchParams = {}) {
@@ -101,6 +113,7 @@ describe("dashboard and shell", () => {
     expect(within(posts).getByRole("link", { name: "New post" })).toBeTruthy();
     expect(screen.getByText("e1")).toBeTruthy();
     expect(screen.getByText("editor")).toBeTruthy();
+    expect(screen.getByText("Org picker for e1 at /admin")).toBeTruthy();
   });
 
   it("shows admin-only modules to admins", async () => {
