@@ -237,6 +237,39 @@
   place-items: center;
 }
 
+/* Screens ------------------------------------------------------------------ */
+
+.screens {
+  display: grid;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (min-width: 56rem) {
+  .screens {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.screen {
+  margin: 0;
+  min-width: 0;
+}
+
+.screen img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--qb-rule);
+  border-radius: 0.75rem;
+}
+
+.screen figcaption {
+  margin-top: 0.6rem;
+  color: var(--qb-muted);
+  font-size: 0.9rem;
+}
+
 /* Sections ---------------------------------------------------------------- */
 
 .section {

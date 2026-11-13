@@ -1,0 +1,84 @@
+---
+title: Playground
+description: "apps/playground: a Next.js app in the repository that uses every Quickben package, on PGlite, with no external services."
+---
+
+# Playground
+
+`apps/playground` in the [repository](https://github.com/vialabs-net/quickben/tree/trunk/apps/playground) is a Next.js app that uses `@quickben/core`, `@quickben/next`, `@quickben/admin` and `@quickben/db-drizzle`. It needs no external services.
+
+![Playground admin: posts list](/screens/admin-list.webp)
+
+## Run it
+
+```sh
+git clone https://github.com/vialabs-net/quickben.git
+cd quickben
+pnpm install
+pnpm dev
+```
+
+`pnpm dev` builds the packages first, then starts http://localhost:3000. An empty database is seeded on start.
+
+| Path         | What                                                   |
+| ------------ | ------------------------------------------------------ |
+| `/`          | Public page: published posts, read with the local API. |
+| `/admin`     | Admin UI.                                              |
+| `/api/_meta` | REST API. Also `/api/posts`, `/api/posts/:id`, …       |
+
+## What it shows
+
+| Feature                           | Where                                                          |
+| --------------------------------- | -------------------------------------------------------------- |
+| Four collections                  | `authors`, `tags`, `posts`, `settings` in `quickben.config.ts` |
+| Relations, one and many           | `posts.author`, `posts.tags`                                   |
+| Custom validation                 | `posts.slug` (`validate`)                                      |
+| Field widths                      | `posts.status`, `posts.author`, `posts.publishedAt` (`third`)  |
+| JSON field                        | `settings.value`                                               |
+| Access rule that returns a filter | Anonymous users read published posts only                      |
+| Modules in the sidebar            | "Content" and "System", from a plugin                          |
+| Seed on start                     | Plugin `onInit` hook (`lib/seed.ts`)                           |
+| Local API in a server component   | `app/page.tsx`                                                 |
+| Route handlers                    | `app/api/[...quickben]/route.ts`                               |
+| Admin page and server function    | `app/admin/[[...segments]]/page.tsx`                           |
+| One database client per process   | `singleton` in `lib/db.ts`                                     |
+
+## Roles
+
+Pick a role in the bar at the top of each page. It sets a cookie that the auth adapter turns into a `devAuth()` user. Without the cookie you are `admin`.
+
+| Role      | Can                                     |
+| --------- | --------------------------------------- |
+| admin     | Everything, including settings          |
+| editor    | Create and edit authors, tags and posts |
+| viewer    | Read                                    |
+| anonymous | Read published posts, authors and tags  |
+
+`devAuth()` trusts the client. Do not deploy the playground.
+
+## Database
+
+| `QUICKBEN_DB`      | Storage                                             |
+| ------------------ | --------------------------------------------------- |
+| `pglite` (default) | PGlite in `./.pglite`. Tables are created on start. |
+| `memory`           | In memory. Resets on restart.                       |
+
+| Command                                       | Effect                  |
+| --------------------------------------------- | ----------------------- |
+| `pnpm --filter @quickben/playground seed`     | Seed an empty database. |
+| `pnpm --filter @quickben/playground db:reset` | Delete `./.pglite`.     |
+
+## Tests
+
+```sh
+pnpm --filter @quickben/playground build
+CI=1 pnpm --filter @quickben/playground test:e2e
+```
+
+Playwright runs against `next start`. Without `CI`, the tests start `next dev` or reuse a server on port 3300.
+
+| Test                                                  | Checks                                       |
+| ----------------------------------------------------- | -------------------------------------------- |
+| List, create, edit and delete a post                  | Admin forms and the server function.         |
+| The role switcher changes what the admin shows        | Access rules in the sidebar and forms.       |
+| The public page and the API read through access rules | Filters for anonymous users, REST responses. |

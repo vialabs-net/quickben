@@ -9,18 +9,18 @@ The source of truth is [`ARCHITECTURE.md`](https://github.com/vialabs-net/quickb
 
 ## Packages
 
-| Path                       | Package                               | Status        |
-| -------------------------- | ------------------------------------- | ------------- |
-| `packages/core`            | `@quickben/core`                      | Available     |
-| `packages/db-memory`       | `@quickben/db-memory`                 | Available     |
-| `packages/adapter-tests`   | `@quickben/adapter-tests` (private)   | Available     |
-| `packages/db-drizzle`      | `@quickben/db-drizzle`                | Coming in 0.1 |
-| `packages/next`            | `@quickben/next`                      | Coming in 0.1 |
-| `packages/admin`           | `@quickben/admin`                     | Coming in 0.1 |
-| `packages/plugin-tenancy`  | `@quickben/plugin-tenancy`            | Planned       |
-| `packages/create-quickben` | `create-quickben`                     | Planned       |
-| `apps/docs`                | This site                             | Available     |
-| `apps/playground`          | Next.js app using everything (PGlite) | Coming in 0.1 |
+| Path                       | Package                               | Status    |
+| -------------------------- | ------------------------------------- | --------- |
+| `packages/core`            | `@quickben/core`                      | Available |
+| `packages/db-memory`       | `@quickben/db-memory`                 | Available |
+| `packages/adapter-tests`   | `@quickben/adapter-tests` (private)   | Available |
+| `packages/db-drizzle`      | `@quickben/db-drizzle`                | Available |
+| `packages/next`            | `@quickben/next`                      | Available |
+| `packages/admin`           | `@quickben/admin`                     | Available |
+| `packages/plugin-tenancy`  | `@quickben/plugin-tenancy`            | Planned   |
+| `packages/create-quickben` | `create-quickben`                     | Planned   |
+| `apps/docs`                | This site                             | Available |
+| `apps/playground`          | Next.js app using everything (PGlite) | Available |
 
 Dependencies point one way. Adapters and other packages depend on `@quickben/core` as a peer dependency. Core depends only on Zod.
 
@@ -39,7 +39,20 @@ local API (qb)          access → hooks → Zod validation → relations → tr
 DatabaseAdapter         memory, Drizzle (Postgres, PGlite, SQLite), others later
 ```
 
-The route handlers and the admin UI (coming in 0.1) call the local API. They do not talk to the adapter directly.
+The [route handlers](/docs/nextjs/route-handlers) and the [admin UI](/docs/nextjs/admin) call the local API. They do not talk to the adapter directly.
+
+## Next.js integration
+
+| File                                 | Package           | Export                                        |
+| ------------------------------------ | ----------------- | --------------------------------------------- |
+| `app/api/[...quickben]/route.ts`     | `@quickben/next`  | `createRouteHandlers(config)`                 |
+| `app/admin/[[...segments]]/page.tsx` | `@quickben/admin` | `createAdminPage(config, { serverFunction })` |
+| `app/admin/layout.tsx`               | `@quickben/admin` | `import "@quickben/admin/styles.css"`         |
+
+| Package           | Runs on the server                                         | Runs in the browser                                                        |
+| ----------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `@quickben/next`  | Route handlers, `getQuickben`, `getRequestContext`         | Nothing                                                                    |
+| `@quickben/admin` | Shell, dashboard, list and edit views, one server function | Form submit and errors, relation picker, JSON editor, delete dialog, toast |
 
 ## Core responsibilities
 

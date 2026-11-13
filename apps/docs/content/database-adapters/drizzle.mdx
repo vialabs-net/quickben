@@ -1,43 +1,181 @@
 ---
 title: Drizzle adapter
-description: "@quickben/db-drizzle: Postgres, PGlite and SQLite through Drizzle ORM. Coming in 0.1."
+description: "@quickben/db-drizzle: Postgres, PGlite and SQLite (libSQL) through Drizzle ORM, with push and drizzle-kit migrations."
 ---
-
-import { Callout } from "nextra/components";
 
 # Drizzle adapter
 
-<Callout type="warning">
-
-**Coming in 0.1.** `@quickben/db-drizzle` is not released yet. This page describes the planned API. Names may change.
-
-</Callout>
-
 `@quickben/db-drizzle` stores collections in SQL databases through [Drizzle ORM](https://orm.drizzle.team).
 
-| Dialect    | Driver                       | Use                                 |
-| ---------- | ---------------------------- | ----------------------------------- |
-| `postgres` | node-postgres or postgres.js | Production                          |
-| `pglite`   | PGlite (Postgres in WASM)    | Local development, tests, no server |
-| `sqlite`   | SQLite or libSQL             | Small apps, edge, tests             |
+```sh
+pnpm add @quickben/db-drizzle drizzle-orm
+pnpm add pg                    # Postgres
+pnpm add @electric-sql/pglite  # PGlite
+pnpm add @libsql/client        # SQLite
+```
+
+Install only the driver you use. Drivers are optional peer dependencies. The adapter loads the driver when it starts.
+
+In a Next.js app, add `@quickben/db-drizzle` to `serverExternalPackages` in `next.config.ts`. Without it, the bundler fails on the drivers you did not install.
+
+```ts nocheck
+const nextConfig: NextConfig = {
+  serverExternalPackages: ["@quickben/db-drizzle"],
+};
+```
+
+## Dialects
+
+```ts
+import { drizzleAdapter } from "@quickben/db-drizzle";
+
+drizzleAdapter({ dialect: "postgres", url: process.env.DATABASE_URL });
+drizzleAdapter({ dialect: "pglite" }); // in memory
+drizzleAdapter({ dialect: "pglite", dataDir: "./.pglite", push: true });
+drizzleAdapter({ dialect: "sqlite" }); // :memory:
+drizzleAdapter({ dialect: "sqlite", url: "file:./app.db" });
+drizzleAdapter({
+  dialect: "sqlite",
+  url: "libsql://app.turso.io",
+  authToken: process.env.TURSO_AUTH_TOKEN,
+});
+```
+
+| Dialect    | Driver                 | Options                                                         |
+| ---------- | ---------------------- | --------------------------------------------------------------- |
+| `postgres` | `pg` (node-postgres)   | `url`, `pool` (extra `pg.Pool` options), or `client` (a `Pool`) |
+| `pglite`   | `@electric-sql/pglite` | `dataDir` (omit for memory), or `client` (a `PGlite`)           |
+| `sqlite`   | `@libsql/client`       | `url` (default `:memory:`), `authToken`, or `client`            |
+| all        |                        | `push`: create missing tables at startup                        |
+
+- The adapter closes only clients it created.
+- PGlite and local SQLite have one connection. The adapter runs their operations one at a time.
+
+In Next.js, create the adapter with `singleton` from `@quickben/next`. Route handlers, pages and server functions then share one client, also across dev reloads.
 
 ```ts filename="quickben.config.ts"
 import { defineConfig } from "@quickben/core";
 import { drizzleAdapter } from "@quickben/db-drizzle";
+import { singleton } from "@quickben/next";
 
 import { posts, tags, users } from "./collections";
 
 export default defineConfig({
-  db: drizzleAdapter({ dialect: "postgres", url: process.env.DATABASE_URL }),
+  db: singleton("db", () => drizzleAdapter({ dialect: "postgres", url: process.env.DATABASE_URL })),
   collections: [users, tags, posts],
 });
 ```
 
-## Planned behavior
+## Tables
 
-| Topic      | Plan                                                                                   |
-| ---------- | -------------------------------------------------------------------------------------- |
-| Tables     | Generated from collections and fields.                                                 |
-| Migrations | `quickben db:generate` writes a Drizzle schema file. Run `drizzle-kit` for migrations. |
-| `raw`      | The Drizzle database and the generated tables, for custom queries.                     |
-| Contract   | Passes the same contract tests as the memory adapter.                                  |
+Each collection gets a table named after its slug. Column names are field names.
+
+| Field                              | Postgres / PGlite             | SQLite                            |
+| ---------------------------------- | ----------------------------- | --------------------------------- |
+| `id`                               | `text` primary key            | `text` primary key                |
+| `createdAt`, `updatedAt`, datetime | `timestamp(3) with time zone` | `text` (ISO 8601)                 |
+| `date`                             | `date`                        | `text`                            |
+| text, textarea, email, url, select | `text`                        | `text`                            |
+| relation (one)                     | `text`                        | `text`                            |
+| select / relation with `many`      | `text[]`, default `'{}'`      | `text` JSON array, default `'[]'` |
+| number                             | `double precision`            | `real`                            |
+| number with `integer`              | `bigint`                      | `integer`                         |
+| boolean                            | `boolean`                     | `integer` (0/1)                   |
+| json                               | `jsonb`                       | `text` (JSON)                     |
+
+- `required` fields are `not null`. `many` fields are always `not null`.
+- `unique` creates the unique index `<slug>_<field>_unique`. `index` creates `<slug>_<field>_idx` (GIN for Postgres arrays). `createdAt` is always indexed.
+- Ids are `text`, because core accepts custom ids that are not UUIDs.
+
+## Queries
+
+The adapter follows the [query model](/docs/concepts/query-model) and passes the same contract tests as the memory adapter.
+
+| Behavior                 | Postgres / PGlite                   | SQLite                                                      |
+| ------------------------ | ----------------------------------- | ----------------------------------------------------------- |
+| `contains`, `startsWith` | `ilike`                             | `like` (ignores case for ASCII letters only)                |
+| `many` fields            | `&&` on `text[]`                    | `json_each`                                                 |
+| Text order and compare   | column collation (database default) | binary                                                      |
+| Nulls                    | last ascending, first descending    | same                                                        |
+| Unique violations        | `ConflictError` (code `23505`)      | `ConflictError` (`SQLITE_CONSTRAINT_UNIQUE`, `_PRIMARYKEY`) |
+| Transactions             | Drizzle transactions                | Drizzle transactions                                        |
+
+## Schema changes
+
+| Way        | Command or option                             | Use                                 |
+| ---------- | --------------------------------------------- | ----------------------------------- |
+| `push`     | `drizzleAdapter({ ..., push: true })`         | Development, tests, in-memory data. |
+| Migrations | `quickben-drizzle generate`, then drizzle-kit | Databases with real data.           |
+
+### Push
+
+`push` creates missing tables, columns and indexes when Quickben starts. It never drops or changes a column. It is on by default for in-memory databases only.
+
+### Migrations
+
+1. Write the Drizzle schema from your config:
+
+   ```sh
+   pnpm quickben-drizzle generate --config quickben.config.ts --out drizzle/schema.ts
+   ```
+
+2. Point drizzle-kit at it (`pnpm add -D drizzle-kit`):
+
+   ```ts filename="drizzle.config.ts" nocheck
+   import { defineConfig } from "drizzle-kit";
+
+   export default defineConfig({
+     dialect: "postgresql", // "sqlite" or "turso" for SQLite
+     schema: "./drizzle/schema.ts",
+     out: "./drizzle/migrations",
+     dbCredentials: { url: process.env.DATABASE_URL! },
+   });
+   ```
+
+   For PGlite, add `driver: "pglite"` and set `url` to the `dataDir`, for example `"./.pglite"`.
+
+3. Create and apply the migration:
+
+   ```sh
+   pnpm drizzle-kit generate
+   pnpm drizzle-kit migrate
+   ```
+
+Run steps 1 and 3 again after you change collections. Commit the schema file and the migrations. Turn `push` off for databases you migrate.
+
+| `quickben-drizzle generate` option | Default                         |
+| ---------------------------------- | ------------------------------- |
+| `--config <path>`                  | `quickben.config.ts`            |
+| `--out <path>`                     | `drizzle/schema.ts`             |
+| `--dialect <name>`                 | From `drizzleAdapter` in config |
+
+- The CLI loads the config with jiti. Use relative imports in the config. tsconfig path aliases (`@/…`) are not resolved.
+- From code, `generateDrizzleSchema(config, { out })` writes the same file and returns its source.
+
+## Custom queries
+
+`qb.db.raw` (or `adapter.raw`) gives the Drizzle database and the generated tables. Inside `qb.transaction`, `raw.db` is the transaction.
+
+```ts
+import { count, eq } from "drizzle-orm";
+
+import type { DrizzleRaw } from "@quickben/db-drizzle";
+
+const { db, table } = qb.db.raw as DrizzleRaw<"postgres">;
+const posts = table("posts");
+const status = posts.status;
+if (status) {
+  await db.select({ n: count() }).from(posts).where(eq(status, "draft"));
+}
+```
+
+| `raw` member  | Value                                                 |
+| ------------- | ----------------------------------------------------- |
+| `dialect`     | `"postgres"`, `"pglite"` or `"sqlite"`                |
+| `db`          | The Drizzle database. Throws before `createQuickben`. |
+| `tables`      | Generated tables by collection slug.                  |
+| `table(slug)` | One table. Throws `ConfigError` for an unknown slug.  |
+
+Columns of these tables are typed as `PgColumn | undefined`. For fully typed tables, import them from the generated schema file.
+
+Raw queries skip access rules, hooks and validation.

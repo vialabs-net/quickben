@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 import { highlight, readSample } from "../lib/highlight";
@@ -42,23 +43,23 @@ const features: { title: string; text: string; code: string; status: Status; hre
   },
   {
     title: "Database adapters",
-    text: "One small adapter interface with a portable query model. In-memory today. Drizzle for Postgres, PGlite and SQLite next.",
-    code: 'db: drizzleAdapter({ dialect: "pglite" })',
-    status: "Coming in 0.1",
-    href: "/docs/database-adapters/memory",
+    text: "One small adapter interface with a portable query model. In-memory for tests. Drizzle for Postgres, PGlite and SQLite, with drizzle-kit migrations.",
+    code: 'db: drizzleAdapter({ dialect: "pglite", dataDir: "./.pglite" })',
+    status: "Available",
+    href: "/docs/database-adapters/drizzle",
   },
   {
     title: "Two files in your Next.js app",
-    text: "A catch-all route handler for REST and a catch-all page for the admin. Server components and server actions.",
+    text: "A catch-all route handler for REST and a catch-all page for the admin. The admin page also defines the server function for saves.",
     code: "app/api/[...quickben]/route.ts\napp/admin/[[...segments]]/page.tsx",
-    status: "Coming in 0.1",
+    status: "Available",
     href: "/docs/nextjs/route-handlers",
   },
   {
     title: "Admin generated from config",
-    text: "List, create and edit screens from your fields. The sidebar comes from collections and modules.",
+    text: "Dashboard, list, create and edit screens from your fields. The sidebar comes from collections and modules. No Tailwind setup in your app.",
     code: 'admin: { useAsTitle: "title" }',
-    status: "Coming in 0.1",
+    status: "Available",
     href: "/docs/nextjs/admin",
   },
   {
@@ -84,18 +85,31 @@ const steps = [
   {
     title: "Serve REST and the admin",
     text: "Route handlers and admin pages call the same local API.",
-    code: "createRouteHandlers(config)\ncreateAdminPage(config)",
+    code: "createRouteHandlers(config)\ncreateAdminPage(config, { serverFunction })",
   },
 ] as const;
 
 const packages: { name: string; status: Status }[] = [
   { name: "@quickben/core", status: "Available" },
   { name: "@quickben/db-memory", status: "Available" },
-  { name: "@quickben/db-drizzle", status: "Coming in 0.1" },
-  { name: "@quickben/next", status: "Coming in 0.1" },
-  { name: "@quickben/admin", status: "Coming in 0.1" },
+  { name: "@quickben/db-drizzle", status: "Available" },
+  { name: "@quickben/next", status: "Available" },
+  { name: "@quickben/admin", status: "Available" },
   { name: "@quickben/plugin-tenancy", status: "Planned" },
 ];
+
+const screens = [
+  {
+    src: "/screens/admin-list.webp",
+    alt: "Admin list view of posts with filters and pagination",
+    caption: "List: columns, search, filters, sort.",
+  },
+  {
+    src: "/screens/admin-edit.webp",
+    alt: "Admin edit form of a post with relation fields",
+    caption: "Edit: forms generated from fields.",
+  },
+] as const;
 
 const statusClass: Record<Status, string | undefined> = {
   Available: styles.statusAvailable,
@@ -174,6 +188,33 @@ export default async function LandingPage() {
             </div>
           ))}
         </dl>
+      </section>
+
+      <section className={styles.section} aria-labelledby="admin-title">
+        <h2 id="admin-title" className={styles.h2}>
+          The admin UI
+        </h2>
+        <div className={styles.screens}>
+          {screens.map((screen) => (
+            <figure key={screen.src} className={styles.screen}>
+              <Image
+                src={screen.src}
+                alt={screen.alt}
+                width={1440}
+                height={940}
+                sizes="(min-width: 56rem) 50vw, 100vw"
+              />
+              <figcaption>{screen.caption}</figcaption>
+            </figure>
+          ))}
+        </div>
+        <p className={styles.closingText}>
+          Screens from the{" "}
+          <Link href="/docs/playground" className={styles.inlineLink}>
+            playground
+          </Link>
+          . Same config, same access rules as the REST API.
+        </p>
       </section>
 
       <section className={styles.section} aria-labelledby="how-title">
