@@ -1,0 +1,64 @@
+---
+title: Access control
+description: Access rules per operation return true, false or a filter.
+---
+
+# Access control
+
+Each collection has one rule per operation: `read`, `create`, `update`, `delete`. A rule returns `true`, `false` or a `where` filter. It may be async.
+
+```ts
+import { defineCollection, fields as f } from "@quickben/core";
+
+export const posts = defineCollection({
+  slug: "posts",
+  fields: {
+    title: f.text({ required: true }),
+    status: f.select({ options: ["draft", "published"], required: true, default: "draft" }),
+    author: f.relation({ to: "users" }),
+  },
+  access: {
+    read: ({ user }) => (user ? true : ({ status: { eq: "published" } } as const)),
+    create: ({ user }) => user !== null,
+    update: ({ user }) => (user ? { author: { eq: user.id } } : false),
+    delete: ({ user }) => user?.roles?.includes("admin") === true,
+  },
+});
+```
+
+Anonymous users read published posts. Signed-in users read all posts and edit only their own. Admins delete.
+
+## Results
+
+| Operation | `true`        | A filter                                                                     |
+| --------- | ------------- | ---------------------------------------------------------------------------- |
+| `read`    | all documents | AND-ed with the query. `findById` of a filtered-out document is `NOT_FOUND`. |
+| `create`  | allowed       | The new document, after hooks, must match.                                   |
+| `update`  | allowed       | The stored document must match.                                              |
+| `delete`  | allowed       | The stored document must match.                                              |
+
+`false` throws `UnauthorizedError` when there is no user and `ForbiddenError` when there is one.
+
+## Defaults
+
+| Situation                     | Behavior              |
+| ----------------------------- | --------------------- |
+| No rule for an operation      | Signed-in users only. |
+| `overrideAccess: true` in ctx | Rules are skipped.    |
+
+```ts
+// Trusted server code only, e.g. a seed script or a webhook handler.
+await qb.create("tags", { name: "news" }, { user: null, overrideAccess: true });
+```
+
+## Rule arguments
+
+| Argument    | Value                                             |
+| ----------- | ------------------------------------------------- |
+| `user`      | `QuickbenUser` or `null`                          |
+| `req`       | The `Request`, when the call has one              |
+| `operation` | `"read"`, `"create"`, `"update"` or `"delete"`    |
+| `id`        | Document id for `update`, `delete` and `findById` |
+| `data`      | Input data for `create` and `update`              |
+
+Filters returned by rules use the same [query model](/docs/concepts/query-model) as `find`. They are typed from the collection's fields.

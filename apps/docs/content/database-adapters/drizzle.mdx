@@ -1,0 +1,43 @@
+---
+title: Drizzle adapter
+description: "@quickben/db-drizzle: Postgres, PGlite and SQLite through Drizzle ORM. Coming in 0.1."
+---
+
+import { Callout } from "nextra/components";
+
+# Drizzle adapter
+
+<Callout type="warning">
+
+**Coming in 0.1.** `@quickben/db-drizzle` is not released yet. This page describes the planned API. Names may change.
+
+</Callout>
+
+`@quickben/db-drizzle` stores collections in SQL databases through [Drizzle ORM](https://orm.drizzle.team).
+
+| Dialect    | Driver                       | Use                                 |
+| ---------- | ---------------------------- | ----------------------------------- |
+| `postgres` | node-postgres or postgres.js | Production                          |
+| `pglite`   | PGlite (Postgres in WASM)    | Local development, tests, no server |
+| `sqlite`   | SQLite or libSQL             | Small apps, edge, tests             |
+
+```ts filename="quickben.config.ts"
+import { defineConfig } from "@quickben/core";
+import { drizzleAdapter } from "@quickben/db-drizzle";
+
+import { posts, tags, users } from "./collections";
+
+export default defineConfig({
+  db: drizzleAdapter({ dialect: "postgres", url: process.env.DATABASE_URL }),
+  collections: [users, tags, posts],
+});
+```
+
+## Planned behavior
+
+| Topic      | Plan                                                                                   |
+| ---------- | -------------------------------------------------------------------------------------- |
+| Tables     | Generated from collections and fields.                                                 |
+| Migrations | `quickben db:generate` writes a Drizzle schema file. Run `drizzle-kit` for migrations. |
+| `raw`      | The Drizzle database and the generated tables, for custom queries.                     |
+| Contract   | Passes the same contract tests as the memory adapter.                                  |

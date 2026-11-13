@@ -1,0 +1,70 @@
+---
+title: Architecture
+description: Packages, dependency rules, the request flow and the adapter contract.
+---
+
+# Architecture
+
+The source of truth is [`ARCHITECTURE.md`](https://github.com/vialabs-net/quickben/blob/trunk/ARCHITECTURE.md) in the repository. This page is a summary.
+
+## Packages
+
+| Path                       | Package                               | Status        |
+| -------------------------- | ------------------------------------- | ------------- |
+| `packages/core`            | `@quickben/core`                      | Available     |
+| `packages/db-memory`       | `@quickben/db-memory`                 | Available     |
+| `packages/adapter-tests`   | `@quickben/adapter-tests` (private)   | Available     |
+| `packages/db-drizzle`      | `@quickben/db-drizzle`                | Coming in 0.1 |
+| `packages/next`            | `@quickben/next`                      | Coming in 0.1 |
+| `packages/admin`           | `@quickben/admin`                     | Coming in 0.1 |
+| `packages/plugin-tenancy`  | `@quickben/plugin-tenancy`            | Planned       |
+| `packages/create-quickben` | `create-quickben`                     | Planned       |
+| `apps/docs`                | This site                             | Available     |
+| `apps/playground`          | Next.js app using everything (PGlite) | Coming in 0.1 |
+
+Dependencies point one way. Adapters and other packages depend on `@quickben/core` as a peer dependency. Core depends only on Zod.
+
+## Layers
+
+```
+quickben.config.ts      collections, fields, access, hooks, plugins
+        │
+        ▼
+defineConfig            applies plugins in order, validates slugs and relations
+        │
+        ▼
+local API (qb)          access → hooks → Zod validation → relations → transaction
+        │
+        ▼
+DatabaseAdapter         memory, Drizzle (Postgres, PGlite, SQLite), others later
+```
+
+The route handlers and the admin UI (coming in 0.1) call the local API. They do not talk to the adapter directly.
+
+## Core responsibilities
+
+| Concern           | Done by | Detail                                                                   |
+| ----------------- | ------- | ------------------------------------------------------------------------ |
+| Types             | core    | Inferred from fields. No code generation.                                |
+| Validation        | core    | Zod 4 schemas generated from fields, then field `validate`.              |
+| Access            | core    | Rules per operation; filters AND-ed with queries.                        |
+| Hooks             | core    | Run inside the write transaction.                                        |
+| Relations         | core    | Stored as ids; loaded by core with `depth` (0–3).                        |
+| Cursors           | core    | Keyset positions turned into `where` filters.                            |
+| Ids               | core    | UUIDv7.                                                                  |
+| Storage and query | adapter | `find`, `findOne`, `count`, `create`, `update`, `delete`, `transaction`. |
+| Unique values     | adapter | Throws `ConflictError`.                                                  |
+
+## Tooling
+
+| Tool       | Version                        |
+| ---------- | ------------------------------ |
+| Node.js    | 22.18 or later (CI: 22 and 24) |
+| pnpm       | 12, pinned with Corepack       |
+| TypeScript | 6.0                            |
+| ESLint     | 10, flat config                |
+| tsdown     | 0.23                           |
+| Vitest     | 5                              |
+| Turborepo  | 2                              |
+
+All packages are ESM only, TypeScript strict, with `exports` maps.

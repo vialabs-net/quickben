@@ -1,0 +1,65 @@
+---
+title: Hooks
+description: Functions that run before and after reads and writes, inside the write transaction.
+---
+
+# Hooks
+
+Hooks are arrays of functions per stage. They run in order. Writes and their hooks run in one transaction: if a hook throws, nothing is written.
+
+```ts
+import { defineCollection, fields as f } from "@quickben/core";
+
+export const posts = defineCollection({
+  slug: "posts",
+  fields: {
+    title: f.text({ required: true }),
+    slug: f.text({ unique: true }),
+    status: f.select({ options: ["draft", "published"], required: true, default: "draft" }),
+    publishedAt: f.datetime(),
+  },
+  hooks: {
+    beforeValidate: [
+      ({ data }) =>
+        data.title && !data.slug
+          ? { ...data, slug: data.title.toLowerCase().replaceAll(/\W+/g, "-") }
+          : data,
+    ],
+    beforeChange: [
+      ({ data, original }) => {
+        const publishing = data.status === "published" && original?.status !== "published";
+        return publishing ? { ...data, publishedAt: new Date().toISOString() } : data;
+      },
+    ],
+    afterChange: [
+      ({ operation, doc }) => {
+        console.log(`${operation}: post ${doc.id}`);
+      },
+    ],
+  },
+});
+```
+
+## Stages
+
+| Hook             | Extra arguments                                 | Return                    |
+| ---------------- | ----------------------------------------------- | ------------------------- |
+| `beforeValidate` | `operation`, `data` (not validated), `original` | new data or nothing       |
+| `beforeChange`   | `operation`, `data` (validated), `original`     | new data or nothing       |
+| `afterChange`    | `operation`, `doc`, `original`                  | nothing                   |
+| `afterRead`      | `doc`                                           | new document or nothing   |
+| `beforeDelete`   | `id`, `doc`                                     | nothing. Throw to cancel. |
+| `afterDelete`    | `id`, `doc`                                     | nothing                   |
+
+Every hook also gets `user`, `req`, `qb` and `collection`. `qb` is bound to the current transaction. `original` is `null` on create.
+
+## Order of a write
+
+| Operation | Steps                                                                                                                                             |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| create    | access → defaults → `beforeValidate` → validation → related ids → `beforeChange` → access filter on new doc → write → `afterChange` → `afterRead` |
+| update    | load → access (filter must match stored doc) → `beforeValidate` → validation → related ids → `beforeChange` → write → `afterChange` → `afterRead` |
+| delete    | load → access (filter must match) → `beforeDelete` → delete → `afterDelete` → `afterRead`                                                         |
+| read      | access filter AND query → adapter → relations → `afterRead` → `select`                                                                            |
+
+When a collection has `afterRead` hooks, core loads full documents and applies `select` after the hooks.

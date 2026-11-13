@@ -1,0 +1,60 @@
+---
+title: Contributing
+description: Set up the monorepo, run the checks and open a pull request.
+---
+
+# Contributing
+
+The full guide is [`CONTRIBUTING.md`](https://github.com/vialabs-net/quickben/blob/trunk/CONTRIBUTING.md).
+
+## Setup
+
+Requirements: Node.js 24 (22.18 or later works) and pnpm 12.
+
+```sh
+git clone https://github.com/vialabs-net/quickben.git
+cd quickben
+corepack enable
+pnpm install
+pnpm lint typecheck test build
+```
+
+## Commands
+
+| Command              | What it does                                                   |
+| -------------------- | -------------------------------------------------------------- |
+| `pnpm build`         | Build every package and this site.                             |
+| `pnpm lint`          | ESLint: typescript-eslint, sonarjs, import order.              |
+| `pnpm typecheck`     | `tsc` in every package, including type tests and docs samples. |
+| `pnpm test`          | Vitest in every package.                                       |
+| `pnpm test:coverage` | Tests with coverage. Fails under 85 % lines.                   |
+| `pnpm format`        | Prettier.                                                      |
+| `pnpm changeset`     | Describe a change for the changelog.                           |
+
+Run one package with `pnpm --filter @quickben/core test`.
+
+## Pull requests
+
+| Rule       | Detail                                                                                                         |
+| ---------- | -------------------------------------------------------------------------------------------------------------- |
+| Branch     | From `trunk`. Keep pull requests small.                                                                        |
+| Commits    | [Conventional Commits](https://www.conventionalcommits.org/): `feat(core): …`, `fix(db-memory): …`, `docs: …`. |
+| Changesets | Add one when a published package changes.                                                                      |
+| CI         | Lint, typecheck, tests with coverage, build and the SonarCloud quality gate must pass.                         |
+
+## This site
+
+The site is `apps/docs` (Nextra). Pages are MDX files in `apps/docs/content`.
+
+| Command                          | What it does                                    |
+| -------------------------------- | ----------------------------------------------- |
+| `pnpm --filter docs dev`         | Run the site on http://localhost:3000.          |
+| `pnpm --filter docs typecheck`   | Extract every `ts` code block and typecheck it. |
+| `pnpm turbo build --filter=docs` | Build the site and its dependencies.            |
+
+Code blocks are checked against the workspace packages. Mark a block `nocheck` only for signatures and third-party APIs.
+
+## Conduct and security
+
+- [Code of Conduct](https://github.com/vialabs-net/quickben/blob/trunk/CODE_OF_CONDUCT.md)
+- [Security policy](https://github.com/vialabs-net/quickben/blob/trunk/SECURITY.md): report vulnerabilities privately.

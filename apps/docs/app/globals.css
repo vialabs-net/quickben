@@ -1,0 +1,61 @@
+:root {
+  --qb-paper: #fbfcfd;
+  --qb-surface: #f1f4f7;
+  --qb-ink: #142130;
+  --qb-muted: #556373;
+  --qb-rule: #d8dee5;
+  --qb-accent: #2747c9;
+  --qb-accent-ink: #ffffff;
+  --qb-mark: #fff1b8;
+  --qb-mark-edge: #e5c64a;
+  --qb-ok: #1d6b45;
+  --qb-ok-bg: #e3f3ea;
+  --qb-soon: #7a4b00;
+  --qb-soon-bg: #fdf0d5;
+  --qb-later: #4b5563;
+  --qb-later-bg: #eceff3;
+}
+
+html.dark {
+  --qb-paper: #0e1620;
+  --qb-surface: #15202c;
+  --qb-ink: #e3e8ee;
+  --qb-muted: #9aa7b6;
+  --qb-rule: #263443;
+  --qb-accent: #8ea2ff;
+  --qb-accent-ink: #0e1620;
+  --qb-mark: rgb(255 214 90 / 0.14);
+  --qb-mark-edge: #c9a93a;
+  --qb-ok: #7fd3a5;
+  --qb-ok-bg: rgb(127 211 165 / 0.12);
+  --qb-soon: #f3c66b;
+  --qb-soon-bg: rgb(243 198 107 / 0.12);
+  --qb-later: #b4bfcc;
+  --qb-later-bg: rgb(180 191 204 / 0.1);
+}
+
+.qb-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.qb-wordmark {
+  font-family: var(--qb-font-display), system-ui, sans-serif;
+  font-weight: 800;
+  font-size: 1.125rem;
+  letter-spacing: -0.02em;
+}
+
+.qb-footer-link {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Docs headings use the display face. */
+article h1,
+article h2,
+article h3 {
+  font-family: var(--qb-font-display), system-ui, sans-serif;
+  letter-spacing: -0.015em;
+}

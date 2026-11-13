@@ -1,0 +1,37 @@
+---
+title: Errors
+description: QuickbenError subclasses, their codes and HTTP status.
+---
+
+# Errors
+
+Every error Quickben throws extends `QuickbenError`. It has a stable `code` and a suggested HTTP `status`.
+
+| Class               | `code`         | `status` | Thrown when                                                        |
+| ------------------- | -------------- | -------- | ------------------------------------------------------------------ |
+| `ValidationError`   | `VALIDATION`   | 400      | Input, `where`, `sort`, `select` or cursor is invalid.             |
+| `UnauthorizedError` | `UNAUTHORIZED` | 401      | Access denied and there is no user.                                |
+| `ForbiddenError`    | `FORBIDDEN`    | 403      | Access denied for the user.                                        |
+| `NotFoundError`     | `NOT_FOUND`    | 404      | Unknown collection, or the document is missing or not readable.    |
+| `ConflictError`     | `CONFLICT`     | 409      | A unique value or id is taken. `field` names the field when known. |
+| `ConfigError`       | `CONFIG`       | 500      | The config is invalid.                                             |
+
+## Handling errors
+
+```ts
+import { QuickbenError, ValidationError } from "@quickben/core";
+
+try {
+  await qb.create("posts", { title: "" }, { user });
+} catch (error) {
+  if (error instanceof ValidationError) {
+    for (const issue of error.issues) console.log(issue.path, issue.message);
+  } else if (error instanceof QuickbenError) {
+    console.log(error.code, error.status);
+  } else {
+    throw error;
+  }
+}
+```
+
+`ValidationError.issues` is a list of `{ path, message }`. `path` is dot-separated, for example `tags.0`.

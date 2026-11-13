@@ -1,0 +1,75 @@
+---
+title: Local API
+description: getQuickben returns a typed API for reads, writes and transactions on the server.
+---
+
+# Local API
+
+The local API runs in your server process. Route handlers, server components, server actions and scripts all use it.
+
+```ts
+import { getQuickben } from "@quickben/core";
+
+import config from "./quickben.config";
+
+const qb = await getQuickben(config);
+const user = { id: "u1" };
+
+const post = await qb.create("posts", { title: "Hello" }, { user });
+const page = await qb.find("posts", { where: { status: { eq: "draft" } }, limit: 10 }, { user });
+const same = await qb.findById("posts", post.id, { user, depth: 1 });
+const total = await qb.count("posts", { where: { status: { eq: "published" } } }, { user });
+await qb.update("posts", post.id, { status: "published" }, { user });
+await qb.delete("posts", post.id, { user });
+```
+
+## Methods
+
+| Method                        | Returns                 | Notes                                                               |
+| ----------------------------- | ----------------------- | ------------------------------------------------------------------- |
+| `find(slug, query, ctx)`      | `FindResult<Doc>`       | See [Query model](/docs/concepts/query-model).                      |
+| `findById(slug, id, options)` | `Doc`                   | `options` is ctx plus `select` and `depth`. Throws `NotFoundError`. |
+| `count(slug, { where }, ctx)` | `number`                | Applies read access.                                                |
+| `create(slug, data, ctx)`     | `Doc`                   | Validation and hooks in one transaction.                            |
+| `update(slug, id, data, ctx)` | `Doc`                   | Partial update.                                                     |
+| `delete(slug, id, ctx)`       | `Doc`                   | Returns the deleted document.                                       |
+| `transaction(fn)`             | result of `fn`          | `fn` gets a `qb` bound to the transaction.                          |
+| `collections[slug]`           | `SanitizedCollection`   | Collection metadata.                                                |
+| `db.raw`                      | adapter's native client | For custom queries.                                                 |
+
+## Request context
+
+Every call takes a context. It is required, so a call without a user is explicit.
+
+| Key              | Purpose                                                     |
+| ---------------- | ----------------------------------------------------------- |
+| `user`           | `QuickbenUser` or `null` for anonymous calls.               |
+| `req`            | The incoming `Request`, passed to access rules and hooks.   |
+| `overrideAccess` | `true` skips access rules. Use only in trusted server code. |
+
+## Instances
+
+| Function                 | Behavior                                                                                    |
+| ------------------------ | ------------------------------------------------------------------------------------------- |
+| `getQuickben(config)`    | One cached instance per config object. A failed start is dropped, so the next call retries. |
+| `createQuickben(config)` | A new instance every call. Use it in tests.                                                 |
+
+Both call `db.init(schema)` and then each plugin's `onInit`.
+
+## Transactions
+
+```ts
+await qb.transaction(async (tx) => {
+  const tag = await tx.create("tags", { name: "release" }, { user });
+  await tx.create("posts", { title: "v0.1", tags: [tag.id] }, { user });
+});
+```
+
+If `fn` throws, both writes are rolled back. Calling `transaction` inside `fn` joins the same transaction.
+
+## Result types
+
+| Option              | Effect on the type                                                            |
+| ------------------- | ----------------------------------------------------------------------------- |
+| `select: ["title"]` | Documents narrow to `{ id, title }`.                                          |
+| `depth: 1`          | Relations become `string \| RelatedDoc`. Missing or unreadable ones stay ids. |
