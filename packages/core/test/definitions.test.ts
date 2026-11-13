@@ -99,6 +99,10 @@ describe("defineCollection", () => {
     );
     expect(() => defineCollection({ slug: "p", fields: { id: f.text() } })).toThrow(/reserved/);
     expect(() => defineCollection({ slug: "p", fields: { or: f.text() } })).toThrow(/reserved/);
+    expect(() => defineCollection({ slug: "p", fields: { ID: f.text() } })).toThrow(/reserved/);
+    expect(() =>
+      defineCollection({ slug: "p", fields: { title: f.text(), Title: f.text() } }),
+    ).toThrow(/only in case/);
   });
 
   it("rejects unique many fields and empty selects", () => {
@@ -137,6 +141,7 @@ describe("extendCollection", () => {
   it("rejects duplicate or invalid fields", () => {
     expect(() => extendCollection(base, { fields: { title: f.text() } })).toThrow(/already exists/);
     expect(() => extendCollection(base, { fields: { createdAt: f.text() } })).toThrow(/reserved/);
+    expect(() => extendCollection(base, { fields: { TITLE: f.text() } })).toThrow(/only in case/);
   });
 });
 

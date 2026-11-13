@@ -58,15 +58,15 @@ Pick a role in the bar at the top of each page. It sets a cookie that the auth a
 
 ## Database
 
-| `QUICKBEN_DB`      | Storage                                             |
-| ------------------ | --------------------------------------------------- |
-| `pglite` (default) | PGlite in `./.pglite`. Tables are created on start. |
-| `memory`           | In memory. Resets on restart.                       |
+| `QUICKBEN_DB`      | Storage                                                                                             |
+| ------------------ | --------------------------------------------------------------------------------------------------- |
+| `pglite` (default) | PGlite in `./.pglite` (`./.pglite-tenancy` with `QUICKBEN_TENANCY=1`). Tables are created on start. |
+| `memory`           | In memory. Resets on restart.                                                                       |
 
-| Command                                       | Effect                  |
-| --------------------------------------------- | ----------------------- |
-| `pnpm --filter @quickben/playground seed`     | Seed an empty database. |
-| `pnpm --filter @quickben/playground db:reset` | Delete `./.pglite`.     |
+| Command                                       | Effect                                      |
+| --------------------------------------------- | ------------------------------------------- |
+| `pnpm --filter @quickben/playground seed`     | Seed an empty database.                     |
+| `pnpm --filter @quickben/playground db:reset` | Delete `./.pglite` and `./.pglite-tenancy`. |
 
 ## Tests
 

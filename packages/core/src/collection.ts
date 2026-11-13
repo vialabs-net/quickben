@@ -8,7 +8,7 @@ type NoFields = Record<never, AnyField>;
 
 const slugPattern = /^[a-z][a-z0-9_-]{0,62}$/;
 const fieldNamePattern = /^[A-Za-z]\w{0,62}$/;
-const reservedFieldNames = new Set(["id", "createdAt", "updatedAt", "and", "or"]);
+const reservedFieldNames = new Set(["id", "createdat", "updatedat", "and", "or"]);
 
 /** Turn `publishedAt`, `first_name` or `blog-posts` into `Published at`, `First name`, `Blog posts`. */
 export function humanize(name: string): string {
@@ -27,16 +27,25 @@ function singularize(plural: string): string {
   return plural;
 }
 
-function assertFields(slug: string, fields: Fields): void {
+/**
+ * Check field names and options. Names are compared without case, because SQL databases such
+ * as SQLite treat `title` and `Title` as the same column.
+ */
+function assertFields(slug: string, fields: Fields, existing: readonly string[] = []): void {
+  const seen = new Set(existing.map((name) => name.toLowerCase()));
   for (const [name, field] of Object.entries(fields)) {
     if (!fieldNamePattern.test(name)) {
       throw new ConfigError(
         `Invalid field name "${name}" in collection "${slug}". Use letters, digits and "_", starting with a letter.`,
       );
     }
-    if (reservedFieldNames.has(name)) {
+    if (reservedFieldNames.has(name.toLowerCase())) {
       throw new ConfigError(`Field name "${name}" in collection "${slug}" is reserved`);
     }
+    if (seen.has(name.toLowerCase())) {
+      throw new ConfigError(`Field "${slug}.${name}" differs from another field only in case`);
+    }
+    seen.add(name.toLowerCase());
     if (field.unique && field.many) {
       throw new ConfigError(`Field "${slug}.${name}" cannot be both unique and many`);
     }
@@ -91,7 +100,7 @@ export function extendCollection<C extends AnyCollection, TExtra extends Fields 
       throw new ConfigError(`Field "${collection.slug}.${name}" already exists`);
     }
   }
-  assertFields(collection.slug, extra);
+  assertFields(collection.slug, extra, Object.keys(collection.fields));
   const hooks: Record<string, readonly unknown[]> = { ...collection.hooks };
   for (const [stage, list] of Object.entries(extension.hooks ?? {})) {
     hooks[stage] = [...(hooks[stage] ?? []), ...(list as readonly unknown[])];

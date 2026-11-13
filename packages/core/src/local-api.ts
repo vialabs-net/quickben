@@ -131,7 +131,7 @@ async function find(scope: OperationScope, slug: string, query: FindQueryInput) 
     }
     rows = await scope.db.find({
       collection: slug,
-      where: andWhere(where, cursorWhere(sort, query.cursor)),
+      where: andWhere(where, cursorWhere(collection, sort, query.cursor)),
       sort,
       limit: limit + 1,
       ...selectArg(loadSelect),
@@ -161,12 +161,12 @@ async function findById(
   scope: OperationScope,
   slug: string,
   id: unknown,
-  options: { select?: unknown; depth?: unknown },
+  query: { select?: unknown; depth?: unknown },
 ) {
   const collection = getCollection(scope.collections, slug);
   const docId = assertId(id);
-  const select = parseSelect(collection, options.select);
-  const depth = parseDepth(options.depth);
+  const select = parseSelect(collection, query.select);
+  const depth = parseDepth(query.depth);
   const where = andWhere(
     { field: "id", op: "eq", value: docId },
     await readFilter(scope, collection, docId),
@@ -201,21 +201,36 @@ function applyDefaults(collection: SanitizedCollection, data: Record<string, unk
   return result;
 }
 
-/** Check that related ids exist. One query per related collection. */
+/**
+ * Check that related ids exist and that the user may read them, so a write cannot link to
+ * documents the user cannot see (for example another organization's). One query per related
+ * collection. `overrideAccess` checks existence only. On update, ids the document already
+ * stores are kept without a check, so a form can send them back unchanged.
+ */
 async function assertRelations(
   scope: OperationScope,
   collection: SanitizedCollection,
   data: DocumentData,
+  original: DocumentData | null = null,
 ) {
   for (const field of collection.fieldList) {
     if (field.type !== "relation") continue;
-    const ids = relationIds(data[field.name]);
+    const stored = new Set(relationIds(original?.[field.name]));
+    const ids = relationIds(data[field.name]).filter((id) => !stored.has(id));
     if (ids.length === 0) continue;
-    const found = await scope.db.find({
-      collection: field.to,
-      where: { field: "id", op: "in", value: ids },
-      select: ["id"],
-    });
+    const target = getCollection(scope.collections, field.to);
+    const access = await checkAccess(target, "read", scope.ctx, { qb: scope.api });
+    const found =
+      access === false
+        ? []
+        : await scope.db.find({
+            collection: field.to,
+            where: andWhere(
+              { field: "id", op: "in", value: ids },
+              access === true ? undefined : access,
+            ),
+            select: ["id"],
+          });
     const existing = new Set(found.map((doc) => doc.id));
     const missing = ids.filter((id) => !existing.has(id));
     if (missing.length > 0) {
@@ -248,27 +263,36 @@ async function runVoidHooks(
   for (const hook of hooks ?? []) await (hook as (args: unknown) => unknown)(args);
 }
 
+/**
+ * Load the document an update or delete targets. Writes need read access: a document the user
+ * cannot read is `NOT_FOUND`, as in `findById`, so writes do not reveal which ids exist
+ * elsewhere. Without any read access the write is denied before the lookup.
+ */
 async function loadOriginal(
   scope: OperationScope,
-  slug: string,
+  operation: "update" | "delete",
   collection: SanitizedCollection,
   id: string,
 ) {
+  const slug = collection.slug;
+  const read = await checkAccess(collection, "read", scope.ctx, { qb: scope.api, id });
+  if (read === false) throw accessDenied(scope.ctx, operation, slug);
   const row = await scope.db.findOne({
     collection: slug,
-    where: { field: "id", op: "eq", value: id },
+    where: andWhere({ field: "id", op: "eq", value: id }, read === true ? undefined : read),
   });
   if (!row) throw new NotFoundError(`Document "${id}" not found in "${slug}"`);
   return normalizeDoc(collection, row);
 }
 
+/** Check the stored document against the rule. Returns the rule result for later checks. */
 async function assertWriteAccess(
   scope: OperationScope,
   collection: SanitizedCollection,
   operation: "update" | "delete",
   original: DocumentData,
   data?: Record<string, unknown>,
-) {
+): Promise<true | WhereNode> {
   const access = await checkAccess(collection, operation, scope.ctx, {
     qb: scope.api,
     id: original.id as string,
@@ -277,6 +301,7 @@ async function assertWriteAccess(
   if (access === false || (access !== true && !matchesWhere(original, access))) {
     throw accessDenied(scope.ctx, operation, collection.slug);
   }
+  return access;
 }
 
 async function create(scope: OperationScope, slug: string, input: unknown) {
@@ -320,8 +345,8 @@ async function update(scope: OperationScope, slug: string, id: unknown, input: u
   const collection = getCollection(scope.collections, slug);
   const docId = assertId(id);
   const data = assertObject(input);
-  const original = await loadOriginal(scope, slug, collection, docId);
-  await assertWriteAccess(scope, collection, "update", original, data);
+  const original = await loadOriginal(scope, "update", collection, docId);
+  const access = await assertWriteAccess(scope, collection, "update", original, data);
   const base = { ...hookArgs(scope, collection), operation: "update", original };
   const prepared = await runDataHooks(collection.hooks.beforeValidate, {
     ...base,
@@ -334,11 +359,15 @@ async function update(scope: OperationScope, slug: string, id: unknown, input: u
     original,
     user: scope.ctx.user,
   });
-  await assertRelations(scope, collection, parsed);
+  await assertRelations(scope, collection, parsed, original);
   const changed = await runDataHooks(collection.hooks.beforeChange, { ...base, data: parsed });
   const fieldData = { ...changed };
   delete fieldData.id;
   delete fieldData.createdAt;
+  // A filter rule also limits where a document can go: the updated document must match it.
+  if (access !== true && !matchesWhere({ ...original, ...fieldData }, access)) {
+    throw accessDenied(scope.ctx, "update", slug);
+  }
   const stored = await scope.db.update({
     collection: slug,
     id: docId,
@@ -354,7 +383,7 @@ async function update(scope: OperationScope, slug: string, id: unknown, input: u
 async function remove(scope: OperationScope, slug: string, id: unknown) {
   const collection = getCollection(scope.collections, slug);
   const docId = assertId(id);
-  const original = await loadOriginal(scope, slug, collection, docId);
+  const original = await loadOriginal(scope, "delete", collection, docId);
   await assertWriteAccess(scope, collection, "delete", original);
   const args = { ...hookArgs(scope, collection), id: docId, doc: original };
   await runVoidHooks(collection.hooks.beforeDelete, args);
@@ -389,8 +418,9 @@ function buildApi(config: QuickbenConfig, collections: Collections, db: Database
     findById: async (
       slug: string,
       id: string,
-      options: RequestContext & { select?: unknown; depth?: unknown },
-    ) => findById(scope(options), slug, id, options),
+      query: { select?: unknown; depth?: unknown } | undefined,
+      ctx: RequestContext,
+    ) => findById(scope(ctx), slug, id, query ?? {}),
     count: async (slug: string, query: { where?: unknown } | undefined, ctx: RequestContext) =>
       count(scope(ctx), slug, query ?? {}),
     create: (slug: string, data: unknown, ctx: RequestContext) =>
@@ -442,16 +472,32 @@ export async function createQuickben<R extends Registry>(
   return qb as unknown as Quickben<R>;
 }
 
-const instances = new WeakMap<QuickbenConfig, Promise<Quickben>>();
+const instancesKey = Symbol.for("quickben.instances");
 
-/** Return the instance for `config`, creating it on first use. One instance per config object. */
+/**
+ * The instance cache lives on `globalThis`, so every copy of this module shares it: frameworks
+ * such as Next.js can bundle a package more than once (route handlers and pages), and two
+ * instances of one config would open the same database twice.
+ */
+function instances(): WeakMap<QuickbenConfig, Promise<Quickben>> {
+  const store = globalThis as typeof globalThis & Record<symbol, unknown>;
+  store[instancesKey] ??= new WeakMap<QuickbenConfig, Promise<Quickben>>();
+  return store[instancesKey] as WeakMap<QuickbenConfig, Promise<Quickben>>;
+}
+
+/**
+ * Return the instance for `config`, creating it on first use. One instance per config object,
+ * shared by every copy of this package in the process. A failed init is dropped, so the next
+ * call retries.
+ */
 export function getQuickben<R extends Registry>(config: QuickbenConfig<R>): Promise<Quickben<R>> {
   const key = config as QuickbenConfig;
-  let instance = instances.get(key);
+  const cache = instances();
+  let instance = cache.get(key);
   if (!instance) {
     instance = createQuickben(key);
-    instances.set(key, instance);
-    instance.catch(() => instances.delete(key));
+    cache.set(key, instance);
+    instance.catch(() => cache.delete(key));
   }
   return instance as unknown as Promise<Quickben<R>>;
 }

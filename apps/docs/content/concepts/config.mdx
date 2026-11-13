@@ -28,14 +28,14 @@ export default defineConfig({
 
 ## Options
 
-| Option        | Type                 | Required | Purpose                                                                            |
-| ------------- | -------------------- | -------- | ---------------------------------------------------------------------------------- |
-| `db`          | `DatabaseAdapter`    | yes      | Storage. See [Database adapters](/docs/database-adapters/memory).                  |
-| `collections` | `AnyCollection[]`    | yes      | Your collections, from `defineCollection`.                                         |
-| `plugins`     | `Plugin[]`           | no       | Applied in order. See [Plugins and modules](/docs/concepts/plugins-and-modules).   |
-| `auth`        | `AuthAdapter`        | no       | Resolves the user of a request. See [Auth adapters](/docs/concepts/auth-adapters). |
-| `admin`       | `{ title?: string }` | no       | Admin UI options. `title` defaults to `Quickben`.                                  |
-| `modules`     | `Module[]`           | no       | Feature areas that group collections.                                              |
+| Option        | Type                | Required | Purpose                                                                                                                            |
+| ------------- | ------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `db`          | `DatabaseAdapter`   | yes      | Storage. See [Database adapters](/docs/database-adapters/memory).                                                                  |
+| `collections` | `AnyCollection[]`   | yes      | Your collections, from `defineCollection`.                                                                                         |
+| `plugins`     | `Plugin[]`          | no       | Applied in order. See [Plugins and modules](/docs/concepts/plugins-and-modules).                                                   |
+| `auth`        | `AuthAdapter`       | no       | Resolves the user of a request. See [Auth adapters](/docs/concepts/auth-adapters).                                                 |
+| `admin`       | `{ title?, meta? }` | no       | Admin UI options. `title` defaults to `Quickben`. `meta: { title?, description? }` is the page metadata (`generateAdminMetadata`). |
+| `modules`     | `Module[]`          | no       | Feature areas that group collections.                                                                                              |
 
 ## What `defineConfig` checks
 

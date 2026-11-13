@@ -234,7 +234,7 @@ describe("tenancyAdmin", () => {
         form({ membershipId: ids.carol!, role: "admin", status: "active", modules: ["sales"] }),
       ),
     ).toBe("/admin/members?toast=Member%20updated");
-    const carolNow = await qb.findById("memberships", ids.carol!, system);
+    const carolNow = await qb.findById("memberships", ids.carol!, {}, system);
     expect(carolNow).toMatchObject({ role: "admin", modules: ["sales"] });
     const own = await run(updateMemberAction, form({ membershipId: ids.alice!, role: "member" }));
     expect(decodeURIComponent(own ?? "")).toContain("your own role");
@@ -276,7 +276,7 @@ describe("tenancyAdmin", () => {
       form({ name: "Acme", status: "suspended", modules: ["reports"] }),
     );
     const qb = await getQuickben(config);
-    expect(await qb.findById("organizations", ids.acme!, system)).toMatchObject({
+    expect(await qb.findById("organizations", ids.acme!, {}, system)).toMatchObject({
       name: "Acme",
       status: "suspended",
       modules: ["reports"],

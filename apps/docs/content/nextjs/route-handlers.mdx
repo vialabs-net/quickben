@@ -106,17 +106,16 @@ Every error has the same body:
 }
 ```
 
-| Code                     | Status | When                                                  | `details`                         |
-| ------------------------ | ------ | ----------------------------------------------------- | --------------------------------- |
-| `VALIDATION`             | 400    | Invalid body or query string                          | `{ issues: [{ path, message }] }` |
-| `UNAUTHORIZED`           | 401    | Access rule denies and there is no user               | `null`                            |
-| `FORBIDDEN`              | 403    | Access rule denies a signed-in user; CSRF check fails | `null`                            |
-| `NOT_FOUND`              | 404    | Unknown document, collection or route                 | `null`                            |
-| `METHOD_NOT_ALLOWED`     | 405    | For example `POST /posts/:id`. Has an `Allow` header. | `null`                            |
-| `CONFLICT`               | 409    | Unique field already used                             | `{ field }`                       |
-| `UNSUPPORTED_MEDIA_TYPE` | 415    | Body without `Content-Type: application/json`         | `null`                            |
-| `CONFIG`                 | 500    | Config error, for example `devAuth()` in production   | `null`                            |
-| `INTERNAL`               | 500    | Any other error. It is logged, and not returned.      | `null`                            |
+| Code                     | Status | When                                                                                                                             | `details`                         |
+| ------------------------ | ------ | -------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| `VALIDATION`             | 400    | Invalid body or query string                                                                                                     | `{ issues: [{ path, message }] }` |
+| `UNAUTHORIZED`           | 401    | Access rule denies and there is no user                                                                                          | `null`                            |
+| `FORBIDDEN`              | 403    | Access rule denies a signed-in user; CSRF check fails                                                                            | `null`                            |
+| `NOT_FOUND`              | 404    | Unknown document, collection or route                                                                                            | `null`                            |
+| `METHOD_NOT_ALLOWED`     | 405    | For example `POST /posts/:id`. Has an `Allow` header.                                                                            | `null`                            |
+| `CONFLICT`               | 409    | Unique field already used                                                                                                        | `{ field }`                       |
+| `UNSUPPORTED_MEDIA_TYPE` | 415    | Body without `Content-Type: application/json`                                                                                    | `null`                            |
+| `INTERNAL`               | 500    | Any other error, including `ConfigError` (for example `devAuth()` in production). It is logged, and its message is not returned. | `null`                            |
 
 `errorResponse(error)` builds the same response in your own route handlers.
 
@@ -140,23 +139,25 @@ A rejected request returns `403 FORBIDDEN`. The JSON content type also forces a 
 
 ## `GET /_meta`
 
-Returns the collections and [modules](/docs/concepts/plugins-and-modules#modules) the user can read: fields, labels, admin options and `access: { create, update, delete }`.
+Returns `{ title, user, collections, modules }`: the admin title, the current user, and the collections and [modules](/docs/concepts/plugins-and-modules#modules) the user can read, with fields, labels, admin options and `access: { create, update, delete }`.
 
 - Collections whose read rule returns `false` are left out. A rule that returns a filter counts as allowed.
 - Functions (`validate`, function defaults) are not included.
 
 ## Server helpers
 
-| Export                      | Purpose                                                                                  |
-| --------------------------- | ---------------------------------------------------------------------------------------- |
-| `getQuickben(config)`       | Cached instance. The cache is on `globalThis`, so every bundle and dev reload shares it. |
-| `getRequestContext(config)` | `{ user, req }` for local API calls in server components and server actions.             |
-| `getUser(config)`           | The current user, or `null`.                                                             |
-| `currentRequest()`          | A `Request` built from `headers()` and `cookies()` of `next/headers`.                    |
-| `singleton(key, create)`    | One value per process. Use it for database clients created in the config.                |
-| `getMeta(qb, ctx)`          | The `GET /_meta` body.                                                                   |
+| Export                      | Purpose                                                                                                    |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `getQuickben(config)`       | Core's `getQuickben`, re-exported. The cache is on `globalThis`, so every bundle and dev reload shares it. |
+| `getRequestContext(config)` | `{ user, req }` for local API calls in server components and server actions.                               |
+| `getUser(config)`           | The current user, or `null`.                                                                               |
+| `currentRequest()`          | A `Request` built from `headers()` and `cookies()` of `next/headers`.                                      |
+| `singleton(key, create)`    | One value per process. Use it for database clients created in the config.                                  |
+| `getMeta(qb, ctx)`          | The `GET /_meta` body.                                                                                     |
 
-In Next.js apps, use `getQuickben` from `@quickben/next`, not from `@quickben/core`. The core version caches per module copy, and Next.js can load a module more than once.
+`getQuickben` from `@quickben/next` and from `@quickben/core` are the same function.
+
+Other exports: `parseFindParams` / `parseReadParams` (the query string parsers), `collectionMeta` (one collection of `/_meta`), `assertSameOrigin` (the CSRF check, for your own route handlers) and `HttpError`.
 
 **Server component**
 

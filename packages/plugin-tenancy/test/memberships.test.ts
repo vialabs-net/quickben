@@ -147,7 +147,23 @@ describe("membership access", () => {
     const { qb, globex } = await setup();
     await expect(
       qb.create("memberships", { organization: globex.id, user: "eve" }, as(alice)),
+    ).rejects.toMatchObject({ code: "VALIDATION", issues: [{ path: "organization" }] });
+  });
+
+  it("members of a suspended organization cannot manage it", async () => {
+    const { qb, acme, daveAtAcme } = await setup();
+    await qb.update("organizations", acme.id, { status: "suspended" }, as(staff));
+    await expect(
+      qb.create("memberships", { organization: acme.id, user: "eve" }, as(alice)),
     ).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(
+      qb.update("memberships", daveAtAcme.id, { role: "admin" }, as(alice)),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(
+      qb.update("organizations", acme.id, { name: "Renamed" }, as(alice)),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    // Still readable, so the UI can say why.
+    expect((await qb.findById("organizations", acme.id, {}, as(alice))).status).toBe("suspended");
   });
 
   it("platform staff manage any organization", async () => {

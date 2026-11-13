@@ -89,8 +89,8 @@ export const pages = defineCollection({
 
 ## Limits
 
-| Need                         | Today                                              |
-| ---------------------------- | -------------------------------------------------- |
-| A new stored type            | Not supported. Use `json` with a Zod `schema`.     |
-| A custom admin input         | Not supported yet. Planned with `@quickben/admin`. |
-| Reuse options and validation | Supported, as above.                               |
+| Need                         | Today                                                                                                                           |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| A new stored type            | Not supported. Use `json` with a Zod `schema`.                                                                                  |
+| A custom admin input         | Supported: `admin: { component: "name" }` and the `components` option of `createAdminPage`. See [Admin UI](/docs/nextjs/admin). |
+| Reuse options and validation | Supported, as above.                                                                                                            |

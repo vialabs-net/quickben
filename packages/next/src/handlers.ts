@@ -1,10 +1,9 @@
-import { ValidationError } from "@quickben/core";
+import { getQuickben, ValidationError } from "@quickben/core";
 
 import { assertSameOrigin } from "./csrf";
 import { errorResponse, HttpError, json } from "./errors";
 import { getMeta } from "./meta";
 import { parseFindParams, parseReadParams } from "./query-string";
-import { getQuickben } from "./server";
 
 import type { CsrfOptions } from "./csrf";
 import type { Quickben, QuickbenConfig, RequestContext } from "@quickben/core";
@@ -115,7 +114,7 @@ async function handleGet({ qb, ctx, url, segments, maxLimit }: Call): Promise<Re
     return json(await qb.find(slug, query as never, ctx));
   }
   const options = parseReadParams(url.searchParams);
-  return json(await qb.findById(slug, id, { ...ctx, ...(options as object) }));
+  return json(await qb.findById(slug, id, options as never, ctx));
 }
 
 async function handlePost({ qb, ctx, req, segments }: Call): Promise<Response> {

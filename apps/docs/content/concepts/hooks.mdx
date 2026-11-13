@@ -55,11 +55,11 @@ Every hook also gets `user`, `req`, `ctx` (the whole request context), `qb` and 
 
 ## Order of a write
 
-| Operation | Steps                                                                                                                                             |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| create    | access → defaults → `beforeValidate` → validation → related ids → `beforeChange` → access filter on new doc → write → `afterChange` → `afterRead` |
-| update    | load → access (filter must match stored doc) → `beforeValidate` → validation → related ids → `beforeChange` → write → `afterChange` → `afterRead` |
-| delete    | load → access (filter must match) → `beforeDelete` → delete → `afterDelete` → `afterRead`                                                         |
-| read      | access filter AND query → adapter → relations → `afterRead` → `select`                                                                            |
+| Operation | Steps                                                                                                                                                                            |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| create    | access → defaults → `beforeValidate` → validation → related ids → `beforeChange` → access filter on new doc → write → `afterChange` → `afterRead`                                |
+| update    | load → access (filter must match stored doc) → `beforeValidate` → validation → related ids → `beforeChange` → access filter on updated doc → write → `afterChange` → `afterRead` |
+| delete    | load → access (filter must match) → `beforeDelete` → delete → `afterDelete` → `afterRead`                                                                                        |
+| read      | access filter AND query → adapter → relations → `afterRead` → `select`                                                                                                           |
 
 When a collection has `afterRead` hooks, core loads full documents and applies `select` after the hooks.

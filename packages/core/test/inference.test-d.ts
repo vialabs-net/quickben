@@ -188,7 +188,7 @@ describe("local API", () => {
   });
 
   test("depth populates relations", async () => {
-    const post = await qb.findById("posts", "id", { ...ctx, depth: 1 });
+    const post = await qb.findById("posts", "id", { depth: 1 }, ctx);
     expectTypeOf(post.author).toEqualTypeOf<string | InferDoc<typeof users> | null>();
     expectTypeOf(post.tags[0]!).toExtend<string | { label: string }>();
   });

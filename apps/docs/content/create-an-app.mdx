@@ -61,12 +61,12 @@ The directory must be new or empty. The git repository is skipped inside an exis
 
 ## Databases
 
-| `--db`     | Adapter                                          | Driver                 |
-| ---------- | ------------------------------------------------ | ---------------------- |
-| `pglite`   | `@quickben/db-drizzle/pglite`, data in `.pglite` | `@electric-sql/pglite` |
-| `postgres` | `@quickben/db-drizzle/postgres`, `DATABASE_URL`  | `pg`                   |
-| `sqlite`   | `@quickben/db-drizzle/sqlite`, `DATABASE_URL`    | `@libsql/client`       |
-| `memory`   | `@quickben/db-memory`, resets on restart         |                        |
+| `--db`     | Adapter                                                                                                  | Driver                 |
+| ---------- | -------------------------------------------------------------------------------------------------------- | ---------------------- |
+| `pglite`   | `@quickben/db-drizzle/pglite`, data in `PGLITE_DATA_DIR` (default `.pglite`)                             | `@electric-sql/pglite` |
+| `postgres` | `@quickben/db-drizzle/postgres`, `DATABASE_URL`                                                          | `pg`                   |
+| `sqlite`   | `@quickben/db-drizzle/sqlite`, `DATABASE_URL` (default `file:./app.db`), `DATABASE_AUTH_TOKEN` for Turso | `@libsql/client`       |
+| `memory`   | `@quickben/db-memory`, resets on restart                                                                 |                        |
 
 The Drizzle adapters create missing tables on start (`push: true`). Use [migrations](/docs/database-adapters/drizzle#migrations) once the database holds real data.
 

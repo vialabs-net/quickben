@@ -1,3 +1,4 @@
+import { ConfigError } from "@quickben/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createRouteHandlers, toSearchParams } from "../src";
@@ -343,6 +344,21 @@ describe("routing", () => {
       error: { code: "INTERNAL", message: "Internal server error", details: null },
     });
     expect(log).toHaveBeenCalled();
+    log.mockRestore();
+  });
+
+  it("hides the message of server-side Quickben errors", async () => {
+    const config = makeConfig();
+    const failing = createRouteHandlers({
+      ...config,
+      auth: { getUser: () => Promise.reject(new ConfigError("internal config detail")) },
+    });
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const response = await failing.GET(request("GET", "/api/posts"));
+    expect(response.status).toBe(500);
+    expect(await body(response)).toEqual({
+      error: { code: "INTERNAL", message: "Internal server error", details: null },
+    });
     log.mockRestore();
   });
 

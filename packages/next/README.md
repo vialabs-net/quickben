@@ -66,21 +66,20 @@ export const { GET, POST, PATCH, DELETE } = createRouteHandlers(config);
 }
 ```
 
-| Code                     | Status | `details`                                 |
-| ------------------------ | ------ | ----------------------------------------- |
-| `VALIDATION`             | 400    | `{ issues: [{ path, message }] }`         |
-| `UNAUTHORIZED`           | 401    | `null`                                    |
-| `FORBIDDEN`              | 403    | `null` (also CSRF)                        |
-| `NOT_FOUND`              | 404    | `null` (also unknown routes)              |
-| `METHOD_NOT_ALLOWED`     | 405    | `null`, `Allow` header                    |
-| `CONFLICT`               | 409    | `{ field }`                               |
-| `UNSUPPORTED_MEDIA_TYPE` | 415    | `null`                                    |
-| `CONFIG`                 | 500    | `null`                                    |
-| `INTERNAL`               | 500    | `null`; the error is logged, not returned |
+| Code                     | Status | `details`                                                                                      |
+| ------------------------ | ------ | ---------------------------------------------------------------------------------------------- |
+| `VALIDATION`             | 400    | `{ issues: [{ path, message }] }`                                                              |
+| `UNAUTHORIZED`           | 401    | `null`                                                                                         |
+| `FORBIDDEN`              | 403    | `null` (also CSRF)                                                                             |
+| `NOT_FOUND`              | 404    | `null` (also unknown routes)                                                                   |
+| `METHOD_NOT_ALLOWED`     | 405    | `null`, `Allow` header                                                                         |
+| `CONFLICT`               | 409    | `{ field }`                                                                                    |
+| `UNSUPPORTED_MEDIA_TYPE` | 415    | `null`                                                                                         |
+| `INTERNAL`               | 500    | `null`; the error is logged, not returned. Also for 5xx Quickben errors such as `ConfigError`. |
 
 ### `GET /_meta`
 
-Collections (fields, labels, admin options, `access: { create, update, delete }`) and modules the user can read. Collections whose read rule returns `false` are left out. A rule that returns a filter counts as allowed. Functions (`validate`, function defaults) are not included.
+`{ title, user, collections, modules }`: collections (fields, labels, admin options, `access: { create, update, delete }`) and modules the user can read. Collections whose read rule returns `false` are left out. A rule that returns a filter counts as allowed. Functions (`validate`, function defaults) are not included.
 
 ### CSRF
 
@@ -94,14 +93,14 @@ The JSON content type requirement also forces a CORS preflight for cross-site `f
 
 ## Server helpers
 
-| Export                      | Purpose                                                                                     |
-| --------------------------- | ------------------------------------------------------------------------------------------- |
-| `getQuickben(config)`       | Cached instance. The cache lives on `globalThis`, so every bundle and dev reload shares it. |
-| `getRequestContext(config)` | `{ user, req }` for local API calls in server components and server actions.                |
-| `getUser(config)`           | The current user, or `null`.                                                                |
-| `currentRequest()`          | A `Request` built from `headers()` and `cookies()` of `next/headers`.                       |
-| `singleton(key, create)`    | One value per process. Use it for database clients created in the config.                   |
-| `getMeta(qb, ctx)`          | The `GET /_meta` body.                                                                      |
+| Export                      | Purpose                                                                                                       |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `getQuickben(config)`       | Core's `getQuickben`, re-exported. The cache lives on `globalThis`, so every bundle and dev reload shares it. |
+| `getRequestContext(config)` | `{ user, req }` for local API calls in server components and server actions.                                  |
+| `getUser(config)`           | The current user, or `null`.                                                                                  |
+| `currentRequest()`          | A `Request` built from `headers()` and `cookies()` of `next/headers`.                                         |
+| `singleton(key, create)`    | One value per process. Use it for database clients created in the config.                                     |
+| `getMeta(qb, ctx)`          | The `GET /_meta` body.                                                                                        |
 
 ```tsx
 // app/page.tsx

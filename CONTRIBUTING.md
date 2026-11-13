@@ -7,7 +7,7 @@ Requirements: Node.js 24 (see `.nvmrc`; 22.18+ works) and pnpm 12.
 ```sh
 corepack enable          # installs the pnpm version pinned in package.json
 pnpm install
-pnpm lint typecheck test build
+pnpm turbo run lint typecheck test build
 ```
 
 ## Commands

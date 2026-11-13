@@ -34,10 +34,14 @@ Anonymous users read published posts. Signed-in users read all posts and edit on
 | --------- | ------------- | ---------------------------------------------------------------------------- |
 | `read`    | all documents | AND-ed with the query. `findById` of a filtered-out document is `NOT_FOUND`. |
 | `create`  | allowed       | The new document, after hooks, must match.                                   |
-| `update`  | allowed       | The stored document must match.                                              |
+| `update`  | allowed       | The stored document and the updated document must match.                     |
 | `delete`  | allowed       | The stored document must match.                                              |
 
 `false` throws `UnauthorizedError` when there is no user and `ForbiddenError` when there is one.
+
+- `update` and `delete` need read access. A document the user cannot read is `NOT_FOUND`, like `findById`.
+- Relation values must point to documents the user can read. Other ids fail validation, as if they did not exist. `overrideAccess` checks only that they exist. On update, ids the document already stores are not checked again.
+- Rules apply to whole documents. There is no field-level access: `admin.hidden` only hides a field in the admin, and a field removed by an `afterRead` hook can still be used in `where` and `sort`. Keep secrets in a collection that the user cannot read.
 
 ## Defaults
 

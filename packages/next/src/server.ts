@@ -1,14 +1,7 @@
-import { createQuickben } from "@quickben/core";
 import { cookies, headers } from "next/headers";
 import { connection } from "next/server";
 
-import type {
-  Quickben,
-  QuickbenConfig,
-  QuickbenUser,
-  Registry,
-  RequestContext,
-} from "@quickben/core";
+import type { QuickbenConfig, QuickbenUser, RequestContext } from "@quickben/core";
 
 const store = globalThis as typeof globalThis & Record<symbol, unknown>;
 
@@ -25,30 +18,6 @@ export function singleton<T>(key: string, create: () => T): T {
   const symbol = Symbol.for(`quickben.singleton.${key}`);
   if (!(symbol in store)) store[symbol] = create();
   return store[symbol] as T;
-}
-
-const instancesKey = Symbol.for("quickben.next.instances");
-
-function instances(): WeakMap<QuickbenConfig, Promise<Quickben>> {
-  store[instancesKey] ??= new WeakMap<QuickbenConfig, Promise<Quickben>>();
-  return store[instancesKey] as WeakMap<QuickbenConfig, Promise<Quickben>>;
-}
-
-/**
- * Return the Quickben instance for `config`, creating it on first use. Like `getQuickben` from
- * `@quickben/core`, but the cache lives on `globalThis`, so every copy of this module shares it.
- * A failed init is dropped, so the next call retries.
- */
-export function getQuickben<R extends Registry>(config: QuickbenConfig<R>): Promise<Quickben<R>> {
-  const key = config as QuickbenConfig;
-  const cache = instances();
-  let instance = cache.get(key);
-  if (!instance) {
-    instance = createQuickben(key);
-    cache.set(key, instance);
-    instance.catch(() => cache.delete(key));
-  }
-  return instance as unknown as Promise<Quickben<R>>;
 }
 
 /**

@@ -140,16 +140,17 @@ Validation errors from the local API are shown next to their field. The first in
 
 ## `createAdminPage` options
 
-| Option           | Default  | Purpose                                                          |
-| ---------------- | -------- | ---------------------------------------------------------------- |
-| `serverFunction` | built-in | Server function for saves, deletes and relation searches.        |
-| `basePath`       | `/admin` | URL path of the admin route.                                     |
-| `signInHref`     | none     | Link shown to anonymous users who cannot read anything.          |
-| `components`     | `{}`     | Custom field components by name.                                 |
-| `views`          | `{}`     | Replace the list or edit view of a collection, by slug.          |
-| `pages`          | `[]`     | Custom pages inside the admin shell.                             |
-| `nav`            | `[]`     | Extra sidebar links.                                             |
-| `extensions`     | `[]`     | `{ components, views, pages, nav }` from plugins. Applied first. |
+| Option           | Default  | Purpose                                                                   |
+| ---------------- | -------- | ------------------------------------------------------------------------- |
+| `serverFunction` | built-in | Server function for saves, deletes and relation searches.                 |
+| `basePath`       | `/admin` | URL path of the admin route.                                              |
+| `signInHref`     | none     | Link shown to anonymous users who cannot read anything.                   |
+| `components`     | `{}`     | Custom field components by name.                                          |
+| `views`          | `{}`     | Replace the list or edit view of a collection, by slug.                   |
+| `pages`          | `[]`     | Custom pages inside the admin shell.                                      |
+| `nav`            | `[]`     | Extra sidebar links.                                                      |
+| `sidebar`        | `[]`     | Components at the top of the sidebar. Props: `user`, `basePath`.          |
+| `extensions`     | `[]`     | `{ components, views, pages, nav, sidebar }` from plugins. Applied first. |
 
 ## Extensions
 

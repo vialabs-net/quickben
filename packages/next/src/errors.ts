@@ -43,8 +43,9 @@ function details(error: QuickbenError): Record<string, unknown> | null {
 }
 
 /**
- * Turn any thrown value into a JSON error response. Quickben errors keep their code, message
- * and status. Other errors become `500 INTERNAL` with a generic message and are logged.
+ * Turn any thrown value into a JSON error response. Quickben errors with a 4xx status keep
+ * their code, message and status. Other errors, including server-side ones such as
+ * `ConfigError`, become `500 INTERNAL` with a generic message and are logged.
  */
 export function errorResponse(error: unknown): Response {
   if (error instanceof HttpError) {
@@ -54,7 +55,7 @@ export function errorResponse(error: unknown): Response {
       error.headers,
     );
   }
-  if (error instanceof QuickbenError) {
+  if (error instanceof QuickbenError && error.status < 500) {
     return json(
       { error: { code: error.code, message: error.message, details: details(error) } },
       error.status,
