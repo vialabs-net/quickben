@@ -204,16 +204,19 @@ function applyDefaults(collection: SanitizedCollection, data: Record<string, unk
 /**
  * Check that related ids exist and that the user may read them, so a write cannot link to
  * documents the user cannot see (for example another organization's). One query per related
- * collection. `overrideAccess` checks existence only.
+ * collection. `overrideAccess` checks existence only. On update, ids the document already
+ * stores are kept without a check, so a form can send them back unchanged.
  */
 async function assertRelations(
   scope: OperationScope,
   collection: SanitizedCollection,
   data: DocumentData,
+  original: DocumentData | null = null,
 ) {
   for (const field of collection.fieldList) {
     if (field.type !== "relation") continue;
-    const ids = relationIds(data[field.name]);
+    const stored = new Set(relationIds(original?.[field.name]));
+    const ids = relationIds(data[field.name]).filter((id) => !stored.has(id));
     if (ids.length === 0) continue;
     const target = getCollection(scope.collections, field.to);
     const access = await checkAccess(target, "read", scope.ctx, { qb: scope.api });
@@ -356,7 +359,7 @@ async function update(scope: OperationScope, slug: string, id: unknown, input: u
     original,
     user: scope.ctx.user,
   });
-  await assertRelations(scope, collection, parsed);
+  await assertRelations(scope, collection, parsed, original);
   const changed = await runDataHooks(collection.hooks.beforeChange, { ...base, data: parsed });
   const fieldData = { ...changed };
   delete fieldData.id;

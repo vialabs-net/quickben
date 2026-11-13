@@ -40,8 +40,8 @@ export const posts = defineCollection({
 | Item       | Allowed                                                                         |
 | ---------- | ------------------------------------------------------------------------------- |
 | Slug       | Lowercase letters, digits, `-`, `_`. Starts with a letter. Up to 63 characters. |
-| Field name | Letters, digits, `_`. Starts with a letter.                                     |
-| Reserved   | `id`, `createdAt`, `updatedAt`, `and`, `or`                                     |
+| Field name | Letters, digits, `_`. Starts with a letter. Unique without case.                |
+| Reserved   | `id`, `createdAt`, `updatedAt`, `and`, `or`, in any case                        |
 
 ## System fields
 

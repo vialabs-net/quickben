@@ -424,7 +424,14 @@ describe("access", () => {
     await expect(qb.create("links", { hidden: invisible.id }, as(bob))).rejects.toBeInstanceOf(
       ValidationError,
     );
-    await expect(qb.create("links", { secret: theirs.id }, system)).resolves.toBeDefined();
+    const linked = await qb.create("links", { secret: theirs.id }, system);
+    // Ids the document already stores can be sent back unchanged, even when unreadable.
+    expect((await qb.update("links", linked.id, { secret: theirs.id }, as(bob))).secret).toBe(
+      theirs.id,
+    );
+    await expect(
+      qb.update("links", linked.id, { hidden: invisible.id }, as(bob)),
+    ).rejects.toBeInstanceOf(ValidationError);
   });
 
   it("passes the request details to access functions", async () => {

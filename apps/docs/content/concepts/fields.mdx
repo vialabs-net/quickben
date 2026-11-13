@@ -39,7 +39,7 @@ const productFields = {
 | `f.url()`      | string, `http` or `https` only                              | `minLength`, `maxLength` |
 | `f.number()`   | number                                                      | `integer`, `min`, `max`  |
 | `f.boolean()`  | boolean                                                     |                          |
-| `f.date()`     | `"YYYY-MM-DD"`. Input also accepts `Date`.                  |                          |
+| `f.date()`     | `"YYYY-MM-DD"`. Input also accepts `Date` (its UTC date).   |                          |
 | `f.datetime()` | ISO 8601 UTC string. Input also accepts `Date` and offsets. |                          |
 | `f.select()`   | one option, or an array with `many: true`                   | `options`, `many`        |
 | `f.relation()` | id, or ids with `many: true`                                | `to`, `many`             |
@@ -88,7 +88,7 @@ const sku = f.text({
 
 1. Core builds a Zod 4 schema per collection, for create and for update. Unknown keys are rejected.
 2. Field `validate` functions run.
-3. Related ids must exist. Core checks them with one query per related collection.
+3. Related ids must exist and be readable by the user (see [Access control](/docs/concepts/access-control)). Core checks them with one query per related collection.
 4. The adapter enforces `unique`.
 
 Errors are `ValidationError` with `issues: { path, message }[]`. See [Errors](/docs/concepts/errors).

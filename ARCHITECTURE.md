@@ -92,7 +92,7 @@ Rules:
 - `required` fields are never `null`. Other fields are `null` when unset.
 - `many` fields are arrays, never `null` (`[]` when unset). `required` on a `many` field means at least one value. Values must be unique within the array.
 - `default` makes a field optional on create.
-- Slugs: lowercase letters, digits, `-`, `_`. Field names: letters, digits, `_`. `id`, `createdAt`, `updatedAt`, `and`, `or` are reserved.
+- Slugs: lowercase letters, digits, `-`, `_`. Field names: letters, digits, `_`, unique without case (SQLite columns ignore case). `id`, `createdAt`, `updatedAt`, `and`, `or` are reserved, also in other cases.
 - Labels default to the humanized slug and field name.
 
 ### Type inference
@@ -114,7 +114,7 @@ Fields that plugins add with `definePlugin({ addFields })` are inferred. Fields 
 
 - Core builds a Zod 4 schema per collection for create and for update. Unknown keys are rejected.
 - Field `validate(value, { operation, data, original, user })` runs after the schema, for values that are not `null`. It returns `true` or an error message.
-- Related ids must exist and be readable by the user (`overrideAccess`: exist). Core checks them with one query per related collection.
+- Related ids must exist and be readable by the user (`overrideAccess`: exist). Ids an update keeps from the stored document are not checked again. Core checks them with one query per related collection.
 - Unique values are enforced by the adapter, which throws `ConflictError`.
 - Errors are `ValidationError` with `issues: { path, message }[]`.
 
