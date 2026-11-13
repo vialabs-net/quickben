@@ -1,5 +1,3 @@
-import { ConfigError } from "@quickben/core";
-
 import type { Dialect } from "./columns";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import type { BaseSQLiteDatabase } from "drizzle-orm/sqlite-core";
@@ -62,7 +60,7 @@ export interface SqliteOptions extends CommonOptions {
   client?: object;
 }
 
-/** Options of {@link drizzleAdapter}. */
+/** Options of `drizzleAdapter`, by dialect. */
 export type DrizzleAdapterOptions = PostgresOptions | PgliteOptions | SqliteOptions;
 
 /** An open connection. */
@@ -78,99 +76,14 @@ export interface Connection {
   close(): Promise<void>;
 }
 
-const noop = () => Promise.resolve();
+/** Opens the driver of one dialect. Each dialect entry point has its own. */
+export type Connector<O extends DrizzleAdapterOptions = DrizzleAdapterOptions> = (
+  options: O,
+) => Promise<Connection>;
 
-async function connectPostgres(options: PostgresOptions): Promise<Connection> {
-  const { drizzle } = await import("drizzle-orm/node-postgres");
-  if (options.client) {
-    return {
-      db: drizzle({ client: options.client as never }),
-      serialize: false,
-      inMemory: false,
-      close: noop,
-    };
-  }
-  if (!options.url) {
-    throw new ConfigError('drizzleAdapter: dialect "postgres" needs `url` or `client`');
-  }
-  // pg is CommonJS: its exports are on `default`.
-  const { Pool } = (await import("pg")).default;
-  const pool = new Pool({ ...options.pool, connectionString: options.url });
-  return {
-    db: drizzle({ client: pool }),
-    serialize: false,
-    inMemory: false,
-    close: () => pool.end(),
-  };
-}
+/** Options of the `drizzleAdapter` of one dialect entry point. `dialect` may be omitted. */
+export type DialectOptions<O extends DrizzleAdapterOptions> = Omit<O, "dialect"> & {
+  dialect?: O["dialect"];
+};
 
-async function connectPglite(options: PgliteOptions): Promise<Connection> {
-  const { drizzle } = await import("drizzle-orm/pglite");
-  if (options.client) {
-    const client = options.client as { dataDir?: string };
-    return {
-      db: drizzle({ client: options.client as never }),
-      serialize: true,
-      inMemory: isMemoryDir(client.dataDir),
-      close: noop,
-    };
-  }
-  const { PGlite } = await import("@electric-sql/pglite");
-  const client = await PGlite.create(options.dataDir);
-  return {
-    db: drizzle({ client }),
-    serialize: true,
-    inMemory: isMemoryDir(options.dataDir),
-    close: () => client.close(),
-  };
-}
-
-function isMemoryDir(dataDir: string | undefined): boolean {
-  return dataDir === undefined || dataDir.startsWith("memory://");
-}
-
-async function connectSqlite(options: SqliteOptions): Promise<Connection> {
-  const { drizzle } = await import("drizzle-orm/libsql");
-  if (options.client) {
-    const client = options.client as { protocol?: string };
-    return {
-      db: drizzle({ client: options.client as never }),
-      serialize: client.protocol === "file",
-      inMemory: false,
-      close: noop,
-    };
-  }
-  const { createClient } = await import("@libsql/client");
-  const url = options.url ?? ":memory:";
-  const client = createClient({
-    url,
-    ...(options.authToken === undefined ? {} : { authToken: options.authToken }),
-  });
-  return {
-    db: drizzle({ client }),
-    serialize: client.protocol === "file",
-    inMemory: url === ":memory:",
-    close: () => {
-      client.close();
-      return Promise.resolve();
-    },
-  };
-}
-
-/** Open the driver of `options.dialect`. Drivers are loaded on demand. */
-export function connect(options: DrizzleAdapterOptions): Promise<Connection> {
-  switch (options.dialect) {
-    case "postgres":
-      return connectPostgres(options);
-    case "pglite":
-      return connectPglite(options);
-    case "sqlite":
-      return connectSqlite(options);
-    default:
-      return Promise.reject(
-        new ConfigError(
-          `drizzleAdapter: unknown dialect "${String((options as { dialect: unknown }).dialect)}". Use "postgres", "pglite" or "sqlite".`,
-        ),
-      );
-  }
-}
+export const noop = (): Promise<void> => Promise.resolve();

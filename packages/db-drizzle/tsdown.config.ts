@@ -2,7 +2,8 @@ import { defineConfig } from "tsdown";
 
 export default defineConfig([
   {
-    entry: ["src/index.ts"],
+    // One entry per dialect, so a bundler only resolves the driver the app imports.
+    entry: ["src/index.ts", "src/postgres.ts", "src/pglite.ts", "src/sqlite.ts"],
     format: "esm",
     platform: "neutral",
     target: "es2023",

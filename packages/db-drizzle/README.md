@@ -13,23 +13,30 @@ Install only the driver you use. Drivers are optional peer dependencies and load
 
 ## Dialects
 
-```ts
-import { drizzleAdapter } from "@quickben/db-drizzle";
+Each dialect has its own entry point that exports `drizzleAdapter`. A bundler then resolves only the driver you import, so Next.js builds without the other drivers.
 
-drizzleAdapter({ dialect: "postgres", url: process.env.DATABASE_URL });
-drizzleAdapter({ dialect: "pglite" }); // in memory
-drizzleAdapter({ dialect: "pglite", dataDir: "./.pglite", push: true });
-drizzleAdapter({ dialect: "sqlite" }); // :memory:
-drizzleAdapter({ dialect: "sqlite", url: "file:./app.db" });
-drizzleAdapter({ dialect: "sqlite", url: "libsql://app.turso.io", authToken });
+```ts
+import { drizzleAdapter } from "@quickben/db-drizzle/postgres";
+drizzleAdapter({ url: process.env.DATABASE_URL });
+
+import { drizzleAdapter } from "@quickben/db-drizzle/pglite";
+drizzleAdapter(); // in memory
+drizzleAdapter({ dataDir: "./.pglite", push: true });
+
+import { drizzleAdapter } from "@quickben/db-drizzle/sqlite";
+drizzleAdapter(); // :memory:
+drizzleAdapter({ url: "file:./app.db" });
+drizzleAdapter({ url: "libsql://app.turso.io", authToken });
 ```
 
-| Dialect    | Driver                 | Options                                                         |
-| ---------- | ---------------------- | --------------------------------------------------------------- |
-| `postgres` | `pg` (node-postgres)   | `url`, `pool` (extra `pg.Pool` options), or `client` (a `Pool`) |
-| `pglite`   | `@electric-sql/pglite` | `dataDir` (omit for memory), or `client` (a `PGlite`)           |
-| `sqlite`   | `@libsql/client`       | `url` (default `:memory:`), `authToken`, or `client`            |
-| all        |                        | `push`: create missing tables at startup (see below)            |
+| Entry point | Driver                 | Options                                                         |
+| ----------- | ---------------------- | --------------------------------------------------------------- |
+| `/postgres` | `pg` (node-postgres)   | `url`, `pool` (extra `pg.Pool` options), or `client` (a `Pool`) |
+| `/pglite`   | `@electric-sql/pglite` | `dataDir` (omit for memory), or `client` (a `PGlite`)           |
+| `/sqlite`   | `@libsql/client`       | `url` (default `:memory:`), `authToken`, or `client`            |
+| all         |                        | `push`: create missing tables at startup (see below)            |
+
+`dialect` is optional; when given it must match the entry point. The main entry (`@quickben/db-drizzle`) has the types and schema tools. In Next.js, add `serverExternalPackages: ["@electric-sql/pglite"]` for PGlite; Postgres and SQLite need nothing.
 
 The adapter closes only clients it created. PGlite and local SQLite have one connection, so the adapter runs their operations one at a time.
 
