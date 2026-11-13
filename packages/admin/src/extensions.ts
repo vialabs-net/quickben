@@ -7,7 +7,13 @@ const pagePathPattern = /^[a-z][a-z\d-]{0,62}$/;
 
 /** Merge `options.extensions` and the options themselves. Later ones win per name. */
 export function resolveExtensions(options: AdminOptions): ResolvedExtensions {
-  const resolved: ResolvedExtensions = { components: {}, views: {}, pages: [], nav: [] };
+  const resolved: ResolvedExtensions = {
+    components: {},
+    views: {},
+    pages: [],
+    nav: [],
+    sidebar: [],
+  };
   for (const extension of [...(options.extensions ?? []), options]) {
     Object.assign(resolved.components, extension.components);
     for (const [slug, views] of Object.entries(extension.views ?? {})) {
@@ -17,6 +23,7 @@ export function resolveExtensions(options: AdminOptions): ResolvedExtensions {
       resolved.pages = [...resolved.pages.filter((existing) => existing.path !== page.path), page];
     }
     resolved.nav.push(...(extension.nav ?? []));
+    resolved.sidebar.push(...(extension.sidebar ?? []));
   }
   return resolved;
 }

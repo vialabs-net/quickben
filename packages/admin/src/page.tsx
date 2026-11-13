@@ -309,6 +309,13 @@ export function createAdminContent(
         groups={buildNav(meta, extensions, basePath)}
         current={currentKey(route)}
         user={ctx.user}
+        sidebarTop={
+          extensions.sidebar.length > 0
+            ? extensions.sidebar.map((Sidebar, index) => (
+                <Sidebar key={String(index)} user={ctx.user} basePath={basePath} />
+              ))
+            : null
+        }
       >
         {content}
         {toastFor(route, searchParams, metas)}

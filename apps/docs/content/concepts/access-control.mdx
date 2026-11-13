@@ -53,12 +53,14 @@ await qb.create("tags", { name: "news" }, { user: null, overrideAccess: true });
 
 ## Rule arguments
 
-| Argument    | Value                                             |
-| ----------- | ------------------------------------------------- |
-| `user`      | `QuickbenUser` or `null`                          |
-| `req`       | The `Request`, when the call has one              |
-| `operation` | `"read"`, `"create"`, `"update"` or `"delete"`    |
-| `id`        | Document id for `update`, `delete` and `findById` |
-| `data`      | Input data for `create` and `update`              |
+| Argument    | Value                                                   |
+| ----------- | ------------------------------------------------------- |
+| `user`      | `QuickbenUser` or `null`                                |
+| `req`       | The `Request`, when the call has one                    |
+| `ctx`       | The whole request context, with plugin keys             |
+| `qb`        | Local API; `undefined` when UI code calls `checkAccess` |
+| `operation` | `"read"`, `"create"`, `"update"` or `"delete"`          |
+| `id`        | Document id for `update`, `delete` and `findById`       |
+| `data`      | Input data for `create` and `update`                    |
 
 Filters returned by rules use the same [query model](/docs/concepts/query-model) as `find`. They are typed from the collection's fields.

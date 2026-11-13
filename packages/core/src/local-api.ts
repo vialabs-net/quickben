@@ -77,17 +77,20 @@ function assertObject(data: unknown): Record<string, unknown> {
 }
 
 async function readFilter(
+  scope: OperationScope,
   collection: SanitizedCollection,
-  ctx: RequestContext,
   id?: string,
 ): Promise<WhereNode | undefined> {
-  const access = await checkAccess(collection, "read", ctx, id === undefined ? {} : { id });
-  if (access === false) throw accessDenied(ctx, "read", collection.slug);
+  const access = await checkAccess(collection, "read", scope.ctx, {
+    qb: scope.api,
+    ...(id === undefined ? {} : { id }),
+  });
+  if (access === false) throw accessDenied(scope.ctx, "read", collection.slug);
   return access === true ? undefined : access;
 }
 
 function hookArgs(scope: OperationScope, collection: SanitizedCollection): HookArgs {
-  return { user: scope.ctx.user, req: scope.ctx.req, qb: scope.api, collection };
+  return { user: scope.ctx.user, req: scope.ctx.req, ctx: scope.ctx, qb: scope.api, collection };
 }
 
 async function find(scope: OperationScope, slug: string, query: FindQueryInput) {
@@ -101,7 +104,7 @@ async function find(scope: OperationScope, slug: string, query: FindQueryInput) 
   }
   const where = andWhere(
     normalizeWhere(collection, query.where),
-    await readFilter(collection, scope.ctx),
+    await readFilter(scope, collection),
   );
   const loadSelect = fetchSelect(
     collection,
@@ -166,7 +169,7 @@ async function findById(
   const depth = parseDepth(options.depth);
   const where = andWhere(
     { field: "id", op: "eq", value: docId },
-    await readFilter(collection, scope.ctx, docId),
+    await readFilter(scope, collection, docId),
   );
   const row = await scope.db.findOne({
     collection: slug,
@@ -182,7 +185,7 @@ async function count(scope: OperationScope, slug: string, query: { where?: unkno
   const collection = getCollection(scope.collections, slug);
   const where = andWhere(
     normalizeWhere(collection, query.where),
-    await readFilter(collection, scope.ctx),
+    await readFilter(scope, collection),
   );
   return scope.db.count({ collection: slug, where });
 }
@@ -267,6 +270,7 @@ async function assertWriteAccess(
   data?: Record<string, unknown>,
 ) {
   const access = await checkAccess(collection, operation, scope.ctx, {
+    qb: scope.api,
     id: original.id as string,
     ...(data ? { data } : {}),
   });
@@ -278,7 +282,7 @@ async function assertWriteAccess(
 async function create(scope: OperationScope, slug: string, input: unknown) {
   const collection = getCollection(scope.collections, slug);
   const data = assertObject(input);
-  const access = await checkAccess(collection, "create", scope.ctx, { data });
+  const access = await checkAccess(collection, "create", scope.ctx, { data, qb: scope.api });
   if (access === false) throw accessDenied(scope.ctx, "create", slug);
   const base = { ...hookArgs(scope, collection), operation: "create", original: null };
   const prepared = await runDataHooks(collection.hooks.beforeValidate, {

@@ -51,7 +51,7 @@ export const posts = defineCollection({
 | `beforeDelete`   | `id`, `doc`                                     | nothing. Throw to cancel. |
 | `afterDelete`    | `id`, `doc`                                     | nothing                   |
 
-Every hook also gets `user`, `req`, `qb` and `collection`. `qb` is bound to the current transaction. `original` is `null` on create.
+Every hook also gets `user`, `req`, `ctx` (the whole request context), `qb` and `collection`. `qb` is bound to the current transaction. `original` is `null` on create.
 
 ## Order of a write
 

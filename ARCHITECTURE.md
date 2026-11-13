@@ -19,20 +19,20 @@ This file describes what exists. Sections marked **Planned** describe agreed des
 
 ## Repository
 
-| Path                       | Package                                     | Status  |
-| -------------------------- | ------------------------------------------- | ------- |
-| `packages/core`            | `@quickben/core`                            | Exists  |
-| `packages/db-memory`       | `@quickben/db-memory`                       | Exists  |
-| `packages/adapter-tests`   | `@quickben/adapter-tests` (private)         | Exists  |
-| `tooling/tsconfig`         | `@quickben/tsconfig` (private)              | Exists  |
-| `tooling/eslint-config`    | `@quickben/eslint-config` (private)         | Exists  |
-| `packages/db-drizzle`      | `@quickben/db-drizzle`                      | Exists  |
-| `packages/next`            | `@quickben/next`                            | Exists  |
-| `packages/admin`           | `@quickben/admin`                           | Exists  |
-| `packages/plugin-tenancy`  | `@quickben/plugin-tenancy`                  | Planned |
-| `packages/create-quickben` | `create-quickben`                           | Exists  |
-| `apps/docs`                | Nextra site at https://quickben.vialabs.net | Exists  |
-| `apps/playground`          | Next.js app using everything (PGlite)       | Exists  |
+| Path                       | Package                                     | Status |
+| -------------------------- | ------------------------------------------- | ------ |
+| `packages/core`            | `@quickben/core`                            | Exists |
+| `packages/db-memory`       | `@quickben/db-memory`                       | Exists |
+| `packages/adapter-tests`   | `@quickben/adapter-tests` (private)         | Exists |
+| `tooling/tsconfig`         | `@quickben/tsconfig` (private)              | Exists |
+| `tooling/eslint-config`    | `@quickben/eslint-config` (private)         | Exists |
+| `packages/db-drizzle`      | `@quickben/db-drizzle`                      | Exists |
+| `packages/next`            | `@quickben/next`                            | Exists |
+| `packages/admin`           | `@quickben/admin`                           | Exists |
+| `packages/plugin-tenancy`  | `@quickben/plugin-tenancy`                  | Exists |
+| `packages/create-quickben` | `create-quickben`                           | Exists |
+| `apps/docs`                | Nextra site at https://quickben.vialabs.net | Exists |
+| `apps/playground`          | Next.js app using everything (PGlite)       | Exists |
 
 Dependencies point one way: adapters and other packages depend on `@quickben/core` (as a peer dependency). Core depends only on Zod.
 
@@ -108,7 +108,7 @@ Rules:
 
 `getQuickben(config)` returns `Quickben<Registry>`: `qb.find("posts", …)` checks the slug, the filter, `select` and `depth`, and types the result. `select: ["title"]` narrows documents to `{ id, title }`. `depth: 1` types relations as `string | RelatedDoc`.
 
-Fields added to existing collections by plugins (`extendCollection`) are not inferred yet.
+Fields that plugins add with `definePlugin({ addFields })` are inferred. Fields added inside `extendCollections` exist at runtime only.
 
 ### Validation
 
@@ -213,13 +213,13 @@ Writes (`create`, `update`, `delete`) run in one transaction together with their
 | `update`  | allowed             | The stored document must match.                                              |
 | `delete`  | allowed             | The stored document must match.                                              |
 
-`false` throws `UnauthorizedError` without a user and `ForbiddenError` with one. A missing rule allows authenticated users only. Rules receive `{ user, req, operation, id, data }`.
+`false` throws `UnauthorizedError` without a user and `ForbiddenError` with one. A missing rule allows authenticated users only. Rules receive `{ user, req, ctx, qb, operation, id, data }`. `ctx` is the whole request context, including keys added by plugins. `qb` is the local API bound to the current transaction; it is `undefined` when UI code calls `checkAccess` itself.
 
 `checkAccess(collection, operation, ctx)` evaluates a rule without touching data and returns `true`, `false` or a normalized filter. The HTTP layer and the admin use it to decide what to show.
 
 ### Hooks
 
-Arrays per stage, run in order. Each gets `{ user, req, qb, collection }` plus stage data. `qb` is bound to the current transaction.
+Arrays per stage, run in order. Each gets `{ user, req, ctx, qb, collection }` plus stage data. `qb` is bound to the current transaction.
 
 | Hook             | Extra arguments                                 | Return                   |
 | ---------------- | ----------------------------------------------- | ------------------------ |
@@ -238,13 +238,15 @@ A plugin is `(config: PluginConfig) => PluginConfig`. `defineConfig` applies plu
 const audit = definePlugin({
   name: "audit",
   collections: [auditLog], // added first; typed in the registry
+  addFields: { posts: { reviewedBy: fields.text() } }, // then fields on existing collections; typed
   extendCollections: (cs) => cs.map((c) => extendCollection(c, { hooks: { afterChange: [log] } })),
   modules: [{ key: "audit", label: "Audit", collections: ["audit-log"] }],
   onInit: async (qb) => {}, // after the database is ready
 });
 ```
 
-- `definePlugin` throws if the same plugin is applied twice.
+- `definePlugin` throws if the same plugin is applied twice. `addFields` throws for an unknown slug.
+- Registry types: `Plugin<Added, Extends>` carries added collections and added fields (keyed by slug) at type level; `defineConfig` merges them into the registry.
 - `extendCollection(collection, { fields, hooks })` returns a copy; new hooks run after existing ones.
 - **Modules** (`{ key, label, collections, nav }`) group collections into feature areas. They are carried in `config.modules` for the admin sidebar and for tenancy entitlements.
 
@@ -313,10 +315,19 @@ export default createAdminPage(config, { serverFunction }); // async server comp
 - `createAdminPage(config, options)` returns one async server component that renders the shell, dashboard, list, create and edit views and custom pages. Data is loaded on the server with the local API and the current user.
 - Writes and relation searches go through one server function (`AdminRequest` → `AdminResult`). It must be defined in the app's page file so Next.js can load the config when it runs; the built-in fallback only works after the page module has loaded in the process.
 - Client components: form (submit, errors, focus), relation picker, JSON editor, delete confirmation, toast. Everything else is server-rendered.
-- Extensions: `components` (custom field inputs, chosen by `admin.component`), `views` (per collection), `pages`, `nav`, and `extensions` from plugins.
+- Extensions: `components` (custom field inputs, chosen by `admin.component`), `views` (per collection), `pages`, `nav`, `sidebar` (components at the top of the sidebar), and `extensions` from plugins.
 - Styles: Tailwind v4 with the `qb:` prefix, compiled into `@quickben/admin/styles.css`; base styles only inside `.qb-root`, in `@layer base`. Utilities are unlayered, so unlayered app resets do not override them.
 - Cache Components: `createAdminPage` renders its content inside `<Suspense>`. `generateAdminMetadata(config)` gives the page title (`admin.meta`).
 - Build: tsdown `unbundle` keeps one file per module so `"use client"` / `"use server"` directives stay at the top of the published files.
+
+### `@quickben/plugin-tenancy`
+
+- `tenancy({ scope })` adds `organizations` and `memberships` (invitations are memberships with status `invited`), and an `organization` relation (required, indexed, optional in create input) to each scoped collection via `addFields`.
+- Scoped access: the collection's rule AND `{ organization: { eq: active } }`; creates get the active organization; documents cannot move. Reads need the `read` capability, writes `write`; collections in a module need the module.
+- Active organization: `ctx.organizationId`, then a header, then a cookie, then the user's only membership; verified against active memberships. Platform staff (`isPlatformAdmin`) see all organizations or act in one. `OrganizationError` (403) carries a `reason`.
+- Roles are data: capabilities per role, ranked by order. Membership hooks enforce the guard rails: last active owner, no self-demotion for owners and admins, no managing higher roles.
+- Helpers over the local API: `resolveTenant`, `inviteMember`, `acceptInvitation`, `updateMembership`, `removeMember`, `listMyOrganizations`, `listMyInvitations`, `switchOrganization` (returns the cookie), `canUseModule`, `moduleAccess`, `hasCapability`.
+- `@quickben/plugin-tenancy/admin`: `tenancyAdmin(config)` is an admin extension with an organization switcher, a Members page and an Organization settings page. Server actions use a registry keyed by base path, like the admin's default server function.
 
 ## create-quickben
 
@@ -327,12 +338,6 @@ export default createAdminPage(config, { serverFunction }); // async server comp
 - `next.config.ts` turns on Cache Components. The pglite layer adds `@electric-sql/pglite` to `serverExternalPackages`.
 - Changesets releases `create-quickben` and the public `@quickben/*` packages as one `fixed` group, so their versions always match.
 - CI job `create-quickben scaffold` installs a generated app from `pnpm pack` tarballs and runs `next build` and `next start`.
-
-## Planned packages
-
-### Tenancy (`@quickben/plugin-tenancy`)
-
-Organizations, memberships, roles, module entitlements and tenant-scoped collections: an automatic organization field, an access filter and active-organization resolution.
 
 ## Quality
 

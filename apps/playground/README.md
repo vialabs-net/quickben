@@ -30,6 +30,19 @@ pnpm dev          # builds the packages, then http://localhost:3000
 
 An empty database is seeded on start. `pnpm seed` seeds it from the command line, `pnpm db:reset` deletes `./.pglite`.
 
+## Multi-tenancy
+
+Start with `QUICKBEN_TENANCY=1` (or `pnpm dev:tenancy`) to add `@quickben/plugin-tenancy`. Posts, authors and tags then belong to an organization. PGlite data goes to `./.pglite-tenancy`.
+
+| Demo user | Organizations                         |
+| --------- | ------------------------------------- |
+| admin     | Platform staff: every organization.   |
+| editor    | Owner of Acme, admin of Globex.       |
+| viewer    | Viewer in Acme.                       |
+| anonymous | None. The public page shows an error. |
+
+The admin gets an organization switcher in the sidebar, a Members page and an Organization settings page. `e2e/tenancy.spec.ts` runs only in this mode.
+
 ## Roles
 
 Pick a role in the bar at the top. It sets a cookie that the auth adapter turns into a `devAuth` user. Without the cookie you are `admin`.
@@ -48,6 +61,7 @@ Pick a role in the bar at the top. It sets a cookie that the auth adapter turns 
 ```sh
 pnpm --filter @quickben/playground build
 CI=1 pnpm --filter @quickben/playground test:e2e   # Playwright, against `next start`
+CI=1 QUICKBEN_TENANCY=1 QUICKBEN_DB=memory pnpm --filter @quickben/playground test:e2e
 ```
 
 Without `CI` the tests start `next dev` or reuse a server on port 3300.

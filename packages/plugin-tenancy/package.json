@@ -1,0 +1,98 @@
+{
+  "name": "@quickben/plugin-tenancy",
+  "version": "0.0.0",
+  "description": "Multi-tenancy for Quickben: organizations, memberships, roles, module entitlements and tenant-scoped collections.",
+  "keywords": [
+    "quickben",
+    "multi-tenancy",
+    "saas",
+    "organizations",
+    "rbac"
+  ],
+  "homepage": "https://quickben.vialabs.net",
+  "bugs": "https://github.com/vialabs-net/quickben/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vialabs-net/quickben.git",
+    "directory": "packages/plugin-tenancy"
+  },
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./admin": {
+      "types": "./dist/admin/index.d.ts",
+      "default": "./dist/admin/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsdown",
+    "lint": "eslint .",
+    "typecheck": "tsc",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "clean": "rm -rf dist coverage .turbo"
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
+  },
+  "peerDependencies": {
+    "@quickben/admin": "workspace:^",
+    "@quickben/core": "workspace:^",
+    "@quickben/next": "workspace:^",
+    "next": ">=15.0.0",
+    "react": ">=19.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@quickben/admin": {
+      "optional": true
+    },
+    "@quickben/next": {
+      "optional": true
+    },
+    "next": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@quickben/admin": "workspace:^",
+    "@quickben/core": "workspace:^",
+    "@quickben/db-memory": "workspace:^",
+    "@quickben/eslint-config": "workspace:*",
+    "@quickben/next": "workspace:^",
+    "@quickben/tsconfig": "workspace:*",
+    "@testing-library/react": "16.3.3",
+    "@types/node": "22.20.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitest/coverage-v8": "5.1.0",
+    "eslint": "10.14.0",
+    "happy-dom": "21.0.4",
+    "next": "16.4.6",
+    "publint": "0.3.25",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "tsdown": "0.23.7",
+    "typescript": "6.0.3",
+    "vite": "8.3.8",
+    "vitest": "5.1.0"
+  }
+}

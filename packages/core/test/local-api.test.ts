@@ -374,9 +374,56 @@ describe("access", () => {
     });
     const qb = await createQuickben(defineConfig({ db: testAdapter(), collections: [logged] }));
     const req = new Request("https://example.com");
-    await qb.create("logged", { a: "x" }, { user: bob, req });
+    const ctx = { user: bob, req };
+    await qb.create("logged", { a: "x" }, ctx);
     expect(seen).toEqual([
-      { user: bob, req, operation: "create", id: undefined, data: { a: "x" } },
+      {
+        user: bob,
+        req,
+        ctx,
+        qb: expect.objectContaining({ find: expect.any(Function) as unknown }) as unknown,
+        operation: "create",
+        id: undefined,
+        data: { a: "x" },
+      },
+    ]);
+  });
+
+  it("passes the whole context, with plugin keys, to access rules and hooks", async () => {
+    const seen: unknown[] = [];
+    const tagOf = (ctx: object) => (ctx as { tag?: string }).tag;
+    const tagged = defineCollection({
+      slug: "tagged",
+      fields: { a: f.text() },
+      access: {
+        read: ({ ctx, qb }) => {
+          seen.push(["access", tagOf(ctx), typeof qb?.find]);
+          return true;
+        },
+        create: () => true,
+      },
+      hooks: {
+        beforeChange: [
+          ({ ctx }) => {
+            seen.push(["beforeChange", tagOf(ctx)]);
+          },
+        ],
+        afterRead: [
+          ({ ctx }) => {
+            seen.push(["afterRead", tagOf(ctx)]);
+          },
+        ],
+      },
+    });
+    const qb = await createQuickben(defineConfig({ db: testAdapter(), collections: [tagged] }));
+    const ctx = { user: bob, tag: "t1" };
+    await qb.create("tagged", { a: "x" }, ctx);
+    await qb.find("tagged", {}, ctx);
+    expect(seen).toEqual([
+      ["beforeChange", "t1"],
+      ["afterRead", "t1"],
+      ["access", "t1", "function"],
+      ["afterRead", "t1"],
     ]);
   });
 

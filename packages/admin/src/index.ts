@@ -15,5 +15,6 @@ export type {
   PageProps,
   RelationOption,
   SearchParams,
+  SidebarProps,
   ViewProps,
 } from "./types";

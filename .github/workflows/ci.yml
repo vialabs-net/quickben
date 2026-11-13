@@ -121,6 +121,12 @@ jobs:
       - run: pnpm --filter @quickben/playground test:e2e
         env:
           CI: "true"
+      - name: e2e with multi-tenancy (QUICKBEN_TENANCY=1)
+        run: pnpm --filter @quickben/playground test:e2e
+        env:
+          CI: "true"
+          QUICKBEN_TENANCY: "1"
+          QUICKBEN_DB: memory
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()

@@ -1,16 +1,17 @@
-import { humanize } from "./collection";
+import { extendCollection, humanize } from "./collection";
 import { ConfigError } from "./errors";
 
 import type {
   AnyCollection,
+  AnyPlugin,
   ConfigInput,
+  ConfigRegistry,
+  FieldExtensions,
   InitHook,
   Module,
   Plugin,
-  PluginCollections,
   PluginConfig,
   QuickbenConfig,
-  RegistryOf,
   SanitizedCollection,
   SanitizedField,
 } from "./types";
@@ -21,8 +22,8 @@ import type {
  */
 export function defineConfig<
   const C extends readonly AnyCollection[],
-  const P extends readonly Plugin<AnyCollection>[] = [],
->(input: ConfigInput<C, P>): QuickbenConfig<RegistryOf<C[number] | PluginCollections<P[number]>>> {
+  const P extends readonly AnyPlugin[] = [],
+>(input: ConfigInput<C, P>): QuickbenConfig<ConfigRegistry<C[number], P[number]>> {
   let config: PluginConfig = {
     db: input.db,
     collections: [...input.collections],
@@ -93,12 +94,21 @@ function assertModules(modules: readonly Module[], slugs: ReadonlySet<string>) {
 }
 
 /** Input of {@link definePlugin}. */
-export interface PluginDefinition<C extends readonly AnyCollection[]> {
+export interface PluginDefinition<
+  C extends readonly AnyCollection[],
+  X extends FieldExtensions = FieldExtensions,
+> {
   /** Unique plugin name. A plugin cannot be applied twice. */
   name: string;
   /** Collections to add. */
   collections?: C;
-  /** Change the collections (yours and the ones added before). Runs after `collections` are added. */
+  /**
+   * Fields to add to existing collections, keyed by slug: `{ posts: { org: fields.text() } }`.
+   * Runs after `collections` are added. The fields are typed in the registry. An unknown slug
+   * throws `ConfigError`.
+   */
+  addFields?: X;
+  /** Change the collections (yours and the ones added before). Runs after `addFields`. */
   extendCollections?: (collections: readonly AnyCollection[]) => readonly AnyCollection[];
   /** Modules to register. */
   modules?: readonly Module[];
@@ -107,17 +117,23 @@ export interface PluginDefinition<C extends readonly AnyCollection[]> {
 }
 
 /**
- * Define a plugin. The result is a `(config) => config` function that adds collections,
- * changes collections, registers modules and init hooks, in that order.
+ * Define a plugin. The result is a `(config) => config` function that adds collections, adds
+ * fields, changes collections, registers modules and init hooks, in that order.
  */
-export function definePlugin<const C extends readonly AnyCollection[] = []>(
-  definition: PluginDefinition<C>,
-): Plugin<C[number]> {
+export function definePlugin<
+  const C extends readonly AnyCollection[] = [],
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- no fields added
+  const X extends FieldExtensions = {},
+>(definition: PluginDefinition<C, X>): Plugin<C[number], X> {
   const plugin = (config: PluginConfig): PluginConfig => {
     if (config.plugins.includes(definition.name)) {
       throw new ConfigError(`Plugin "${definition.name}" is applied twice`);
     }
-    const added = [...config.collections, ...(definition.collections ?? [])];
+    const added = addFields(
+      definition.name,
+      [...config.collections, ...(definition.collections ?? [])],
+      definition.addFields,
+    );
     return {
       ...config,
       collections: definition.extendCollections ? definition.extendCollections(added) : added,
@@ -127,4 +143,23 @@ export function definePlugin<const C extends readonly AnyCollection[] = []>(
     };
   };
   return plugin;
+}
+
+function addFields(
+  pluginName: string,
+  collections: readonly AnyCollection[],
+  extensions: FieldExtensions | undefined,
+): readonly AnyCollection[] {
+  if (!extensions) return collections;
+  for (const slug of Object.keys(extensions)) {
+    if (!collections.some((collection) => collection.slug === slug)) {
+      throw new ConfigError(
+        `Plugin "${pluginName}" adds fields to unknown collection "${slug}". List the plugin after the one that adds it.`,
+      );
+    }
+  }
+  return collections.map((collection) => {
+    const fields = extensions[collection.slug];
+    return fields ? extendCollection(collection, { fields }) : collection;
+  });
 }

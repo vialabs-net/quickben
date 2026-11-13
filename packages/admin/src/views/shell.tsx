@@ -15,6 +15,8 @@ export interface ShellProps {
   /** Key of the current collection or page, or `null` on the dashboard. */
   current: string | null;
   user: QuickbenUser | null;
+  /** Shown at the top of the sidebar, under the title. */
+  sidebarTop?: ReactNode;
   children: ReactNode;
 }
 
@@ -29,7 +31,15 @@ function linkClass(active: boolean): string {
 }
 
 /** Admin layout: sidebar with navigation and the current user, and the main area. */
-export function Shell({ title, basePath, groups, current, user, children }: Readonly<ShellProps>) {
+export function Shell({
+  title,
+  basePath,
+  groups,
+  current,
+  user,
+  sidebarTop,
+  children,
+}: Readonly<ShellProps>) {
   return (
     <div className="qb-root qb:min-h-screen qb:bg-zinc-50 qb:text-zinc-900 qb:md:flex">
       <a
@@ -47,6 +57,7 @@ export function Shell({ title, basePath, groups, current, user, children }: Read
             {title}
           </Link>
         </div>
+        {sidebarTop ? <div className="qb:space-y-3 qb:px-3 qb:pb-4">{sidebarTop}</div> : null}
         <nav
           aria-label="Admin"
           className="qb:flex qb:flex-wrap qb:gap-x-6 qb:gap-y-4 qb:px-3 qb:pb-4 qb:md:block qb:md:flex-1 qb:md:space-y-5 qb:md:overflow-y-auto"

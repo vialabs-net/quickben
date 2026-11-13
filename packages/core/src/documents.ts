@@ -96,7 +96,14 @@ export async function finishRead(
   const results: DocumentData[] = [];
   for (let doc of docs) {
     for (const hook of hooks) {
-      const args = { doc, user: scope.ctx.user, req: scope.ctx.req, qb: scope.api, collection };
+      const args = {
+        doc,
+        user: scope.ctx.user,
+        req: scope.ctx.req,
+        ctx: scope.ctx,
+        qb: scope.api,
+        collection,
+      };
       const next = await hook(args as never);
       if (next) doc = next as DocumentData;
     }
@@ -172,7 +179,7 @@ async function loadRelated(
   const target = scope.collections.get(slug);
   const byId = new Map<string, DocumentData>();
   if (!target || ids.length === 0) return byId;
-  const access = await checkAccess(target, "read", scope.ctx);
+  const access = await checkAccess(target, "read", scope.ctx, { qb: scope.api });
   if (access === false) return byId;
   const rows = await scope.db.find({
     collection: slug,

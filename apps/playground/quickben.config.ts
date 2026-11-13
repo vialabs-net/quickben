@@ -1,8 +1,10 @@
 import { defineCollection, defineConfig, definePlugin, fields as f } from "@quickben/core";
+import { tenancy } from "@quickben/plugin-tenancy";
 
 import { playgroundAuth } from "./lib/auth";
 import { createDb } from "./lib/db";
 import { seedIfEmpty } from "./lib/seed";
+import { tenancyEnabled } from "./lib/tenancy";
 
 import type { AccessArgs } from "@quickben/core";
 
@@ -94,10 +96,17 @@ const demo = definePlugin({
   onInit: seedIfEmpty,
 });
 
+// With QUICKBEN_TENANCY=1, posts, authors and tags belong to an organization. The demo `admin`
+// user is platform staff: it sees every organization.
+const multiTenant = tenancy({
+  scope: ["posts", "authors", "tags"],
+  isPlatformAdmin: (user) => user.roles?.includes("admin") === true,
+});
+
 const config = defineConfig({
   db: createDb(),
   collections: [authors, tags, posts, settings],
-  plugins: [demo],
+  plugins: tenancyEnabled ? [demo, multiTenant] : [demo],
   auth: playgroundAuth(),
   admin: { title: "Quickben Playground" },
 });

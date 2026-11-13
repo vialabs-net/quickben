@@ -229,6 +229,34 @@ describe("plugins", () => {
     expect(await qb.count("audit", {}, { user: null, overrideAccess: true })).toBe(1);
   });
 
+  it("add fields to existing collections, before extendCollections runs", () => {
+    const seen: string[][] = [];
+    const plugin = definePlugin({
+      name: "org",
+      collections: [audit],
+      addFields: { users: { org: f.text({ index: true }) }, audit: { org: f.text() } },
+      extendCollections: (collections) => {
+        seen.push(collections.map((c) => Object.keys(c.fields).join(",")));
+        return collections;
+      },
+    });
+    const config = defineConfig({ db: testAdapter(), collections: [users], plugins: [plugin] });
+    expect(seen).toEqual([["name,org", "action,org"]]);
+    expect(config.collections[0]!.fieldList.map((field) => field.name)).toEqual(["name", "org"]);
+    expect(config.collections[0]!.fields.org!.index).toBe(true);
+  });
+
+  it("reject fields for unknown collections and existing field names", () => {
+    const unknown = definePlugin({ name: "x", addFields: { leads: { a: f.text() } } });
+    expect(() =>
+      defineConfig({ db: testAdapter(), collections: [users], plugins: [unknown] }),
+    ).toThrow(/adds fields to unknown collection "leads"/);
+    const clash = definePlugin({ name: "y", addFields: { users: { name: f.text() } } });
+    expect(() =>
+      defineConfig({ db: testAdapter(), collections: [users], plugins: [clash] }),
+    ).toThrow(/already exists/);
+  });
+
   it("cannot be applied twice", () => {
     const plugin = definePlugin({ name: "twice" });
     expect(() =>

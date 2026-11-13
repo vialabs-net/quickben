@@ -1,3 +1,4 @@
+import { QuickbenError } from "@quickben/core";
 import { getQuickben, getRequestContext } from "@quickben/next";
 import { Suspense } from "react";
 
@@ -29,11 +30,19 @@ export default function Home() {
 async function Posts() {
   const ctx = await getRequestContext(config);
   const qb = await getQuickben(config);
-  const posts = await qb.find(
-    "posts",
-    { where: { status: { eq: "published" } }, sort: "-publishedAt", limit: 10, depth: 1 },
-    ctx,
-  );
+  let posts;
+  try {
+    posts = await qb.find(
+      "posts",
+      { where: { status: { eq: "published" } }, sort: "-publishedAt", limit: 10, depth: 1 },
+      ctx,
+    );
+  } catch (error) {
+    // With tenancy on, posts belong to an organization: anonymous visitors and users with
+    // several organizations get an access error here.
+    if (!(error instanceof QuickbenError)) throw error;
+    return <p className="lead">{error.message}</p>;
+  }
   return (
     <>
       <p className="lead">

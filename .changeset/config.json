@@ -13,7 +13,8 @@
       "@quickben/core",
       "@quickben/db-drizzle",
       "@quickben/db-memory",
-      "@quickben/next"
+      "@quickben/next",
+      "@quickben/plugin-tenancy"
     ]
   ],
   "linked": [],

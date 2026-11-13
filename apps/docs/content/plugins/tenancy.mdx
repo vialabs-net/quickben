@@ -1,0 +1,219 @@
+---
+title: Multi-tenancy
+description: Organizations, memberships, roles, module entitlements and tenant-scoped collections with @quickben/plugin-tenancy.
+---
+
+# Multi-tenancy
+
+`@quickben/plugin-tenancy` keeps the data of each organization separate. Users belong to organizations through memberships. Each membership has a role, and roles grant capabilities.
+
+```sh
+pnpm add @quickben/plugin-tenancy
+```
+
+## Setup
+
+```ts filename="quickben.config.ts"
+import { defineConfig, devAuth } from "@quickben/core";
+import { memoryAdapter } from "@quickben/db-memory";
+import { tenancy } from "@quickben/plugin-tenancy";
+
+import { posts, tags, users } from "./collections";
+
+export default defineConfig({
+  db: memoryAdapter(),
+  collections: [users, tags, posts],
+  modules: [{ key: "blog", label: "Blog", collections: ["posts", "tags"] }],
+  plugins: [tenancy({ scope: ["posts", "tags"] })],
+  auth: devAuth(),
+});
+```
+
+`posts` and `tags` now have an `organization` field. Every read, update and delete is limited to the active organization. Creates get its id.
+
+```ts filename="types.ts"
+import type { InferDoc, InferRegistry } from "@quickben/core";
+
+import type config from "./quickben.config";
+
+type Post = InferDoc<InferRegistry<typeof config>["posts"]>;
+
+export const organizationOf = (post: Post): string => post.organization;
+```
+
+The field is typed. It is optional in create input because the plugin fills it.
+
+List `tenancy()` after the plugins that add scoped collections.
+
+## What it adds
+
+| Addition             | Fields or behavior                                                                                                                   |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `organizations`      | `name`, `slug` (unique), `status` (`active`, `suspended`), `modules`, `metadata`                                                     |
+| `memberships`        | `organization`, `user`, `email`, `role`, `status` (`invited`, `active`, `disabled`), `modules`, `invitedBy`, `invitedAt`, `joinedAt` |
+| `organization` field | On each collection in `scope`: relation, required, indexed                                                                           |
+| `ctx.organizationId` | Optional key of the request context                                                                                                  |
+
+An invitation is a membership with status `invited`. The creator of an organization becomes its owner.
+
+## Options
+
+| Option                  | Default                                | Purpose                                                    |
+| ----------------------- | -------------------------------------- | ---------------------------------------------------------- |
+| `scope`                 | required                               | Slugs of tenant-scoped collections.                        |
+| `roles`                 | owner, admin, member, viewer           | Capabilities per role, highest rank first.                 |
+| `ownerRole`             | `owner`                                | Every organization keeps one active member with this role. |
+| `defaultRole`           | `member`                               | Role of new memberships.                                   |
+| `isPlatformAdmin`       | `user.roles` includes `platform-admin` | Platform staff.                                            |
+| `canCreateOrganization` | any signed-in user                     | Who may create organizations.                              |
+| `defaultModules`        | `"all"`                                | Modules of a new organization.                             |
+| `header`                | `x-quickben-organization`              | Header with the active organization id.                    |
+| `cookie`                | `quickben-organization`                | Cookie with the active organization id.                    |
+
+## Roles
+
+| Role     | Capabilities                                                                    |
+| -------- | ------------------------------------------------------------------------------- |
+| `owner`  | `read`, `write`, `members:manage`, `organization:manage`, `organization:delete` |
+| `admin`  | `read`, `write`, `members:manage`, `organization:manage`                        |
+| `member` | `read`, `write`                                                                 |
+| `viewer` | `read`                                                                          |
+
+Roles are data. Replace them with your own:
+
+```ts
+import { defaultRoles, tenancy } from "@quickben/plugin-tenancy";
+
+export const plugin = tenancy({
+  scope: ["posts"],
+  roles: { boss: [...defaultRoles.owner, "billing"], staff: ["read", "write"] },
+  ownerRole: "boss",
+  defaultRole: "staff",
+});
+```
+
+## Active organization
+
+| Order | Source                            |
+| ----- | --------------------------------- |
+| 1     | `ctx.organizationId`              |
+| 2     | The header                        |
+| 3     | The cookie                        |
+| 4     | The user's only active membership |
+
+The user must be an active member and the organization must be `active`. Otherwise the call throws `OrganizationError` (403) with a `reason`:
+
+| `reason`     | When                                                             |
+| ------------ | ---------------------------------------------------------------- |
+| `none`       | The user has no active membership.                               |
+| `ambiguous`  | Several memberships and none selected.                           |
+| `not-member` | The selected organization has no active membership for the user. |
+| `unknown`    | The selected organization does not exist.                        |
+| `suspended`  | The organization is suspended.                                   |
+
+Without a user the error is `UnauthorizedError`.
+
+```ts
+import { OrganizationError, resolveTenant } from "@quickben/plugin-tenancy";
+
+try {
+  const tenant = await resolveTenant(qb, { user, req });
+  console.log(tenant.organizationId, tenant.role, tenant.capabilities);
+} catch (error) {
+  if (error instanceof OrganizationError && error.reason === "ambiguous") {
+    // Show an organization picker.
+  }
+}
+```
+
+**Platform staff** (`isPlatformAdmin`) skip the membership and status checks. With nothing selected they see every organization. With an organization selected they act inside it with every capability.
+
+## Scoped collections
+
+| Operation | Rule                                                                                          |
+| --------- | --------------------------------------------------------------------------------------------- |
+| read      | Your rule AND `{ organization: { eq: active } }`. Needs `read`.                               |
+| create    | `organization` is set from the active organization. Another value is rejected. Needs `write`. |
+| update    | Your rule AND the organization filter. A document cannot move. Needs `write`.                 |
+| delete    | Your rule AND the organization filter. Needs `write`.                                         |
+
+Anonymous users are denied. If the collection belongs to a module, the user also needs the module.
+
+## Modules
+
+Organizations enable modules from `config.modules` in `organization.modules`. Only platform staff change that list. A membership grants a subset in `membership.modules`; an empty list grants every module of the organization.
+
+```ts
+import { defineCollection, fields as f } from "@quickben/core";
+import { canUseModule, moduleAccess } from "@quickben/plugin-tenancy";
+
+export const reports = defineCollection({
+  slug: "reports",
+  fields: { name: f.text({ required: true }) },
+  access: moduleAccess("reports", { read: () => true }),
+});
+
+export const showReports = await canUseModule(qb, { user }, "reports");
+```
+
+Use `moduleAccess` for collections outside `scope`.
+
+## Guard rails
+
+| Rule                                                                            | Error             |
+| ------------------------------------------------------------------------------- | ----------------- |
+| Membership changes need `members:manage` in the organization.                   | `ForbiddenError`  |
+| The last active owner cannot be demoted, disabled or removed.                   | `ForbiddenError`  |
+| Owners and admins cannot change their own role or status, or remove themselves. | `ForbiddenError`  |
+| Nobody grants or manages a role ranked above their own.                         | `ForbiddenError`  |
+| A membership keeps its organization, and its user once set.                     | `ValidationError` |
+| Granted modules must be enabled for the organization.                           | `ValidationError` |
+| One membership per user or email per organization.                              | `ConflictError`   |
+
+Platform staff and `overrideAccess` skip the role rules. The last-owner rule always applies.
+
+## Helpers
+
+Each helper takes `(qb, ctx, …)` and calls the local API, so access rules apply.
+
+| Helper                | Purpose                                                       |
+| --------------------- | ------------------------------------------------------------- |
+| `resolveTenant`       | Active organization, membership, role, capabilities, modules. |
+| `hasCapability`       | Check one capability in the active organization.              |
+| `canUseModule`        | Check one module in the active organization.                  |
+| `listMyOrganizations` | The user's active memberships with organizations, by name.    |
+| `listMyInvitations`   | Pending invitations for the user's id or email.               |
+| `inviteMember`        | Create an `invited` membership.                               |
+| `acceptInvitation`    | Make an invitation `active` for the current user.             |
+| `updateMembership`    | Change role, status or modules.                               |
+| `removeMember`        | Delete a membership.                                          |
+| `switchOrganization`  | Check access and return the cookie to set.                    |
+
+```ts
+import { inviteMember, switchOrganization } from "@quickben/plugin-tenancy";
+
+const ctx = { user, req };
+await inviteMember(qb, ctx, { email: "ana@example.com", role: "viewer" });
+
+const { cookie } = await switchOrganization(qb, ctx, "org-id");
+// In a server action: (await cookies()).set(cookie.name, cookie.value, cookie.options)
+```
+
+## Admin UI
+
+```tsx nocheck filename="app/admin/[[...segments]]/page.tsx"
+import { createAdminPage } from "@quickben/admin";
+import { tenancyAdmin } from "@quickben/plugin-tenancy/admin";
+
+import config from "../../../quickben.config";
+
+export default createAdminPage(config, { extensions: [tenancyAdmin(config)] });
+```
+
+| Part                  | What it does                                                                            |
+| --------------------- | --------------------------------------------------------------------------------------- |
+| Sidebar switcher      | Pick the active organization. Platform staff can pick any, or all.                      |
+| `/admin/members`      | List members, invite, change role, status and modules, remove.                          |
+| `/admin/organization` | Rename the organization. Platform staff set status and modules. Create an organization. |
+
+All changes go through the helpers above, so the guard rails apply. The playground runs this with `QUICKBEN_TENANCY=1`.

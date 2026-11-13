@@ -1,6 +1,13 @@
 import { describe, expectTypeOf, test } from "vitest";
 
-import { defineCollection, definePlugin, defineConfig, fields as f, getQuickben } from "../src";
+import {
+  defineCollection,
+  definePlugin,
+  defineConfig,
+  extendCollection,
+  fields as f,
+  getQuickben,
+} from "../src";
 
 import { users } from "./fixtures";
 
@@ -13,7 +20,9 @@ import type {
   InferUpdateInput,
   InferWhere,
   JsonValue,
+  Plugin,
   Quickben,
+  RelationField,
   RequestContext,
 } from "../src";
 import type { makeConfig, posts } from "./fixtures";
@@ -252,5 +261,82 @@ describe("plugins", () => {
     const withPlugin = defineConfig({ db, collections: [users], plugins: [plugin] });
     expectTypeOf(withPlugin).toHaveProperty("collections");
     expectTypeOf<keyof InferRegistry<typeof withPlugin>>().toEqualTypeOf<"users" | "audit">();
+  });
+
+  const notes = defineCollection({ slug: "notes", fields: { text: f.text({ required: true }) } });
+
+  test("fields added with addFields are inferred", async () => {
+    const plugin = definePlugin({
+      name: "org",
+      addFields: { notes: { org: f.text({ required: true, index: true }) } },
+    });
+    const withPlugin = defineConfig({ db, collections: [users, notes], plugins: [plugin] });
+    type R = InferRegistry<typeof withPlugin>;
+    type Note = InferDoc<R["notes"]>;
+    expectTypeOf<Note["org"]>().toEqualTypeOf<string>();
+    expectTypeOf<Note["text"]>().toEqualTypeOf<string>();
+    expectTypeOf<R["users"]>().toEqualTypeOf<typeof users>();
+    expectTypeOf<{ org: { eq: "o1" } }>().toExtend<InferWhere<R["notes"]>>();
+    expectTypeOf<"-org">().toExtend<InferSort<R["notes"]>>();
+
+    const typed = await getQuickben(withPlugin);
+    const page = await typed.find("notes", { where: { org: { eq: "o1" } }, select: ["org"] }, ctx);
+    expectTypeOf(page.docs[0]!).toEqualTypeOf<{ id: string; org: string }>();
+    // @ts-expect-error org is required on create
+    await typed.create("notes", { text: "x" }, ctx);
+    await typed.create("notes", { text: "x", org: "o1" }, ctx);
+  });
+
+  test("extensions from several plugins merge", () => {
+    const first = definePlugin({ name: "a", addFields: { notes: { a: f.number() } } });
+    const second = definePlugin({ name: "b", addFields: { notes: { b: f.boolean() } } });
+    const merged = defineConfig({ db, collections: [notes], plugins: [first, second] });
+    expectTypeOf(merged).toHaveProperty("collections");
+    type Note = InferDoc<InferRegistry<typeof merged>["notes"]>;
+    expectTypeOf<Note["a"]>().toEqualTypeOf<number | null>();
+    expectTypeOf<Note["b"]>().toEqualTypeOf<boolean | null>();
+  });
+
+  test("a plugin can extend a collection added by an earlier plugin", () => {
+    const audit = defineCollection({ slug: "audit", fields: { action: f.text() } });
+    const adds = definePlugin({ name: "adds", collections: [audit] });
+    const extends_ = definePlugin({ name: "ext", addFields: { audit: { by: f.text() } } });
+    const both = defineConfig({ db, collections: [users], plugins: [adds, extends_] });
+    expectTypeOf(both).toHaveProperty("collections");
+    expectTypeOf<InferDoc<InferRegistry<typeof both>["audit"]>["by"]>().toEqualTypeOf<
+      string | null
+    >();
+  });
+
+  test("hand-written plugins declare extensions with the Plugin type", () => {
+    const tagField = f.select({ options: ["a", "b"], required: true });
+    expectTypeOf(tagField.type).toEqualTypeOf<"select">();
+    const handWritten = ((config) => config) as Plugin<never, { notes: { tag: typeof tagField } }>;
+    const withPlugin = defineConfig({ db, collections: [notes], plugins: [handWritten] });
+    expectTypeOf(withPlugin).toHaveProperty("collections");
+    expectTypeOf<InferDoc<InferRegistry<typeof withPlugin>["notes"]>["tag"]>().toEqualTypeOf<
+      "a" | "b"
+    >();
+  });
+
+  test("extendCollection on a collection is inferred", () => {
+    const extended = extendCollection(notes, { fields: { pinned: f.boolean({ required: true }) } });
+    const direct = defineConfig({ db, collections: [extended] });
+    expectTypeOf(direct).toHaveProperty("collections");
+    expectTypeOf<
+      InferDoc<InferRegistry<typeof direct>["notes"]>["pinned"]
+    >().toEqualTypeOf<boolean>();
+  });
+
+  test("a relation typed with a default is optional on create", () => {
+    type Filled = RelationField<"users", false, true, true>;
+    const owned = defineCollection({
+      slug: "owned",
+      fields: { owner: f.relation({ to: "users", required: true }) as unknown as Filled },
+    });
+    expectTypeOf(owned.slug).toEqualTypeOf<"owned">();
+    expectTypeOf<InferDoc<typeof owned>["owner"]>().toEqualTypeOf<string>();
+    expectTypeOf<InferCreateInput<typeof owned>["owner"]>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<InferCreateInput<typeof posts>>().toHaveProperty("title");
   });
 });

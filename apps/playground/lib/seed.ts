@@ -1,6 +1,41 @@
+import { demoOrganizations, tenancyEnabled } from "./tenancy";
+
 import type { Quickben, RequestContext } from "@quickben/core";
 
 const system: RequestContext = { user: null, overrideAccess: true };
+
+/**
+ * With tenancy on: the demo organizations and memberships. Returns the context to seed the
+ * content of the first organization, and the number of documents created.
+ */
+async function seedTenancy(tx: Quickben): Promise<{ ctx: RequestContext; created: number }> {
+  if (!tenancyEnabled) return { ctx: system, created: 0 };
+  let created = 0;
+  const ids: string[] = [];
+  for (const org of demoOrganizations) {
+    const doc = await tx.create("organizations", { name: org.name, slug: org.slug }, system);
+    ids.push(doc.id);
+    created += 1;
+    for (const member of org.members) {
+      await tx.create("memberships", { organization: doc.id, ...member, status: "active" }, system);
+      created += 1;
+    }
+  }
+  const [acme, globex] = ids;
+  const inGlobex = { ...system, organizationId: globex ?? "" };
+  const author = await tx.create("authors", { name: "Globex Writer" }, inGlobex);
+  await tx.create(
+    "posts",
+    {
+      title: "Hello from Globex",
+      slug: "hello-from-globex",
+      status: "published",
+      author: author.id,
+    },
+    inGlobex,
+  );
+  return { ctx: { ...system, organizationId: acme ?? "" }, created: created + 2 };
+}
 
 /** Fill the playground with demo data when it has no posts yet. */
 export async function seedIfEmpty(qb: Quickben): Promise<void> {
@@ -12,6 +47,8 @@ export async function seedIfEmpty(qb: Quickben): Promise<void> {
 export async function seed(qb: Quickben): Promise<{ created: number }> {
   let created = 0;
   await qb.transaction(async (tx) => {
+    const tenancy = await seedTenancy(tx);
+    const system = tenancy.ctx;
     const ada = await tx.create(
       "authors",
       { name: "Ada Lovelace", email: "ada@example.com", bio: "Writes about engines." },
@@ -91,7 +128,7 @@ export async function seed(qb: Quickben): Promise<{ created: number }> {
       { key: "features", value: { comments: false, newsletter: true } },
       system,
     );
-    created = 3 + tagNames.length + titles.length + 2;
+    created = tenancy.created + 3 + tagNames.length + titles.length + 2;
   });
   return { created };
 }
