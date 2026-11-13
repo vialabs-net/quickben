@@ -14,3 +14,6 @@ out/
 .vscode/*
 !.vscode/extensions.json
 .idea/
+next-env.d.ts
+test-results/
+playwright-report/
