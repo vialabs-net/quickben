@@ -74,6 +74,8 @@ The adapter follows the query model of `@quickben/core` and passes `@quickben/ad
 | Unique violations          | `ConflictError` (code `23505`)      | `ConflictError` (`SQLITE_CONSTRAINT_UNIQUE`, `_PRIMARYKEY`) |
 | Transactions               | Drizzle transactions                | Drizzle transactions                                        |
 
+On SQLite, `contains` and `startsWith` ignore case for ASCII letters only. `{ title: { contains: "émile" } }` finds `émile` but not `Émile`. Postgres and the memory adapter find both.
+
 Sorting and filters use the same collation, so cursors work with any database collation.
 
 ## Custom queries
