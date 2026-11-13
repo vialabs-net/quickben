@@ -6,6 +6,7 @@ const meta: MetaRecord = {
   "create-an-app": "Create an app",
   concepts: "Concepts",
   "database-adapters": "Database adapters",
+  auth: "Auth",
   nextjs: "Next.js integration",
   playground: "Playground",
   plugins: "Plugins",

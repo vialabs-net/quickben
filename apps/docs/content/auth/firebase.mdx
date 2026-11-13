@@ -1,0 +1,197 @@
+---
+title: Firebase
+description: Firebase Authentication with session cookies, a sign-in route, Google One Tap and a sign-in page, with @quickben/auth-firebase.
+---
+
+# Firebase
+
+`@quickben/auth-firebase` signs users in with Firebase Authentication and keeps them signed in with a Firebase session cookie.
+
+```sh
+pnpm add @quickben/auth-firebase firebase-admin firebase
+```
+
+| Entry                            | Runs in | Contents                                                      |
+| -------------------------------- | ------- | ------------------------------------------------------------- |
+| `@quickben/auth-firebase`        | server  | `firebaseAuth()`: the auth adapter and the session route      |
+| `@quickben/auth-firebase/client` | browser | `createSessionClient()`, `useGoogleOneTap()`, `SessionKeeper` |
+| `@quickben/auth-firebase/admin`  | browser | `FirebaseSignInPage`                                          |
+
+## How a sign-in works
+
+1. The browser signs in with the Firebase client SDK (Google popup, One Tap, or email and password).
+2. It posts the ID token to the session route.
+3. The route verifies the token, checks that the sign-in is recent and not revoked, and sets an `HttpOnly` session cookie made by `createSessionCookie`.
+4. The browser signs the Firebase client out. The cookie is the only session.
+5. On each request, `getUser` verifies the cookie with `verifySessionCookie`.
+
+## Setup
+
+```ts filename="lib/auth.ts"
+import { firebaseAuth } from "@quickben/auth-firebase";
+
+export const firebase = firebaseAuth({ roles: "roles" });
+```
+
+```ts filename="quickben.config.ts"
+import { defineConfig } from "@quickben/core";
+import { memoryAdapter } from "@quickben/db-memory";
+
+import { firebase } from "./lib/auth";
+
+export default defineConfig({ db: memoryAdapter(), collections: [], auth: firebase });
+```
+
+```ts filename="app/api/auth/session/route.ts"
+import { firebase } from "../../../../lib/auth";
+
+export const { GET, POST, DELETE } = firebase.handlers;
+```
+
+`firebase-admin` uses Application Default Credentials (`initializeApp()`) unless your app created an app first. Pass `auth: getAuth(app)` to use another one.
+
+## Options
+
+| Option                 | Default     | Purpose                                                                                     |
+| ---------------------- | ----------- | ------------------------------------------------------------------------------------------- |
+| `auth`                 | default app | The `firebase-admin` Auth API, or a function that returns it.                               |
+| `cookieName`           | `__session` | Session cookie. Firebase Hosting forwards only `__session`.                                 |
+| `cookie`               | `{}`        | `path`, `domain`, `sameSite` (`lax`), `secure` (on https).                                  |
+| `sessionMaxAge`        | 5 days      | Session lifetime in seconds. 5 minutes to 14 days.                                          |
+| `checkRevoked`         | `true`      | Check revocation on every request. Costs one call to Firebase per request.                  |
+| `maxAuthAge`           | `300`       | A session needs a sign-in this recent, in seconds. `0` turns it off.                        |
+| `requireVerifiedEmail` | `false`     | Refuse sessions for unverified emails.                                                      |
+| `roles`                | `"roles"`   | Custom claim with the roles, or a function of the claims.                                   |
+| `resolveUser`          | none        | Gets the claims and the default user. Return another user, or `null` to refuse the account. |
+| `bearer`               | `false`     | Also accept `Authorization: Bearer <ID token>`.                                             |
+| `revokeOnSignOut`      | `false`     | Sign-out revokes refresh tokens: the user is signed out on every device.                    |
+| `csrf`                 | same origin | `trustedOrigins` for the session route.                                                     |
+
+## User mapping
+
+| `QuickbenUser`  | From                                                         |
+| --------------- | ------------------------------------------------------------ |
+| `id`            | `uid`                                                        |
+| `email`         | `email`                                                      |
+| `emailVerified` | `email_verified === true`                                    |
+| `roles`         | the `roles` claim (array or string), or the `roles` function |
+
+Set roles with `getAuth().setCustomUserClaims(uid, { roles: ["admin"] })`. Users get the new claims at their next sign-in.
+
+Only provisioned accounts:
+
+```ts filename="lib/provisioned.ts"
+import { firebaseAuth } from "@quickben/auth-firebase";
+
+const staff = new Map([["ada@example.com", { id: "user-1", roles: ["admin"] }]]);
+
+export const firebase = firebaseAuth({
+  requireVerifiedEmail: true,
+  resolveUser: (claims, user) => {
+    const known = claims.email ? staff.get(claims.email.toLowerCase()) : undefined;
+    return known ? { ...user, ...known } : null;
+  },
+});
+```
+
+## Session route
+
+| Method   | Body                    | Response                                                                       |
+| -------- | ----------------------- | ------------------------------------------------------------------------------ |
+| `POST`   | `{ idToken, remember }` | `{ user }` and `Set-Cookie`. `remember: false` gives a browser-session cookie. |
+| `GET`    | none                    | `{ user }`, `null` when signed out.                                            |
+| `DELETE` | none                    | `{ user: null }` and a cookie that clears it.                                  |
+
+`POST` and `DELETE` need a same-origin request. `POST` needs `Content-Type: application/json`. A refused sign-in also clears the old cookie. Errors have the usual shape with a reason in `error.details.reason`:
+
+| Status | `reason`             | When                                                     |
+| ------ | -------------------- | -------------------------------------------------------- |
+| 400    | `invalid-request`    | The body is not `{ idToken, remember? }`.                |
+| 401    | `invalid-token`      | The ID token is invalid or expired.                      |
+| 401    | `revoked`            | The user's tokens were revoked, or the user is disabled. |
+| 401    | `stale-sign-in`      | The sign-in is older than `maxAuthAge`.                  |
+| 403    | `email-not-verified` | With `requireVerifiedEmail`.                             |
+| 403    | `not-provisioned`    | `resolveUser` returned `null`.                           |
+
+## Browser client
+
+```tsx filename="app/sign-in/buttons.tsx"
+"use client";
+
+import { createSessionClient, useGoogleOneTap } from "@quickben/auth-firebase/client";
+
+const client = createSessionClient({
+  firebaseConfig: { apiKey: "…", authDomain: "example.firebaseapp.com", projectId: "example" },
+});
+
+export function SignInButtons({ googleClientId }: Readonly<{ googleClientId: string }>) {
+  const done = () => {
+    globalThis.location.assign("/admin");
+  };
+  useGoogleOneTap({
+    clientId: googleClientId,
+    onCredential: (idToken) => void client.signInWithGoogleIdToken(idToken).then(done),
+  });
+  return (
+    <button type="button" onClick={() => void client.signInWithGoogle().then(done)}>
+      Continue with Google
+    </button>
+  );
+}
+```
+
+| Method                                | Does                                                   |
+| ------------------------------------- | ------------------------------------------------------ |
+| `signInWithGoogle({ remember })`      | Google popup with the account chooser, then the route. |
+| `signInWithGoogleIdToken(idToken)`    | A One Tap credential, then the route.                  |
+| `signInWithPassword(email, password)` | Email and password, then the route.                    |
+| `createSession(user)`                 | Post the ID token of a Firebase user you signed in.    |
+| `signOut()`                           | `DELETE` on the route.                                 |
+| `getSessionUser()`                    | `GET` on the route.                                    |
+
+Failures throw `SessionRequestError` with `status`, `code` and `reason`.
+
+`useGoogleOneTap({ clientId, onCredential, enabled })` shows the One Tap prompt only while the tab is visible and cancels it when the tab is hidden. `clientId` is the OAuth web client id of the Firebase project; add your origin to its authorized JavaScript origins.
+
+## Account changes in other tabs
+
+All tabs share the session cookie. Render `SessionKeeper` once in a layout so a tab never shows one user's data while its requests run as another user.
+
+```tsx filename="app/admin/keeper.tsx"
+import { SessionKeeper } from "@quickben/auth-firebase/client";
+import { getUser } from "@quickben/next";
+
+import config from "../../quickben.config";
+
+export async function Keeper() {
+  const user = await getUser(config);
+  return <SessionKeeper userId={user?.id ?? null} />;
+}
+```
+
+| Event                                          | Detected by                                                            |
+| ---------------------------------------------- | ---------------------------------------------------------------------- |
+| Another tab signs in as someone else, or out   | the `storage` event (the client writes the user id to `localStorage`)  |
+| The session ended elsewhere (expired, revoked) | `GET` on the route when the tab becomes visible, at most once a minute |
+
+The default reaction is a page reload. `useSessionKeeper({ userId, onChange })` takes your own handler.
+
+## Sign-in page
+
+```tsx filename="app/sign-in/page.tsx"
+import "@quickben/admin/styles.css";
+
+import { FirebaseSignInPage } from "@quickben/auth-firebase/admin";
+
+export default function SignIn() {
+  return (
+    <FirebaseSignInPage
+      firebaseConfig={{ apiKey: "…", authDomain: "example.firebaseapp.com", projectId: "example" }}
+      googleClientId="1234-abc.apps.googleusercontent.com"
+      methods={["google", "password"]}
+    />
+  );
+}
+```
+
+It uses the admin's styles. After sign-in it loads `?next=` when that is a path on your site, else `redirectTo` (`/admin`). Pass `signInHref: "/sign-in"` to `createAdminPage`.

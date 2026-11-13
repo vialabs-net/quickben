@@ -10,10 +10,13 @@
     [
       "create-quickben",
       "@quickben/admin",
+      "@quickben/auth-better-auth",
+      "@quickben/auth-firebase",
       "@quickben/core",
       "@quickben/db-drizzle",
       "@quickben/db-memory",
       "@quickben/next",
+      "@quickben/plugin-connections",
       "@quickben/plugin-templates",
       "@quickben/plugin-tenancy"
     ]

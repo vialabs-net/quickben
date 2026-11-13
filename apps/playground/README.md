@@ -47,6 +47,23 @@ Start with `QUICKBEN_TENANCY=1` (or `pnpm dev:tenancy`) to add `@quickben/plugin
 
 The admin gets an organization switcher in the sidebar, a Members page and an Organization settings page. `e2e/tenancy.spec.ts` runs only in this mode.
 
+## Better Auth
+
+Start with `QUICKBEN_AUTH=better-auth` (or `pnpm dev:better-auth`) to sign in with `@quickben/auth-better-auth` instead of the role switcher. Users are stored in SQLite (`node:sqlite`) in `./.better-auth.sqlite`, or in memory with `QUICKBEN_DB=memory`.
+
+| Account              | Password              | Role   |
+| -------------------- | --------------------- | ------ |
+| `admin@example.com`  | `playground-password` | admin  |
+| `editor@example.com` | `playground-password` | editor |
+| `viewer@example.com` | `playground-password` | viewer |
+| a new account        | your choice           | viewer |
+
+Sign in at `/sign-in`. `e2e/better-auth.spec.ts` runs only in this mode.
+
+## Connections
+
+Start with `QUICKBEN_CONNECTIONS=1` (or `pnpm dev:connections`) to add `@quickben/plugin-connections`. The admin gets an Integrations group with Connections and Credentials. Secrets use `QUICKBEN_MASTER_KEY`, or a fixed demo key when it is unset. `e2e/connections.spec.ts` runs only in this mode; it tests an HTTP API connection against the playground's own `/api/_meta`.
+
 ## Roles
 
 Pick a role in the bar at the top. It sets a cookie that the auth adapter turns into a `devAuth` user. Without the cookie you are `admin`.
