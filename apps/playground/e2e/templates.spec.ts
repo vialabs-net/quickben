@@ -3,8 +3,9 @@ import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
 // The templates plugin is on in every e2e run (see playwright.config.ts): this runs with and
-// without tenancy.
+// without tenancy. It uses the demo role switcher, which Better Auth replaces.
 test.skip(process.env.QUICKBEN_TEMPLATES === "0", "needs QUICKBEN_TEMPLATES=1");
+test.skip(process.env.QUICKBEN_AUTH === "better-auth", "uses the demo users");
 
 const tenancy = process.env.QUICKBEN_TENANCY === "1";
 
