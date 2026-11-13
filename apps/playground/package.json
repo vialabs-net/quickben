@@ -1,0 +1,42 @@
+{
+  "name": "@quickben/playground",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Next.js app that uses Quickben end to end. Runs with no external services.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --port 3000",
+    "build": "next build",
+    "start": "next start --port 3000",
+    "seed": "tsx scripts/seed.ts",
+    "lint": "eslint .",
+    "typecheck": "next typegen && tsc",
+    "test:e2e": "playwright test",
+    "clean": "rm -rf .next .turbo test-results playwright-report",
+    "db:reset": "rm -rf .pglite"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "0.5.16",
+    "@quickben/admin": "workspace:*",
+    "@quickben/core": "workspace:*",
+    "@quickben/db-drizzle": "workspace:*",
+    "@quickben/db-memory": "workspace:*",
+    "@quickben/next": "workspace:*",
+    "drizzle-orm": "0.45.4",
+    "next": "16.4.6",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.0",
+    "@quickben/eslint-config": "workspace:*",
+    "@quickben/tsconfig": "workspace:*",
+    "@types/node": "22.20.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "eslint": "10.14.0",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3"
+  }
+}

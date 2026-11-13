@@ -39,9 +39,14 @@ const page = await qb.find(
 | --------------------------------------------------- | --------------------------------------------------------------------------------- |
 | [`@quickben/core`](packages/core)                   | Config, fields, collections, access, hooks, plugins, local API, adapter contract. |
 | [`@quickben/db-memory`](packages/db-memory)         | In-memory database adapter for tests and demos.                                   |
+| [`@quickben/db-drizzle`](packages/db-drizzle)       | Drizzle ORM adapter: Postgres, PGlite and SQLite (libSQL).                        |
+| [`@quickben/next`](packages/next)                   | Next.js REST route handlers and server helpers.                                   |
+| [`@quickben/admin`](packages/admin)                 | Admin UI generated from collections.                                              |
 | [`@quickben/adapter-tests`](packages/adapter-tests) | Contract tests every database adapter must pass. Private.                         |
 
-Planned: `@quickben/db-drizzle` (Postgres, PGlite, SQLite), `@quickben/next` (route handlers), `@quickben/admin`, `@quickben/plugin-tenancy`.
+[`apps/playground`](apps/playground) uses everything: `pnpm dev`, then open http://localhost:3000/admin.
+
+Planned: `@quickben/plugin-tenancy`.
 
 ## Requirements
 

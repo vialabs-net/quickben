@@ -1,9 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  checkAccess,
   ConfigError,
   ConflictError,
+  defineCollection,
+  defineConfig,
   devAuth,
+  fields,
   ForbiddenError,
   NotFoundError,
   QuickbenError,
@@ -11,6 +15,8 @@ import {
   ValidationError,
 } from "../src";
 import { uuidv7 } from "../src/id";
+
+import { testAdapter } from "./helpers";
 
 describe("errors", () => {
   it("carry stable codes and HTTP statuses", () => {
@@ -109,5 +115,30 @@ describe("uuidv7", () => {
   it("never goes back in time", () => {
     const later = uuidv7(Date.UTC(2032, 0, 1));
     expect(uuidv7(Date.UTC(2020, 0, 1)) > later).toBe(true);
+  });
+});
+
+describe("checkAccess", () => {
+  it("evaluates a rule without touching data", async () => {
+    const collection = defineConfig({
+      db: testAdapter(),
+      collections: [
+        defineCollection({
+          slug: "notes",
+          fields: { owner: fields.text() },
+          access: { read: ({ user }) => (user ? { owner: { eq: user.id } } : false) },
+        }),
+      ],
+    }).collections[0]!;
+    expect(await checkAccess(collection, "read", { user: null })).toBe(false);
+    expect(await checkAccess(collection, "read", { user: { id: "u1" } })).toEqual({
+      field: "owner",
+      op: "eq",
+      value: "u1",
+    });
+    expect(await checkAccess(collection, "create", { user: null })).toBe(false);
+    expect(await checkAccess(collection, "create", { user: null, overrideAccess: true })).toBe(
+      true,
+    );
   });
 });

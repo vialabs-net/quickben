@@ -24,6 +24,11 @@ export interface FieldAdmin {
   hidden?: boolean;
   readOnly?: boolean;
   width?: "full" | "half" | "third";
+  /**
+   * Name of a custom input component. The admin UI looks it up in the `components` option of
+   * `createAdminPage`. Core only stores the name, so configs stay free of UI code.
+   */
+  component?: string;
 }
 
 /** Context passed to a field's `validate` function. */

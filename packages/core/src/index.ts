@@ -1,3 +1,4 @@
+export { checkAccess } from "./access";
 export { devAuth } from "./auth";
 export { defineCollection, extendCollection } from "./collection";
 export { defineConfig, definePlugin } from "./config";
@@ -14,6 +15,7 @@ export { fields } from "./fields";
 export { createQuickben, getQuickben } from "./local-api";
 export { compareBySort, compareValues, matchesWhere } from "./where";
 
+export type { AccessResult } from "./access";
 export type {
   CollectionSchema,
   DatabaseAdapter,

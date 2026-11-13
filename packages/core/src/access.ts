@@ -18,7 +18,14 @@ export function defaultAccess({ user }: AccessArgs): boolean {
 /** Result of an access check: `true` = no restriction, `false` = denied, or a filter. */
 export type AccessResult = true | false | WhereNode;
 
-/** Evaluate the access rule of `operation`. `overrideAccess` skips it. */
+/**
+ * Evaluate the access rule of `operation` for a collection, without reading or writing data.
+ * `overrideAccess` skips it. A missing rule allows authenticated users only.
+ *
+ * The local API calls this for you. UI and HTTP layers call it to decide what to show, e.g.
+ * hide a "Create" button when the result is `false`. A filter result means "allowed for the
+ * documents that match it".
+ */
 export async function checkAccess(
   collection: SanitizedCollection,
   operation: AccessOperation,

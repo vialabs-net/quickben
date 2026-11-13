@@ -4,6 +4,11 @@ packages:
   - tooling/*
 minimumReleaseAgeExclude:
   - prettier@3.10.1
+allowBuilds:
+  # @tailwindcss/cli (dev only). The watcher is not used by builds.
+  "@parcel/watcher": false
+  # drizzle-kit and tsx (dev only). esbuild works from its platform package without the install script.
+  esbuild: false
 overrides:
   # Nextra 4.6 schemas break on zod >= 4.4 (missing `children` key fails z.custom).
   nextra>zod: 4.3.6
