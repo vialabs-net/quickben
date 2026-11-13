@@ -110,6 +110,8 @@ The adapter follows the [query model](/docs/concepts/query-model) and passes the
 | Unique violations        | `ConflictError` (code `23505`)      | `ConflictError` (`SQLITE_CONSTRAINT_UNIQUE`, `_PRIMARYKEY`) |
 | Transactions             | Drizzle transactions                | Drizzle transactions                                        |
 
+On SQLite, `contains` and `startsWith` ignore case for ASCII letters only. `{ title: { contains: "émile" } }` finds `émile` but not `Émile`. Postgres and the memory adapter find both.
+
 ## Schema changes
 
 | Way        | Command or option                             | Use                                 |

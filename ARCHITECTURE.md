@@ -145,6 +145,7 @@ qb.find(
 | `contains`, `in`, `notIn`, `exists` | `many` fields: has value, has any, has none, not empty | —                    |
 
 - Keys in one object are combined with AND. `and: []` matches all, `or: []` matches nothing.
+- `contains` and `startsWith` ignore case for ASCII letters only on SQLite (`LIKE`). The contract suite marks the non-ASCII test as expected to fail there (`asciiCaseOnly`).
 - Sort: default `-createdAt`. Core always appends `id` (same direction as the last key), so the order is total. Nulls sort last ascending and first descending. Text order follows the store's collation.
 - Page mode (`limit` + `page`, default limit 20) returns `totalDocs` and `totalPages`. Cursor mode (`cursor`) skips the count; `page`, `totalDocs` and `totalPages` are `null`. Both return `hasNextPage` and `nextCursor`.
 - Cursors are keyset positions encoded by core. Core turns a cursor into a plain `where` filter, so adapters do not implement cursors. A cursor only works with the sort it was made for.

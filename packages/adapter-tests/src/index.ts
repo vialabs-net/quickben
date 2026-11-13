@@ -110,12 +110,22 @@ async function seed(db: DatabaseAdapter): Promise<Seed> {
   return { qb, db, ids };
 }
 
+/** Known, documented differences of an adapter from the query model. */
+export interface AdapterContractOptions {
+  /**
+   * `contains` and `startsWith` ignore case for ASCII letters only (SQLite `LIKE`). The
+   * non-ASCII case test is then expected to fail.
+   */
+  asciiCaseOnly?: boolean;
+}
+
 /**
  * Run the adapter contract suite. `createAdapter` must return a new, empty adapter for each
  * test. Call it at the top level of a Vitest test file.
  */
 export function runAdapterContractTests(
   createAdapter: () => DatabaseAdapter | Promise<DatabaseAdapter>,
+  options: AdapterContractOptions = {},
 ): void {
   describe("database adapter contract", () => {
     let qb: Qb;
@@ -273,6 +283,16 @@ export function runAdapterContractTests(
         expect(await titles({ title: { startsWith: "e" } })).toEqual(["Epsilon"]);
         expect(await titles({ title: { startsWith: "GAM" } })).toEqual(["Gamma ray"]);
       });
+
+      (options.asciiCaseOnly ? it.fails : it)(
+        "contains and startsWith ignore case for non-ASCII letters",
+        async () => {
+          await qb.create("posts", { title: "Émile" }, system);
+          await qb.create("posts", { title: "Ωmega" }, system);
+          expect(await titles({ title: { contains: "émile" } })).toEqual(["Émile"]);
+          expect(await titles({ title: { startsWith: "ωME" } })).toEqual(["Ωmega"]);
+        },
+      );
 
       it("exists", async () => {
         expect(await titles({ slug: { exists: false } })).toEqual(["Gamma ray"]);
