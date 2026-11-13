@@ -48,6 +48,12 @@ describe("assertEmptyTarget", () => {
 });
 
 describe("writeFiles", () => {
+  it("refuses paths outside the directory", async () => {
+    await expect(writeFiles(join(dir, "app"), new Map([["../escape", ""]]))).rejects.toThrow(
+      "../escape is outside",
+    );
+  });
+
   it("writes nested files", async () => {
     await writeFiles(
       join(dir, "app"),

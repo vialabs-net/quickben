@@ -1,24 +1,42 @@
 import { spawn } from "node:child_process";
 
+/** The only commands the CLI runs. */
+const commands = { git: "git", npm: "npm", pnpm: "pnpm", yarn: "yarn", bun: "bun" } as const;
+
+/** A command the CLI may run. */
+export type Command = keyof typeof commands;
+
+/** Arguments are fixed strings from the CLI: letters, digits, spaces and `-./:=_`. */
+const safeArgument = /^[\w ./:=-]+$/;
+
 /** Run a command and resolve with its exit code. `quiet` hides its output. */
 export type Runner = (
-  command: string,
+  command: Command,
   args: readonly string[],
   options: { cwd: string; quiet?: boolean },
 ) => Promise<number>;
 
-/** A {@link Runner} on `child_process.spawn`. Exit code 127 when the command is missing. */
+/**
+ * A {@link Runner} on `child_process.spawn`. Exit code 127 when the command is missing or not
+ * allowed, or an argument has other characters.
+ */
 export const spawnRunner: Runner = (command, args, { cwd, quiet = false }) =>
   new Promise((resolve) => {
-    const windows = process.platform === "win32";
-    // npm, pnpm and yarn are .cmd files on Windows, which need a shell. Arguments are fixed.
-    const child = windows
-      ? spawn([command, ...args].join(" "), {
-          cwd,
-          stdio: quiet ? "ignore" : "inherit",
-          shell: true,
-        })
-      : spawn(command, args, { cwd, stdio: quiet ? "ignore" : "inherit" });
+    const executable = Object.hasOwn(commands, command) ? commands[command] : undefined;
+    if (executable === undefined || !args.every((arg) => safeArgument.test(arg))) {
+      resolve(127);
+      return;
+    }
+    const stdio = quiet ? "ignore" : "inherit";
+    // npm, pnpm and yarn are .cmd files on Windows, which need a shell.
+    const child =
+      process.platform === "win32"
+        ? spawn([executable, ...args.map((arg) => `"${arg}"`)].join(" "), {
+            cwd,
+            stdio,
+            shell: true,
+          })
+        : spawn(executable, [...args], { cwd, stdio });
     child.on("error", () => {
       resolve(127);
     });

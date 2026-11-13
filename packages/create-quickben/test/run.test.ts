@@ -21,18 +21,25 @@ describe("spawnRunner", () => {
   it("resolves with the exit code", async () => {
     const { dir, cleanup } = await tempDir();
     try {
-      expect(await spawnRunner(process.execPath, ["-e", "process.exit(3)"], { cwd: dir })).toBe(3);
-      expect(
-        await spawnRunner(process.execPath, ["-e", "console.log('hi')"], { cwd: dir, quiet: true }),
-      ).toBe(0);
+      expect(await spawnRunner("git", ["--version"], { cwd: dir, quiet: true })).toBe(0);
+      // Not a git repository.
+      expect(await spawnRunner("git", ["rev-parse", "--git-dir"], { cwd: dir, quiet: true })).toBe(
+        128,
+      );
     } finally {
       await cleanup();
     }
   });
 
-  it("resolves with 127 when the command is missing", async () => {
+  it("resolves with 127 for commands and arguments that are not allowed", async () => {
+    const cwd = process.cwd();
+    expect(await spawnRunner("node" as never, ["-v"], { cwd, quiet: true })).toBe(127);
+    expect(await spawnRunner("git", ["--version; rm -rf /"], { cwd, quiet: true })).toBe(127);
+  });
+
+  it("resolves with 127 when the command cannot start", async () => {
     expect(
-      await spawnRunner("create-quickben-missing-command", [], { cwd: process.cwd(), quiet: true }),
+      await spawnRunner("git", ["--version"], { cwd: "/create-quickben-missing-dir", quiet: true }),
     ).toBe(127);
   });
 });

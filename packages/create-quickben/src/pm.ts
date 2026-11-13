@@ -11,7 +11,7 @@ export function detectPackageManager(userAgent: string | undefined): PackageMana
 }
 
 /** The install command. */
-export function installCommand(pm: PackageManager): { command: string; args: string[] } {
+export function installCommand(pm: PackageManager): { command: PackageManager; args: string[] } {
   return { command: pm, args: ["install"] };
 }
 
