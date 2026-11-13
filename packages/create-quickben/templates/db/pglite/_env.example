@@ -1,0 +1,3 @@
+
+# PGlite data directory.
+PGLITE_DATA_DIR=./.pglite

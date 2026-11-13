@@ -30,7 +30,7 @@ This file describes what exists. Sections marked **Planned** describe agreed des
 | `packages/next`            | `@quickben/next`                            | Exists  |
 | `packages/admin`           | `@quickben/admin`                           | Exists  |
 | `packages/plugin-tenancy`  | `@quickben/plugin-tenancy`                  | Planned |
-| `packages/create-quickben` | `create-quickben`                           | Planned |
+| `packages/create-quickben` | `create-quickben`                           | Exists  |
 | `apps/docs`                | Nextra site at https://quickben.vialabs.net | Exists  |
 | `apps/playground`          | Next.js app using everything (PGlite)       | Exists  |
 
@@ -312,6 +312,15 @@ export default createAdminPage(config, { serverFunction }); // async server comp
 - Extensions: `components` (custom field inputs, chosen by `admin.component`), `views` (per collection), `pages`, `nav`, and `extensions` from plugins.
 - Styles: Tailwind v4 with the `qb:` prefix, compiled into `@quickben/admin/styles.css`; base styles only inside `.qb-root`.
 - Build: tsdown `unbundle` keeps one file per module so `"use client"` / `"use server"` directives stay at the top of the published files.
+
+## create-quickben
+
+`pnpm create quickben my-app` writes a Next.js app with the two catch-all routes, `lib/db.ts` for the chosen database and `lib/auth.ts` (`devAuth()` in development, anonymous in production).
+
+- Templates are layers in `packages/create-quickben/templates`: `base`, `db/<db>`, `example/<example>`. `package.json` files are merged.
+- Templates use `workspace:^` for `@quickben/*`. The build copies them to `dist/templates` with the current versions, so a release installs matching packages.
+- `next.config.ts` lists `@quickben/db-drizzle`, `drizzle-orm` and the drivers in `serverExternalPackages`. Without that, `next build` fails on the drivers that are not installed.
+- CI job `create-quickben scaffold` installs a generated app from `pnpm pack` tarballs and runs `next build` and `next start`.
 
 ## Planned packages
 

@@ -1,0 +1,4 @@
+
+# SQLite file or libSQL server URL. DATABASE_AUTH_TOKEN is for remote servers only.
+DATABASE_URL=file:./app.db
+# DATABASE_AUTH_TOKEN=
