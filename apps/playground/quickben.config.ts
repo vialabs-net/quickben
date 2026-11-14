@@ -169,6 +169,32 @@ const multiTenant = tenancy({
   isPlatformAdmin: (user) => user.roles?.includes("admin") === true,
 });
 
+// Fields the host adds to the tenancy collections. They show in the Organization settings page
+// and the member details dialog. Only platform staff change the plan. The contact email is
+// edited in the custom "Contact" settings section (lib/tenancy-sections.tsx), so it is hidden
+// from the generic form.
+const isStaff = hasRole("admin");
+const tenancyFields = definePlugin({
+  name: "playground-tenancy-fields",
+  addFields: {
+    organizations: {
+      plan: f.select({
+        options: ["free", "pro"],
+        default: "free",
+        label: { en: "Plan", es: "Plan" },
+        access: { create: isStaff, update: isStaff },
+      }),
+      contactEmail: f.email({
+        label: { en: "Contact email", es: "Correo de contacto" },
+        admin: { hidden: true },
+      }),
+    },
+    memberships: {
+      jobTitle: f.text({ maxLength: 80, label: { en: "Job title", es: "Cargo" } }),
+    },
+  },
+});
+
 // With QUICKBEN_CONNECTIONS=1, the admin gets Integrations: connections and credentials.
 const integrations = connections({ masterKey: demoMasterKey });
 
@@ -180,7 +206,7 @@ const config = defineConfig({
     // With QUICKBEN_DOC_READER=1: document types, readings and usage, with a fake model.
     ...(docReaderEnabled ? [playgroundDocReader] : []),
     ...(templatesEnabled ? [documentTemplates] : []),
-    ...(tenancyEnabled ? [multiTenant] : []),
+    ...(tenancyEnabled ? [multiTenant, tenancyFields] : []),
     ...(connectionsEnabled ? [integrations] : []),
   ],
   auth: playgroundAuth(),
