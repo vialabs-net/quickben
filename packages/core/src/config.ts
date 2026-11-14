@@ -42,7 +42,11 @@ export function defineConfig<
     db: config.db,
     collections,
     auth: config.auth,
-    admin: { title: config.admin.title ?? "Quickben", meta: config.admin.meta ?? {} },
+    admin: {
+      ...config.admin,
+      title: config.admin.title ?? "Quickben",
+      meta: config.admin.meta ?? {},
+    },
     modules: config.modules,
     onInit: config.onInit,
     plugins: config.plugins,

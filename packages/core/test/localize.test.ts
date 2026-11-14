@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   defineCollection,
+  defineConfig,
   fields,
   localeChain,
   localeFromRequest,
@@ -9,6 +10,8 @@ import {
   mapLocalized,
   negotiateLocale,
 } from "../src";
+
+import { testAdapter } from "./helpers";
 
 describe("localize", () => {
   it("returns strings as they are", () => {
@@ -67,5 +70,23 @@ describe("negotiateLocale", () => {
     expect(resolve(req({ cookie: "locale=%E0%A4%A", "accept-language": "de" }))).toBe("en");
     expect(resolve(undefined)).toBe("en");
     expect(localeFromRequest({ supported: [] })(req({}))).toBe("en");
+  });
+});
+
+describe("admin config", () => {
+  it("keeps locale, messages and timeZone", () => {
+    const locale = () => "es";
+    const config = defineConfig({
+      db: testAdapter(),
+      collections: [],
+      admin: { locale, messages: { es: { "admin.nav.dashboard": "Inicio" } }, timeZone: "UTC" },
+    });
+    expect(config.admin).toEqual({
+      title: "Quickben",
+      meta: {},
+      locale,
+      messages: { es: { "admin.nav.dashboard": "Inicio" } },
+      timeZone: "UTC",
+    });
   });
 });
