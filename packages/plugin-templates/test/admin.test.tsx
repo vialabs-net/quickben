@@ -1,11 +1,16 @@
 // @vitest-environment happy-dom
+import { readdir, readFile } from "node:fs/promises";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
+
+import { createAdminI18n, englishI18n, missingMessages } from "@quickben/admin/i18n";
 import { defineConfig, devAuth, getQuickben } from "@quickben/core";
 import { memoryAdapter } from "@quickben/db-memory";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getBrand, publishTemplate, saveDraft, templates, toDataUrl } from "../src";
-import { templatesAdmin } from "../src/admin";
+import { templatesAdmin, templatesMessages } from "../src/admin";
 import {
   archiveAction,
   discardDraftAction,
@@ -16,13 +21,13 @@ import {
   saveBrandAction,
   saveDraftAction,
 } from "../src/admin/actions";
-import { errorCode, errorMessage, toastMessage } from "../src/admin/feedback";
+import { errorCode, errorKey, toastKey } from "../src/admin/feedback";
 
 import { invoice, letter, doc, p, signature, text, v, system } from "./fixtures";
 import { actAs, navigation } from "./next-mocks";
 
 import type { PdfRenderer, TemplatesOptions } from "../src";
-import type { AdminExtension, PageProps } from "@quickben/admin";
+import type { AdminExtension, AdminText, PageProps } from "@quickben/admin";
 import type { QuickbenUser } from "@quickben/core";
 import type { ReactElement } from "react";
 
@@ -63,7 +68,16 @@ afterEach(() => {
   actAs(null);
 });
 
-const pageProps: PageProps = { user: null, basePath: "/admin", segments: [], searchParams: {} };
+const pageProps: PageProps = {
+  user: null,
+  basePath: "/admin",
+  segments: [],
+  searchParams: {},
+  i18n: englishI18n,
+};
+const spanish = createAdminI18n({ locale: "es", timeZone: "UTC", overrides: {} });
+const shown = (value: AdminText | undefined, i18n = englishI18n) =>
+  typeof value === "function" ? value(i18n) : i18n.text(value);
 
 async function renderPage(path: string, props: Partial<PageProps> = {}) {
   const page = extension.pages?.find((x) => x.path === path);
@@ -73,10 +87,17 @@ async function renderPage(path: string, props: Partial<PageProps> = {}) {
 
 describe("templatesAdmin", () => {
   it("adds the Templates and Brand pages", () => {
-    expect(extension.pages?.map((x) => [x.path, x.label, x.group])).toEqual([
+    expect(extension.pages?.map((x) => [x.path, shown(x.label), shown(x.group)])).toEqual([
       ["templates", "Templates", "Documents"],
       ["brand", "Brand", "Documents"],
     ]);
+    expect(extension.pages?.map((x) => [shown(x.label, spanish), shown(x.group, spanish)])).toEqual(
+      [
+        ["Plantillas", "Documentos"],
+        ["Marca", "Documentos"],
+      ],
+    );
+    expect(extension.catalogs).toEqual([templatesMessages]);
     expect(templatesAdmin(config, { group: "Docs" }).pages?.[0]?.group).toBe("Docs");
   });
 
@@ -138,13 +159,13 @@ describe("template actions", () => {
     expect(preview.ok && preview.value.html).toContain("Hello");
     expect(await previewAction("/admin", "invoice", "bad")).toMatchObject({
       ok: false,
-      message: errorMessage("invalid"),
+      code: "invalid",
     });
 
     const refused = await publishAction("/admin", "invoice", doc(p()));
     expect(refused).toEqual({
       ok: false,
-      message: "Not published: fix the marked problems first.",
+      code: "issues",
       issues: [{ path: [], message: "Add a signature block" }],
     });
     expect(await publishAction("/admin", "invoice", ok("v1"))).toEqual({
@@ -165,7 +186,7 @@ describe("template actions", () => {
     expect(await archiveAction("/admin", "invoice")).toEqual({ ok: true, value: null });
     expect(await archiveAction("/admin", "invoice")).toMatchObject({
       ok: false,
-      message: errorMessage("not-found"),
+      code: "not-found",
     });
     expect(await discardDraftAction("/admin", "letter")).toEqual({
       ok: true,
@@ -185,7 +206,7 @@ describe("template actions", () => {
     actAs(viewer);
     expect(await saveDraftAction("/admin", "invoice", ok("x"))).toMatchObject({
       ok: false,
-      message: errorMessage("forbidden"),
+      code: "forbidden",
     });
     await expect(saveDraftAction("/other", "invoice", ok("x"))).rejects.toThrow("not ready");
     await expect(saveDraftAction(1 as unknown as string, "invoice", ok("x"))).rejects.toThrow(
@@ -332,8 +353,95 @@ describe("feedback", () => {
     );
     expect(errorCode(new QuickbenError("CONFIG", "x"))).toBe("failed");
     expect(errorCode(null)).toBe("failed");
-    expect(toastMessage("brand-saved")).toBe("Brand saved");
-    expect(toastMessage("nope")).toBeUndefined();
-    expect(errorMessage(3)).toBeUndefined();
+    expect(toastKey("brand-saved")).toBe("toast.brand-saved");
+    expect(toastKey("nope")).toBeUndefined();
+    expect(errorKey("conflict")).toBe("error.conflict");
+    expect(errorKey(3)).toBeUndefined();
+  });
+});
+
+describe("messages", () => {
+  it("has every key in Spanish", () => {
+    expect(missingMessages(templatesMessages)).toEqual([]);
+  });
+
+  it("renders the pages in Spanish, with per-locale kind labels", async () => {
+    config = makeConfig({
+      kinds: [{ ...invoice, label: { en: "Invoice", es: "Factura" }, description: "Sent." }],
+    });
+    extension = templatesAdmin(config);
+    actAs(editor);
+    await renderPage("templates", { i18n: spanish });
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Plantillas de documentos" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Plantilla base")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Editar Factura" })).toBeTruthy();
+    cleanup();
+    await renderPage("templates", { segments: ["invoice"], i18n: spanish });
+    expect(screen.getByRole("heading", { level: 1, name: "Factura" })).toBeTruthy();
+    cleanup();
+    await renderPage("templates", { segments: ["nope"], i18n: spanish });
+    expect(screen.getByText("No existe el tipo de plantilla “nope”.")).toBeTruthy();
+    cleanup();
+    actAs(viewer);
+    await renderPage("brand", { i18n: spanish, searchParams: { error: "forbidden" } });
+    expect(screen.getByText("Tu rol no puede cambiar la marca.")).toBeTruthy();
+    expect(screen.getByRole("alert").textContent).toContain("No tienes permiso");
+    expect(screen.getByRole("option", { name: "Monoespaciada" })).toBeTruthy();
+  });
+
+  it("uses overrides from the config", async () => {
+    actAs(editor);
+    const i18n = createAdminI18n({
+      locale: "en",
+      timeZone: "UTC",
+      overrides: { "templates.list.title": "Letters", "templates.brand.title": "Letterhead" },
+    });
+    await renderPage("templates", { i18n });
+    expect(screen.getByRole("heading", { level: 1, name: "Letters" })).toBeTruthy();
+    cleanup();
+    await renderPage("brand", { i18n });
+    expect(screen.getByRole("heading", { level: 1, name: "Letterhead" })).toBeTruthy();
+  });
+});
+
+describe("styles", () => {
+  const escape = (cls: string) => `.${cls.replaceAll(/[:./[\]()%,]/g, (c) => "\\" + c)}`;
+  async function sources() {
+    const dir = join(import.meta.dirname, "../src/admin");
+    const files = (await readdir(dir)).filter((file) => file.endsWith(".tsx"));
+    return Promise.all(
+      files.map(async (file) => ({ file, source: await readFile(join(dir, file), "utf8") })),
+    );
+  }
+
+  it("uses only qb: classes that exist in @quickben/admin/styles.css", async () => {
+    const require = createRequire(import.meta.url);
+    const adminDir = dirname(require.resolve("@quickben/admin/package.json"));
+    const css = await readFile(join(adminDir, "dist/styles.css"), "utf8");
+    const missing: string[] = [];
+    for (const { file, source } of await sources()) {
+      for (const [cls] of source.matchAll(/(?<![\w-])qb:[\w:./[\]()%,-]+/g)) {
+        if (!css.includes(escape(cls))) missing.push(`${file}: ${cls}`);
+      }
+    }
+    expect(missing).toEqual([]);
+  });
+
+  it("uses only qbt: classes that exist in the built styles.css, and no palette colors", async () => {
+    const css = await readFile(join(import.meta.dirname, "../dist/styles.css"), "utf8");
+    const missing: string[] = [];
+    const palette: string[] = [];
+    for (const { file, source } of await sources()) {
+      for (const [cls] of source.matchAll(/(?<![\w-])qbt:[\w:./[\]()%,-]+/g)) {
+        if (!css.includes(escape(cls))) missing.push(`${file}: ${cls}`);
+        if (/-(zinc|red|blue|emerald|amber|violet|rose|white|black)\b/.test(cls)) palette.push(cls);
+      }
+    }
+    expect(missing).toEqual([]);
+    expect(palette).toEqual([]);
+    const source = await readFile(join(import.meta.dirname, "../src/admin/styles.css"), "utf8");
+    expect(source).not.toMatch(/--qbt-color-|rgb\(/);
   });
 });

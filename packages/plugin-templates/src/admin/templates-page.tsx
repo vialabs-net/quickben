@@ -15,24 +15,30 @@ import {
   saveDraftAction,
 } from "./actions";
 import { editorContent } from "./editor-content";
+import { templatesMessages } from "./messages";
 import { canManage, Heading, load, Notice } from "./shared";
 import { TemplateWorkspace } from "./workspace";
 
 import type { TemplateSummary } from "../service";
-import type { PageProps } from "@quickben/admin";
+import type { TemplatesT } from "./messages";
+import type { AdminI18n, PageProps } from "@quickben/admin";
 import type { Quickben, QuickbenConfig, RequestContext } from "@quickben/core";
 
-function Status({ summary }: Readonly<{ summary: TemplateSummary }>) {
-  let published = <Badge>Not published</Badge>;
+function Status({ summary, t }: Readonly<{ summary: TemplateSummary; t: TemplatesT }>) {
+  let published = <Badge>{t("status.notPublished")}</Badge>;
   if (summary.published) {
-    published = <Badge tone="green">Published · v{summary.published.number}</Badge>;
+    published = (
+      <Badge tone="green">{t("status.published", { number: summary.published.number })}</Badge>
+    );
   } else if (summary.hasBase) {
-    published = <Badge>Base template</Badge>;
+    published = <Badge>{t("status.base")}</Badge>;
   }
   return (
     <span className="qbt:flex qbt:flex-wrap qbt:gap-1">
       {published}
-      {summary.draft ? <Badge tone="amber">Draft · v{summary.draft.number}</Badge> : null}
+      {summary.draft ? (
+        <Badge tone="amber">{t("status.draft", { number: summary.draft.number })}</Badge>
+      ) : null}
     </span>
   );
 }
@@ -40,44 +46,50 @@ function Status({ summary }: Readonly<{ summary: TemplateSummary }>) {
 function TemplateList({
   summaries,
   basePath,
-}: Readonly<{ summaries: TemplateSummary[]; basePath: string }>) {
-  if (summaries.length === 0) return <Notice>No template kinds are registered.</Notice>;
+  i18n,
+}: Readonly<{ summaries: TemplateSummary[]; basePath: string; i18n: AdminI18n }>) {
+  const { t } = i18n.scope(templatesMessages);
+  if (summaries.length === 0) return <Notice>{t("list.empty")}</Notice>;
   return (
     <Card>
       <Table>
         <thead>
           <tr>
-            <Th>Document</Th>
-            <Th>Status</Th>
+            <Th>{t("list.document")}</Th>
+            <Th>{t("list.status")}</Th>
             <Th>
-              <span className="qbt:sr-only">Actions</span>
+              <span className="qbt:sr-only">{t("list.actions")}</span>
             </Th>
           </tr>
         </thead>
         <tbody>
-          {summaries.map((summary) => (
-            <Tr key={summary.kind}>
-              <Td>
-                <p className="qbt:font-medium qbt:text-zinc-900">{summary.label}</p>
-                {summary.description ? (
-                  <p className="qbt:text-xs qbt:text-zinc-500">{summary.description}</p>
-                ) : null}
-              </Td>
-              <Td>
-                <Status summary={summary} />
-              </Td>
-              <Td className="qbt:text-right">
-                <ButtonLink
-                  href={`${basePath}/templates/${summary.kind}`}
-                  variant="secondary"
-                  size="sm"
-                  aria-label={`Edit ${summary.label}`}
-                >
-                  Edit
-                </ButtonLink>
-              </Td>
-            </Tr>
-          ))}
+          {summaries.map((summary) => {
+            const label = i18n.text(summary.label);
+            const description = i18n.text(summary.description);
+            return (
+              <Tr key={summary.kind}>
+                <Td>
+                  <p className="qbt:font-medium qbt:text-fg">{label}</p>
+                  {description ? (
+                    <p className="qbt:text-xs qbt:text-fg-muted">{description}</p>
+                  ) : null}
+                </Td>
+                <Td>
+                  <Status summary={summary} t={t} />
+                </Td>
+                <Td className="qbt:text-right">
+                  <ButtonLink
+                    href={`${basePath}/templates/${summary.kind}`}
+                    variant="secondary"
+                    size="sm"
+                    aria-label={t("list.editLabel", { label })}
+                  >
+                    {t("list.edit")}
+                  </ButtonLink>
+                </Td>
+              </Tr>
+            );
+          })}
         </tbody>
       </Table>
     </Card>
@@ -90,20 +102,23 @@ async function editorPage({
   kind,
   basePath,
   actionKey,
+  i18n,
 }: Readonly<{
   qb: Quickben;
   ctx: RequestContext;
   kind: string;
   basePath: string;
   actionKey: string;
+  i18n: AdminI18n;
 }>) {
+  const { t } = i18n.scope(templatesMessages);
   const known = getTemplateKinds(qb).find((k) => k.kind === kind);
   const back = `${basePath}/templates`;
   if (!known) {
     return (
       <>
-        <Heading title="Unknown template" />
-        <Notice>There is no template kind “{kind}”.</Notice>
+        <Heading title={t("editor.unknownTitle")} />
+        <Notice>{t("editor.unknownKind", { kind })}</Notice>
       </>
     );
   }
@@ -111,11 +126,12 @@ async function editorPage({
     detail: await getTemplate(qb, kind, ctx),
     canEdit: await canManage(qb, VERSIONS, ctx),
   }));
+  const label = i18n.text(known.label);
   if (!loaded.value) {
     return (
       <>
-        <Heading title={known.label} />
-        <Notice>{loaded.message}</Notice>
+        <Heading title={label} />
+        <Notice>{t(`error.${loaded.code}`)}</Notice>
       </>
     );
   }
@@ -125,7 +141,7 @@ async function editorPage({
   return (
     <TemplateWorkspace
       kind={kind}
-      label={known.label}
+      label={label}
       back={back}
       catalog={[...known.catalog]}
       initialContent={
@@ -151,24 +167,22 @@ async function editorPage({
 
 /** Build the Templates page: the list of kinds, and the editor at `templates/<kind>`. */
 export function createTemplatesPage(config: QuickbenConfig, key: string) {
-  return async function TemplatesPage({ segments, basePath }: Readonly<PageProps>) {
+  return async function TemplatesPage({ segments, basePath, i18n }: Readonly<PageProps>) {
+    const { t } = i18n.scope(templatesMessages);
     const qb = await getQuickben(config);
     const ctx = await getRequestContext(config);
     const kind = segments[0];
     if (kind !== undefined) {
-      return editorPage({ qb, ctx, kind, basePath, actionKey: key });
+      return editorPage({ qb, ctx, kind, basePath, actionKey: key, i18n });
     }
     const loaded = await load(() => listTemplates(qb, ctx));
     return (
       <>
-        <Heading
-          title="Document templates"
-          description="Edit the text of each document. New documents use the published version."
-        />
+        <Heading title={t("list.title")} description={t("list.description")} />
         {loaded.value ? (
-          <TemplateList summaries={loaded.value} basePath={basePath} />
+          <TemplateList summaries={loaded.value} basePath={basePath} i18n={i18n} />
         ) : (
-          <Notice>{loaded.message}</Notice>
+          <Notice>{t(`error.${loaded.code}`)}</Notice>
         )}
       </>
     );

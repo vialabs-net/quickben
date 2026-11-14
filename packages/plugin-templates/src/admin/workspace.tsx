@@ -1,14 +1,19 @@
 "use client";
 
+import { useAdminI18n } from "@quickben/admin/i18n";
 import { Badge, Button, ButtonLink, Card, CardBody, CardHeader } from "@quickben/admin/ui";
 import { useRouter } from "next/navigation";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+
+import { templatesMessages } from "./messages";
 
 import type { TemplateContent, TemplateIssue } from "../content";
 import type { CatalogVariable } from "../kinds";
 import type { VersionSummary } from "../service";
 import type { ActionResult } from "./actions";
 import type { EditorApi } from "./editor-types";
+import type { FeedbackErrorCode } from "./feedback";
+import type { TemplatesT } from "./messages";
 
 // TipTap is large: load it only on the editor page.
 const TemplateEditor = lazy(() => import("./tiptap"));
@@ -22,8 +27,15 @@ export interface WorkspaceActions {
   discard: () => Promise<ActionResult<{ content: TemplateContent | null }>>;
   archive: () => Promise<ActionResult<null>>;
   restore: (versionId: string) => Promise<ActionResult<{ content: TemplateContent | null }>>;
-  preview: (content: unknown) => Promise<ActionResult<{ html: string; issues: TemplateIssue[] }>>;
-  pdf: (content: unknown) => Promise<ActionResult<{ base64: string; fileName: string }>>;
+  /** `reference` is printed as the document reference, in the admin's language. */
+  preview: (
+    content: unknown,
+    reference?: string,
+  ) => Promise<ActionResult<{ html: string; issues: TemplateIssue[] }>>;
+  pdf: (
+    content: unknown,
+    reference?: string,
+  ) => Promise<ActionResult<{ base64: string; fileName: string }>>;
 }
 
 /** Props of {@link TemplateWorkspace}. */
@@ -47,40 +59,36 @@ type Confirm =
   | { type: "archive" }
   | { type: "restore"; version: VersionSummary };
 
-const confirmText = (confirm: Confirm) => {
+const confirmText = (confirm: Confirm, t: TemplatesT) => {
   switch (confirm.type) {
     case "publish":
       return {
-        title: "Publish this version?",
-        body: "New documents use it from now on. Documents made before do not change.",
-        action: "Publish",
+        title: t("confirm.publishTitle"),
+        body: t("confirm.publishBody"),
+        action: t("confirm.publishAction"),
       };
     case "discard":
       return {
-        title: "Discard the draft?",
-        body: "The saved draft is deleted. The editor goes back to the published version.",
-        action: "Discard draft",
+        title: t("confirm.discardTitle"),
+        body: t("confirm.discardBody"),
+        action: t("confirm.discardAction"),
       };
     case "archive":
       return {
-        title: "Archive the published version?",
-        body: "New documents then use the base template, or cannot be made when there is none.",
-        action: "Archive",
+        title: t("confirm.archiveTitle"),
+        body: t("confirm.archiveBody"),
+        action: t("confirm.archiveAction"),
       };
     default:
       return {
-        title: `Restore version ${String(confirm.version.number)}?`,
-        body: "Its text replaces the draft and any unsaved changes.",
-        action: "Restore",
+        title: t("confirm.restoreTitle", { number: confirm.version.number }),
+        body: t("confirm.restoreBody"),
+        action: t("confirm.restoreAction"),
       };
   }
 };
 
-function formatDate(iso: string | null): string {
-  if (!iso) return "";
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? "" : date.toLocaleString();
-}
+const useT = () => useAdminI18n().scope(templatesMessages).t;
 
 function download(base64: string, fileName: string) {
   const binary = atob(base64);
@@ -105,27 +113,31 @@ function History({
   canEdit: boolean;
   onRestore: (v: VersionSummary) => void;
 }>) {
+  const i18n = useAdminI18n();
+  const t = i18n.scope(templatesMessages).t;
   if (versions.length === 0) return null;
   const tone = { draft: "amber", published: "green", archived: "neutral" } as const;
+  const when = (iso: string | null) => (iso ? i18n.dateTime(iso) : "");
   return (
-    <Card className="qbt:mt-6" role="region" aria-label="History">
-      <CardHeader
-        title="History"
-        description="Published versions never change. Restore one to edit it again."
-      />
-      <ul className="qbt:divide-y qbt:divide-zinc-100">
+    <Card className="qbt:mt-6" role="region" aria-label={t("history.title")}>
+      <CardHeader title={t("history.title")} description={t("history.description")} />
+      <ul className="qbt:divide-y qbt:divide-line-soft">
         {versions.map((version) => (
           <li
             key={version.id}
             className="qbt:flex qbt:flex-wrap qbt:items-center qbt:gap-3 qbt:px-5 qbt:py-2.5 qbt:text-sm"
           >
-            <span className="qbt:w-10 qbt:font-medium qbt:text-zinc-900">v{version.number}</span>
-            <Badge tone={tone[version.status]}>{version.status}</Badge>
-            <span className="qbt:text-zinc-500">
-              {formatDate(version.publishedAt ?? version.updatedAt)}
-              {version.restoredFrom === null
-                ? ""
-                : ` · restored from v${String(version.restoredFrom)}`}
+            <span className="qbt:w-10 qbt:font-medium qbt:text-fg">v{version.number}</span>
+            <Badge tone={tone[version.status]}>{t(`version.${version.status}`)}</Badge>
+            <span className="qbt:text-fg-muted">
+              {[
+                when(version.publishedAt ?? version.updatedAt),
+                version.restoredFrom === null
+                  ? ""
+                  : t("history.restoredFrom", { number: version.restoredFrom }),
+              ]
+                .filter(Boolean)
+                .join(" · ")}
             </span>
             {canEdit && version.status !== "draft" ? (
               <Button
@@ -136,7 +148,7 @@ function History({
                   onRestore(version);
                 }}
               >
-                Restore v{version.number}
+                {t("history.restore", { number: version.number })}
               </Button>
             ) : null}
           </li>
@@ -167,6 +179,7 @@ function WorkspaceHeader({
     onConfirm: (confirm: Confirm) => void;
   }
 >) {
+  const t = useT();
   const ask = (confirm: Confirm) => () => {
     onConfirm(confirm);
   };
@@ -174,44 +187,48 @@ function WorkspaceHeader({
     <header className="qbt:mb-4 qbt:flex qbt:flex-wrap qbt:items-start qbt:justify-between qbt:gap-4">
       <div className="qbt:min-w-0">
         <ButtonLink href={back} variant="ghost" size="sm" className="qbt:-ml-3 qbt:mb-1">
-          ← Templates
+          {t("workspace.back")}
         </ButtonLink>
-        <h1 className="qbt:text-2xl qbt:font-semibold qbt:tracking-tight qbt:text-zinc-900">
-          {label}
-        </h1>
+        <h1 className="qbt:text-2xl qbt:font-semibold qbt:tracking-tight qbt:text-fg">{label}</h1>
         <p className="qbt:mt-2 qbt:flex qbt:flex-wrap qbt:gap-1">
           {published ? (
-            <Badge tone="green">Published · v{published.number}</Badge>
+            <Badge tone="green">{t("status.published", { number: published.number })}</Badge>
           ) : (
-            <Badge>Not published</Badge>
+            <Badge>{t("status.notPublished")}</Badge>
           )}
-          {draft ? <Badge tone="amber">Draft · v{draft.number}</Badge> : null}
-          {dirty ? <Badge tone="blue">Unsaved changes</Badge> : null}
+          {draft ? <Badge tone="amber">{t("status.draft", { number: draft.number })}</Badge> : null}
+          {dirty ? <Badge tone="blue">{t("status.unsaved")}</Badge> : null}
         </p>
       </div>
       <div className="qbt:flex qbt:flex-wrap qbt:items-center qbt:gap-2">
         {hasPdf ? (
           <Button variant="ghost" size="sm" onClick={onPdf} disabled={busy}>
-            Download PDF
+            {t("workspace.downloadPdf")}
           </Button>
         ) : null}
         {canEdit && published ? (
           <Button variant="ghost" size="sm" onClick={ask({ type: "archive" })} disabled={busy}>
-            Archive
+            {t("workspace.archive")}
           </Button>
         ) : null}
         {canEdit && draft ? (
           <Button variant="ghost" size="sm" onClick={ask({ type: "discard" })} disabled={busy}>
-            Discard draft
+            {t("workspace.discard")}
           </Button>
         ) : null}
         {canEdit ? (
           <>
-            <Button variant="secondary" size="sm" onClick={onSave} disabled={busy} title="Ctrl+S">
-              Save draft
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={onSave}
+              disabled={busy}
+              title={t("workspace.saveShortcut")}
+            >
+              {t("workspace.save")}
             </Button>
             <Button size="sm" onClick={ask({ type: "publish" })} disabled={busy}>
-              Publish
+              {t("workspace.publish")}
             </Button>
           </>
         ) : null}
@@ -225,7 +242,7 @@ function NoticeText({ notice }: Readonly<{ notice: { tone: "ok" | "error"; text:
   return (
     <span
       role={error ? "alert" : "status"}
-      className={error ? "qbt:text-red-700" : "qbt:text-emerald-700"}
+      className={error ? "qbt:text-danger-strong" : "qbt:text-success"}
     >
       {notice.text}
     </span>
@@ -237,21 +254,22 @@ function ConfirmBar({
   onCancel,
   onConfirm,
 }: Readonly<{ confirm: Confirm; onCancel: () => void; onConfirm: () => void }>) {
-  const prompt = confirmText(confirm);
+  const t = useT();
+  const prompt = confirmText(confirm, t);
   return (
     <div
       role="alertdialog"
       aria-labelledby="qbt-confirm-title"
-      className="qbt:my-3 qbt:flex qbt:flex-wrap qbt:items-center qbt:gap-3 qbt:rounded-lg qbt:border qbt:border-zinc-200 qbt:bg-white qbt:px-4 qbt:py-3 qbt:shadow-xs"
+      className="qbt:my-3 qbt:flex qbt:flex-wrap qbt:items-center qbt:gap-3 qbt:rounded-lg qbt:border qbt:border-line qbt:bg-surface qbt:px-4 qbt:py-3 qbt:shadow-xs"
     >
       <div className="qbt:min-w-0 qbt:flex-1">
-        <p id="qbt-confirm-title" className="qbt:text-sm qbt:font-semibold qbt:text-zinc-900">
+        <p id="qbt-confirm-title" className="qbt:text-sm qbt:font-semibold qbt:text-fg">
           {prompt.title}
         </p>
-        <p className="qbt:text-sm qbt:text-zinc-500">{prompt.body}</p>
+        <p className="qbt:text-sm qbt:text-fg-muted">{prompt.body}</p>
       </div>
       <Button variant="secondary" size="sm" onClick={onCancel}>
-        Cancel
+        {t("workspace.cancel")}
       </Button>
       <Button
         size="sm"
@@ -268,23 +286,22 @@ function ProblemList({
   issues,
   onFocus,
 }: Readonly<{ issues: TemplateIssue[]; onFocus: (issue: TemplateIssue) => void }>) {
+  const t = useT();
   if (issues.length === 0) return null;
   return (
     <section
-      aria-label="Problems"
-      className="qbt:my-3 qbt:rounded-lg qbt:border qbt:border-red-200 qbt:bg-red-50 qbt:px-4 qbt:py-3"
+      aria-label={t("workspace.problems")}
+      className="qbt:my-3 qbt:rounded-lg qbt:border qbt:border-danger-line qbt:bg-danger-soft qbt:px-4 qbt:py-3"
     >
-      <p className="qbt:text-sm qbt:font-semibold qbt:text-red-800">
-        {issues.length === 1
-          ? "1 problem blocks publishing"
-          : `${String(issues.length)} problems block publishing`}
+      <p className="qbt:text-sm qbt:font-semibold qbt:text-danger-strong">
+        {t("workspace.problemCount", { count: issues.length })}
       </p>
       <ul className="qbt:mt-1 qbt:space-y-0.5">
         {issues.map((issue, i) => (
           <li key={`${issue.path.join(".")}-${String(i)}`}>
             <button
               type="button"
-              className="qbt:text-left qbt:text-sm qbt:text-red-700 qbt:hover:underline"
+              className="qbt:text-left qbt:text-sm qbt:text-danger-strong qbt:hover:underline"
               onClick={() => {
                 onFocus(issue);
               }}
@@ -301,6 +318,7 @@ function ProblemList({
 /** The template editor page: editor, live preview, issues, save and publish. */
 export function TemplateWorkspace(props: Readonly<WorkspaceProps>) {
   const { actions, canEdit } = props;
+  const t = useT();
   const router = useRouter();
   const api = useRef<EditorApi | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -308,7 +326,7 @@ export function TemplateWorkspace(props: Readonly<WorkspaceProps>) {
   const [dirty, setDirty] = useState(false);
   const [issues, setIssues] = useState<TemplateIssue[]>([]);
   const [preview, setPreview] = useState<string | null>(null);
-  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState<FeedbackErrorCode | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
@@ -320,9 +338,13 @@ export function TemplateWorkspace(props: Readonly<WorkspaceProps>) {
     api.current?.showIssues(next);
   };
 
+  const reference = t("sample.reference");
   const refresh = useCallback(async () => {
     const id = ++request.current;
-    const result = await actions.preview(api.current?.getContent() ?? props.initialContent);
+    const result = await actions.preview(
+      api.current?.getContent() ?? props.initialContent,
+      reference,
+    );
     if (id !== request.current) return;
     if (result.ok) {
       setPreview(result.value.html);
@@ -330,9 +352,9 @@ export function TemplateWorkspace(props: Readonly<WorkspaceProps>) {
       setIssues(result.value.issues);
       api.current?.showIssues(result.value.issues);
     } else {
-      setPreviewError(result.message);
+      setPreviewError(result.code);
     }
-  }, [actions, props.initialContent]);
+  }, [actions, props.initialContent, reference]);
 
   const schedule = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
@@ -370,7 +392,7 @@ export function TemplateWorkspace(props: Readonly<WorkspaceProps>) {
         if (text) setNotice({ tone: "ok", text });
         router.refresh();
       } else {
-        setNotice({ tone: "error", text: result.message });
+        setNotice({ tone: "error", text: t(`error.${result.code}`) });
         if (result.issues.length > 0) showIssues(result.issues);
       }
     } finally {
@@ -390,7 +412,7 @@ export function TemplateWorkspace(props: Readonly<WorkspaceProps>) {
       (value) => {
         setDirty(false);
         showIssues(value.issues);
-        return `Draft v${String(value.number)} saved`;
+        return t("done.saved", { number: value.number });
       },
     );
 
@@ -403,22 +425,22 @@ export function TemplateWorkspace(props: Readonly<WorkspaceProps>) {
           (value) => {
             setDirty(false);
             showIssues([]);
-            return `Version ${String(value.number)} published`;
+            return t("done.published", { number: value.number });
           },
         );
       case "discard":
         return run(actions.discard, (value) => {
           replaceContent(value.content);
-          return "Draft discarded";
+          return t("done.discarded");
         });
       case "archive":
-        return run(actions.archive, () => "Published version archived");
+        return run(actions.archive, () => t("done.archived"));
       default:
         return run(
           () => actions.restore(current.version.id),
           (value) => {
             replaceContent(value.content);
-            return `Version ${String(current.version.number)} is the draft now`;
+            return t("done.restored", { number: current.version.number });
           },
         );
     }
@@ -426,7 +448,7 @@ export function TemplateWorkspace(props: Readonly<WorkspaceProps>) {
 
   const pdf = () =>
     run(
-      () => actions.pdf(content()),
+      () => actions.pdf(content(), t("sample.reference")),
       (value) => {
         download(value.base64, value.fileName);
         return null;
@@ -479,7 +501,7 @@ export function TemplateWorkspace(props: Readonly<WorkspaceProps>) {
           fallback={
             <Card>
               <CardBody>
-                <p className="qbt:text-sm qbt:text-zinc-500">Loading editor…</p>
+                <p className="qbt:text-sm qbt:text-fg-muted">{t("workspace.loading")}</p>
               </CardBody>
             </Card>
           }
@@ -498,21 +520,23 @@ export function TemplateWorkspace(props: Readonly<WorkspaceProps>) {
             }}
           />
         </Suspense>
-        <section aria-label="Preview" className="qbt:min-w-0">
-          <h2 className="qbt:mb-2 qbt:text-sm qbt:font-semibold qbt:text-zinc-900">
-            Preview with sample data
+        <section aria-label={t("workspace.preview")} className="qbt:min-w-0">
+          <h2 className="qbt:mb-2 qbt:text-sm qbt:font-semibold qbt:text-fg">
+            {t("workspace.previewTitle")}
           </h2>
           {previewError ? (
-            <p className="qbt:mb-2 qbt:text-sm qbt:text-red-700">{previewError}</p>
+            <p className="qbt:mb-2 qbt:text-sm qbt:text-danger-strong">
+              {t(`error.${previewError}`)}
+            </p>
           ) : null}
           {preview === null ? (
-            <p className="qbt:text-sm qbt:text-zinc-500">Rendering…</p>
+            <p className="qbt:text-sm qbt:text-fg-muted">{t("workspace.rendering")}</p>
           ) : (
             <iframe
-              title="Document preview"
+              title={t("workspace.previewFrame")}
               sandbox=""
               srcDoc={preview}
-              className="qbt:h-[75vh] qbt:w-full qbt:rounded-lg qbt:border qbt:border-zinc-200 qbt:bg-zinc-200"
+              className="qbt:h-[75vh] qbt:w-full qbt:rounded-lg qbt:border qbt:border-line qbt:bg-surface-stronger"
             />
           )}
         </section>

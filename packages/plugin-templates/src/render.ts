@@ -1,4 +1,4 @@
-import { NotFoundError, ValidationError } from "@quickben/core";
+import { localize, NotFoundError, ValidationError } from "@quickben/core";
 
 import {
   cleanText,
@@ -72,7 +72,7 @@ export function renderDocument(input: RenderDocumentInput): RenderedDocument {
   const params = {
     brand: input.brand,
     page: input.page,
-    title: input.title ?? input.kind.label,
+    title: input.title ?? localize(input.kind.label),
     lang: input.format.locale.split("-")[0] ?? "en",
   };
   const reference = input.reference ?? null;

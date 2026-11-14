@@ -1,8 +1,10 @@
 import { Card, CardBody, Toast } from "@quickben/admin/ui";
 import { checkAccess, QuickbenError } from "@quickben/core";
 
-import { errorCode, errorMessage, toastMessage } from "./feedback";
+import { errorCode, errorKey, toastKey } from "./feedback";
 
+import type { FeedbackErrorCode } from "./feedback";
+import type { TemplatesT } from "./messages";
 import type { SearchParams } from "@quickben/admin";
 import type { Quickben, RequestContext } from "@quickben/core";
 import type { ReactNode } from "react";
@@ -20,11 +22,9 @@ export function Heading({
   return (
     <header className="qbt:mb-6 qbt:flex qbt:flex-wrap qbt:items-start qbt:justify-between qbt:gap-4">
       <div className="qbt:min-w-0">
-        <h1 className="qbt:text-2xl qbt:font-semibold qbt:tracking-tight qbt:text-zinc-900">
-          {title}
-        </h1>
+        <h1 className="qbt:text-2xl qbt:font-semibold qbt:tracking-tight qbt:text-fg">{title}</h1>
         {description ? (
-          <p className="qbt:mt-1 qbt:text-sm qbt:text-zinc-500">{description}</p>
+          <p className="qbt:mt-1 qbt:text-sm qbt:text-fg-muted">{description}</p>
         ) : null}
       </div>
       {actions ? (
@@ -39,29 +39,32 @@ export function Notice({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <Card>
       <CardBody>
-        <p className="qbt:text-sm qbt:text-zinc-600">{children}</p>
+        <p className="qbt:text-sm qbt:text-fg-muted">{children}</p>
       </CardBody>
     </Card>
   );
 }
 
 /** Toast for the `?toast=` or `?error=` code of a redirect. Unknown codes show nothing. */
-export function Feedback({ searchParams }: Readonly<{ searchParams: SearchParams }>) {
-  const error = errorMessage(first(searchParams.error));
-  if (error) return <Toast message={error} tone="error" param="error" duration={8000} />;
-  const toast = toastMessage(first(searchParams.toast));
-  return toast ? <Toast message={toast} param="toast" /> : null;
+export function Feedback({
+  searchParams,
+  t,
+}: Readonly<{ searchParams: SearchParams; t: TemplatesT }>) {
+  const error = errorKey(first(searchParams.error));
+  if (error) return <Toast message={t(error)} tone="error" param="error" duration={8000} />;
+  const toast = toastKey(first(searchParams.toast));
+  return toast ? <Toast message={t(toast)} param="toast" /> : null;
 }
 
-/** Load page data; a Quickben error becomes a message to show instead. */
+/** Load page data; a Quickben error becomes an error code (message `error.<code>`) instead. */
 export async function load<T>(
   run: () => Promise<T>,
-): Promise<{ value: T; message: null } | { value: null; message: string }> {
+): Promise<{ value: T; code: null } | { value: null; code: FeedbackErrorCode }> {
   try {
-    return { value: await run(), message: null };
+    return { value: await run(), code: null };
   } catch (error) {
     if (!(error instanceof QuickbenError)) throw error;
-    return { value: null, message: errorMessage(errorCode(error)) ?? error.message };
+    return { value: null, code: errorCode(error) };
   }
 }
 
@@ -88,11 +91,11 @@ export function Field({
 }: Readonly<{ label: string; htmlFor: string; hint?: string; children: ReactNode }>) {
   return (
     <div className="qbt:space-y-1.5">
-      <label htmlFor={htmlFor} className="qbt:block qbt:text-sm qbt:font-medium qbt:text-zinc-900">
+      <label htmlFor={htmlFor} className="qbt:block qbt:text-sm qbt:font-medium qbt:text-fg">
         {label}
       </label>
       {children}
-      {hint ? <p className="qbt:text-xs qbt:text-zinc-500">{hint}</p> : null}
+      {hint ? <p className="qbt:text-xs qbt:text-fg-muted">{hint}</p> : null}
     </div>
   );
 }
