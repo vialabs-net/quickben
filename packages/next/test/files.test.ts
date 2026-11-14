@@ -134,7 +134,20 @@ describe("multipart uploads", () => {
       }),
     );
     expect(broken.status).toBe(400);
-    const large = await upload({ contract: new File([new Uint8Array(5000)], "big.bin") });
+    // Send the encoded form as bytes: cancelling a FormData body stream errors in undici.
+    const form = new FormData();
+    form.append("contract", new File([new Uint8Array(5000)], "big.bin"));
+    const encoded = new Response(form);
+    const large = await api.POST(
+      new Request("http://localhost:3000/api/docs", {
+        method: "POST",
+        body: await encoded.arrayBuffer(),
+        headers: {
+          "content-type": encoded.headers.get("content-type") ?? "",
+          "x-quickben-user": editor,
+        },
+      }),
+    );
     expect(large.status).toBe(413);
     const text = await api.POST(
       new Request("http://localhost:3000/api/docs", {
