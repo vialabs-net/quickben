@@ -119,6 +119,11 @@ export interface AdminOptions extends AdminExtension, AdminI18nOptions {
   chrome?: AdminChrome;
   /** URL path of the admin route. Default `/admin`. */
   basePath?: string;
+  /**
+   * URL path of the `@quickben/next` route handlers, for previews and downloads of file
+   * fields. Default `/api`.
+   */
+  apiBasePath?: string;
   /** Extensions from plugins, applied before the options above. */
   extensions?: readonly AdminExtension[];
   /** Link shown to anonymous users who cannot read anything. */

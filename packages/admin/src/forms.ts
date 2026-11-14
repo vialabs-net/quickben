@@ -8,6 +8,7 @@
  */
 import { collectionMeta } from "@quickben/next";
 
+import { DEFAULT_API_BASE_PATH, fileUrls } from "./files";
 import { loadRelationOptions } from "./load";
 
 import type { AdminI18n } from "./i18n/translator";
@@ -40,6 +41,8 @@ export interface LoadFieldContextArgs {
   components?: Readonly<Record<string, ComponentType<FieldComponentProps>>>;
   /** The whole form is read-only. Field access still applies per field. Default `false`. */
   readOnly?: boolean;
+  /** URL path of the route handlers, for file previews. Default `/api`. */
+  apiBasePath?: string;
 }
 
 /**
@@ -65,6 +68,12 @@ export async function loadFieldContext(args: LoadFieldContextArgs): Promise<Fiel
     relationOptions: await loadRelationOptions(qb, ctx, collection, doc, metas),
     serverFunction: args.serverFunction,
     labels: Object.fromEntries([...metas.values()].map((meta) => [meta.slug, meta.labels.plural])),
+    files: fileUrls(
+      args.apiBasePath ?? DEFAULT_API_BASE_PATH,
+      collection.slug,
+      doc,
+      collection.fields,
+    ),
     readOnly: args.readOnly ?? false,
     scope: args.scope,
     i18n,

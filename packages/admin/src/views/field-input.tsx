@@ -1,6 +1,8 @@
 import { FieldError } from "../client/document-form";
+import { FileInput } from "../client/file-input";
 import { JsonEditor } from "../client/json-editor";
 import { RelationPicker } from "../client/relation-picker";
+import { isStoredFile } from "../files";
 import { toDatetimeLocal, toJsonText } from "../form-data";
 import { controlId } from "../ids";
 import { cn } from "../ui/cn";
@@ -21,6 +23,8 @@ export interface FieldInputContext {
   serverFunction: AdminServerFunction;
   /** Plural labels of collections, for placeholders. */
   labels: Readonly<Record<string, string>>;
+  /** Download URLs of the stored files, by field name. From `fileUrls`. */
+  files?: Readonly<Record<string, string>>;
   /** The input is read-only: the whole form is, or a field access rule denies the write. */
   readOnly: boolean;
   /** Scope of the control ids, from `formScope`. */
@@ -40,6 +44,7 @@ function widthOf(field: FieldMeta): keyof typeof spans {
     field.many ||
     field.type === "textarea" ||
     field.type === "json" ||
+    field.type === "file" ||
     field.type === "boolean"
   ) {
     return "full";
@@ -108,6 +113,34 @@ function SelectInput({
         </label>
       ))}
     </div>
+  );
+}
+
+function FileControl({
+  field,
+  value,
+  props,
+  context,
+}: Readonly<{
+  field: FieldMeta;
+  value: unknown;
+  props: ControlProps;
+  context: FieldInputContext;
+}>) {
+  const ref = isStoredFile(value) ? value : null;
+  const url = context.files?.[field.name];
+  return (
+    <FileInput
+      id={props.id}
+      name={props.name}
+      accept={field.accept}
+      maxBytes={field.maxBytes}
+      required={props.required && ref === null}
+      removable={!field.required}
+      disabled={props.disabled}
+      describedBy={props["aria-describedby"]}
+      current={ref && url ? { url, name: ref.name, mime: ref.mime, size: ref.size } : null}
+    />
   );
 }
 
@@ -182,6 +215,8 @@ function Control({
         />
       );
     }
+    case "file":
+      return <FileControl field={field} value={value} props={props} context={context} />;
     case "json":
       return (
         <JsonEditor

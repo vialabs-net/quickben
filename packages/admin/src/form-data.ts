@@ -22,7 +22,7 @@ export function editableFields(
   );
 }
 
-type Parsed = { value: unknown } | { error: string };
+type Parsed = { value: unknown } | { error: string } | { skip: true };
 
 type T = AdminI18n["t"];
 
@@ -72,8 +72,31 @@ function parseSingle(raw: string, field: FieldMeta, i18n: AdminI18n): Parsed {
   }
 }
 
-function parseField(formData: FormData, field: FieldMeta, i18n: AdminI18n): Parsed {
+/**
+ * A chosen file is the new value. Without one, the `<name>:remove` checkbox clears the
+ * field, and otherwise the stored file is kept (the field is left out).
+ */
+function parseFile(
+  formData: FormData,
+  field: FieldMeta,
+  t: T,
+  operation: "create" | "update" | undefined,
+): Parsed {
+  const value = formData.get(field.name);
+  if (value instanceof Blob && value.size > 0) return { value };
+  const remove = formData.get(`${field.name}:remove`) === "on";
+  if (field.required && (remove || operation !== "update")) return { error: t("error.required") };
+  return remove ? { value: null } : { skip: true };
+}
+
+function parseField(
+  formData: FormData,
+  field: FieldMeta,
+  i18n: AdminI18n,
+  operation: "create" | "update" | undefined,
+): Parsed {
   const { t } = i18n;
+  if (field.type === "file") return parseFile(formData, field, t, operation);
   if (field.type === "boolean") {
     const value = text(formData, field.name);
     return { value: value === "on" || value === "true" };
@@ -92,7 +115,8 @@ function parseField(formData: FormData, field: FieldMeta, i18n: AdminI18n): Pars
 /**
  * Read create or update data from a submitted admin form. Only editable fields are read:
  * hidden and read-only fields, and fields the user may not set for `operation`, are left
- * out, so an update does not touch them. Empty inputs become `null`. Datetimes are read in
+ * out, so an update does not touch them. Empty inputs become `null`. File inputs give the
+ * chosen `File`; without one the stored file is kept, unless `<name>:remove` is checked. Datetimes are read in
  * the admin time zone. Returns the data and the first error per field.
  */
 export function parseFormData(
@@ -104,9 +128,9 @@ export function parseFormData(
   const data: Record<string, unknown> = {};
   const errors: Record<string, string> = {};
   for (const field of editableFields(fields, operation)) {
-    const parsed = parseField(formData, field, i18n);
+    const parsed = parseField(formData, field, i18n, operation);
     if ("error" in parsed) errors[field.name] = parsed.error;
-    else data[field.name] = parsed.value;
+    else if ("value" in parsed) data[field.name] = parsed.value;
   }
   return { data, errors };
 }

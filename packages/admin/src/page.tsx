@@ -5,6 +5,7 @@ import { Suspense } from "react";
 
 import { defaultServerFunction } from "./actions";
 import { assertMessages, assertPages, normalizeBasePath, resolveExtensions } from "./extensions";
+import { DEFAULT_API_BASE_PATH, fileUrls } from "./files";
 import { resolveAdminI18nData } from "./i18n/resolve";
 import { createAdminI18n } from "./i18n/translator";
 import { listQuery, parseListState } from "./list-query";
@@ -75,6 +76,7 @@ function first(value: string | string[] | undefined): string | undefined {
 interface RenderArgs {
   serverFunction: AdminServerFunction;
   basePath: string;
+  apiBasePath: string;
   extensions: ResolvedExtensions;
   signInHref: string | undefined;
   qb: Quickben;
@@ -171,13 +173,14 @@ async function renderContent(args: RenderArgs): Promise<ReactNode> {
   const doc = id === undefined ? null : await qb.findById(route.slug, id, {}, ctx);
   const relationOptions = await loadRelationOptions(qb, ctx, collection, doc, metas);
   const labels = Object.fromEntries(meta.collections.map((c) => [c.slug, c.labels.plural]));
+  const files = fileUrls(args.apiBasePath, collection.slug, doc, collection.fields);
   return (
     <EditView
       collection={collection}
       basePath={basePath}
       doc={doc}
       serverFunction={serverFunction}
-      context={{ components: extensions.components, relationOptions, labels }}
+      context={{ components: extensions.components, relationOptions, labels, files }}
       i18n={i18n}
     />
   );
@@ -300,6 +303,7 @@ export function createAdminContent(
         basePath,
         extensions,
         signInHref: options.signInHref,
+        apiBasePath: options.apiBasePath ?? DEFAULT_API_BASE_PATH,
         qb,
         ctx,
         meta,
