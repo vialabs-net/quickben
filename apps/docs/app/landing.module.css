@@ -33,11 +33,12 @@
 }
 
 .title {
-  font-family: var(--qb-font-display), system-ui, sans-serif;
-  font-weight: 800;
+  font-family: var(--qb-font-display), Georgia, serif;
+  font-variation-settings: var(--qb-display-settings);
+  font-weight: 700;
   font-size: clamp(2.25rem, 5vw, 3.75rem);
   line-height: 1.08;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.025em;
   margin: 0;
   max-width: 16ch;
   text-wrap: balance;
@@ -137,7 +138,8 @@
 .fileName {
   padding: 0.6rem 1rem;
   border-bottom: 1px solid var(--qb-rule);
-  font-family: var(--qb-font-display), system-ui, sans-serif;
+  font-family: var(--qb-font-display), Georgia, serif;
+  font-variation-settings: var(--qb-display-settings);
   font-weight: 600;
   font-size: 0.85rem;
   color: var(--qb-muted);
@@ -280,8 +282,9 @@
 }
 
 .h2 {
-  font-family: var(--qb-font-display), system-ui, sans-serif;
-  font-weight: 800;
+  font-family: var(--qb-font-display), Georgia, serif;
+  font-variation-settings: var(--qb-display-settings);
+  font-weight: 700;
   font-size: clamp(1.6rem, 3.2vw, 2.2rem);
   letter-spacing: -0.025em;
   line-height: 1.15;
@@ -315,7 +318,8 @@
 }
 
 .featureTitle {
-  font-family: var(--qb-font-display), system-ui, sans-serif;
+  font-family: var(--qb-font-display), Georgia, serif;
+  font-variation-settings: var(--qb-display-settings);
   font-weight: 700;
   font-size: 1.2rem;
   letter-spacing: -0.01em;
@@ -411,8 +415,9 @@
   border-radius: 50%;
   background: var(--qb-accent);
   color: var(--qb-accent-ink);
-  font-family: var(--qb-font-display), system-ui, sans-serif;
-  font-weight: 800;
+  font-family: var(--qb-font-display), Georgia, serif;
+  font-variation-settings: var(--qb-display-settings);
+  font-weight: 700;
   display: grid;
   place-items: center;
 }
@@ -429,7 +434,8 @@
 }
 
 .stepTitle {
-  font-family: var(--qb-font-display), system-ui, sans-serif;
+  font-family: var(--qb-font-display), Georgia, serif;
+  font-variation-settings: var(--qb-display-settings);
   font-weight: 700;
   font-size: 1.2rem;
   margin: 0 0 0.5rem;
