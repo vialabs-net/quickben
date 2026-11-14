@@ -1,5 +1,6 @@
 import type { QuickbenUser } from "./auth";
 import type { LocalizedText } from "./localize";
+import type { AccessArgs } from "./types";
 import type { z } from "zod";
 
 /** Every field type. */
@@ -31,6 +32,25 @@ export interface FieldAdmin {
    */
   component?: string;
 }
+
+/**
+ * Field access rule. Same arguments as a collection rule, but it returns only `true` or
+ * `false`: field rules decide per field, not per document.
+ */
+export type FieldAccessFn = {
+  bivarianceHack(args: AccessArgs): boolean | Promise<boolean>;
+}["bivarianceHack"];
+
+/** Operations a field rule can restrict. */
+export type FieldAccessOperation = "read" | "create" | "update";
+
+/**
+ * Field access rules. A missing rule allows the operation. `read: false` removes the field
+ * from documents and `select`, and rejects it in `where` and `sort`. `create: false` or
+ * `update: false` rejects input that sets the field (`ForbiddenError`). Hooks and defaults
+ * may still set it. `overrideAccess` skips field rules.
+ */
+export type FieldAccess = Partial<Readonly<Record<FieldAccessOperation, FieldAccessFn>>>;
 
 /** Context passed to a field's `validate` function. */
 export interface FieldValidateContext {
@@ -81,6 +101,8 @@ interface FieldBase<
   readonly description: LocalizedText | undefined;
   readonly validate: FieldValidator<TValue> | undefined;
   readonly admin: FieldAdmin;
+  /** Field access rules. `{}` when there are none. */
+  readonly access: FieldAccess;
   /** Type-level only. Always `undefined` at runtime. */
   readonly "~types"?: FieldTypes<TValue, TInput, TRequired, THasDefault>;
 }
@@ -116,13 +138,20 @@ export type BooleanField<
 
 /**
  * Date (`YYYY-MM-DD`) or datetime (ISO 8601, UTC) field. Values are strings. Inputs also
- * accept `Date` objects.
+ * accept `Date` objects and ISO strings with offsets; they resolve in `timeZone`.
  */
-export type DateField<
+export interface DateField<
   TType extends "date" | "datetime" = "date" | "datetime",
   TRequired extends boolean = boolean,
   THasDefault extends boolean = boolean,
-> = FieldBase<TType, string, string | Date, TRequired, THasDefault, false>;
+> extends FieldBase<TType, string, string | Date, TRequired, THasDefault, false> {
+  /**
+   * IANA time zone that resolves inputs: the calendar date of a `Date` or an ISO datetime
+   * for `date` fields, and midnight of a `YYYY-MM-DD` input for `datetime` fields.
+   * `undefined` uses the config `timeZone` (default `UTC`).
+   */
+  readonly timeZone: string | undefined;
+}
 
 /** Select field with fixed options. `many: true` stores an array. */
 export interface SelectField<
@@ -199,6 +228,18 @@ export interface FieldOptions<TValue, TRequired extends boolean, TDefault> {
   /** Runs after the built-in checks, only for values that are not `null`. */
   validate?: FieldValidator<TValue>;
   admin?: FieldAdmin;
+  /** Field access rules: `{ read, create, update }`, each returning a boolean. */
+  access?: FieldAccess;
+}
+
+/** Options for `date` and `datetime` fields. */
+export interface DateOptions<TRequired extends boolean, TDefault> extends FieldOptions<
+  string,
+  TRequired,
+  TDefault
+> {
+  /** IANA time zone that resolves `Date` and offset inputs. Default: the config `timeZone`. */
+  timeZone?: string;
 }
 
 /** Options for text-like fields. */
@@ -280,6 +321,7 @@ function base<TType extends FieldType>(type: TType, options: BaseInput, many = f
     description: options.description,
     validate: options.validate,
     admin: options.admin ?? {},
+    access: options.access ?? {},
   };
 }
 
@@ -370,8 +412,8 @@ function boolean<
 function date<
   const TRequired extends boolean = false,
   TDefault extends DefaultOf<string | Date> | undefined = undefined,
->(options: FieldOptions<string, TRequired, TDefault> = {}) {
-  return base("date", options) as DateField<
+>(options: DateOptions<TRequired, TDefault> = {}) {
+  return { ...base("date", options), timeZone: options.timeZone } as DateField<
     "date",
     NoInfer<TRequired>,
     NoInfer<HasDefault<TDefault>>
@@ -382,8 +424,8 @@ function date<
 function datetime<
   const TRequired extends boolean = false,
   TDefault extends DefaultOf<string | Date> | undefined = undefined,
->(options: FieldOptions<string, TRequired, TDefault> = {}) {
-  return base("datetime", options) as DateField<
+>(options: DateOptions<TRequired, TDefault> = {}) {
+  return { ...base("datetime", options), timeZone: options.timeZone } as DateField<
     "datetime",
     NoInfer<TRequired>,
     NoInfer<HasDefault<TDefault>>

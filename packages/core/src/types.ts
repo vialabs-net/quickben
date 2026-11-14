@@ -294,6 +294,22 @@ export type AfterDeleteHook<F extends Fields = Fields> = HookFn<
   void
 >;
 
+/**
+ * Runs after the write transaction commits. `qb` is NOT bound to a transaction. Inside an
+ * outer `qb.transaction`, the hook waits for the outermost commit and is dropped on rollback.
+ * Errors are logged and do not undo the write. Use it for side effects on other systems:
+ * queues, emails, another database.
+ */
+export type AfterCommitHook<F extends Fields = Fields> = HookFn<
+  HookArgs &
+    (
+      | { operation: "create"; doc: DocFromFields<F>; original: null }
+      | { operation: "update"; doc: DocFromFields<F>; original: DocFromFields<F> }
+      | { operation: "delete"; doc: DocFromFields<F>; original: DocFromFields<F> }
+    ),
+  void
+>;
+
 /** Hooks per stage. Each stage runs its functions in order. */
 export interface CollectionHooks<F extends Fields = Fields> {
   beforeValidate?: readonly BeforeValidateHook<F>[];
@@ -302,6 +318,8 @@ export interface CollectionHooks<F extends Fields = Fields> {
   afterRead?: readonly AfterReadHook<F>[];
   beforeDelete?: readonly BeforeDeleteHook<F>[];
   afterDelete?: readonly AfterDeleteHook<F>[];
+  /** After the transaction commits. See {@link AfterCommitHook}. */
+  afterCommit?: readonly AfterCommitHook<F>[];
 }
 
 // ---------------------------------------------------------------------------
@@ -544,6 +562,11 @@ export interface ConfigInput<
   auth?: AuthAdapter;
   admin?: AdminConfig;
   modules?: readonly Module[];
+  /**
+   * IANA time zone that resolves `date` and `datetime` inputs given as `Date` objects or with
+   * offsets. Fields can override it. Default `UTC`. The server time zone is never used.
+   */
+  timeZone?: string;
 }
 
 /** The resolved config returned by `defineConfig`. */
@@ -555,6 +578,8 @@ export interface QuickbenConfig<R extends Registry = Registry> {
   readonly modules: readonly Module[];
   readonly onInit: readonly InitHook[];
   readonly plugins: readonly string[];
+  /** Time zone of `date` and `datetime` inputs. Default `UTC`. */
+  readonly timeZone: string;
   /** Type-level only. */
   readonly "~registry"?: R;
 }

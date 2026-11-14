@@ -11,9 +11,13 @@ const systemSortable = new Set(["id", "createdAt", "updatedAt"]);
 
 /**
  * Parse `"field"` / `"-field"` keys into sort specs. Defaults to `-createdAt` and always ends
- * with `id`, so the order is total.
+ * with `id`, so the order is total. Fields in `hidden` (unreadable) cannot be sorted by.
  */
-export function parseSort(collection: SanitizedCollection, sort: unknown): SortSpec[] {
+export function parseSort(
+  collection: SanitizedCollection,
+  sort: unknown,
+  hidden: ReadonlySet<string> = new Set(),
+): SortSpec[] {
   let keys: unknown[] = ["-createdAt"];
   if (Array.isArray(sort)) keys = sort;
   else if (sort !== undefined) keys = [sort];
@@ -24,7 +28,7 @@ export function parseSort(collection: SanitizedCollection, sort: unknown): SortS
     }
     const direction = key.startsWith("-") ? "desc" : "asc";
     const field = direction === "desc" ? key.slice(1) : key;
-    if (!isSortable(collection, field)) {
+    if (hidden.has(field) || !isSortable(collection, field)) {
       throw invalid(
         `sort.${index}`,
         `Cannot sort by "${field}" in collection "${collection.slug}"`,

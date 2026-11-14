@@ -1,5 +1,6 @@
 import { ConfigError } from "./errors";
 import { mapLocalized } from "./localize";
+import { isTimeZone } from "./time";
 
 import type { AnyField, Fields } from "./fields";
 import type { AnyCollection, Collection, CollectionConfig, CollectionHooks } from "./types";
@@ -47,12 +48,20 @@ function assertFields(slug: string, fields: Fields, existing: readonly string[] 
       throw new ConfigError(`Field "${slug}.${name}" differs from another field only in case`);
     }
     seen.add(name.toLowerCase());
-    if (field.unique && field.many) {
-      throw new ConfigError(`Field "${slug}.${name}" cannot be both unique and many`);
-    }
-    if (field.type === "select" && field.options.length === 0) {
-      throw new ConfigError(`Select field "${slug}.${name}" needs at least one option`);
-    }
+    assertFieldOptions(`${slug}.${name}`, field);
+  }
+}
+
+function assertFieldOptions(path: string, field: AnyField): void {
+  if (field.unique && field.many) {
+    throw new ConfigError(`Field "${path}" cannot be both unique and many`);
+  }
+  const timeZone = field.type === "date" || field.type === "datetime" ? field.timeZone : undefined;
+  if (timeZone !== undefined && !isTimeZone(timeZone)) {
+    throw new ConfigError(`Field "${path}" has an unknown time zone "${timeZone}"`);
+  }
+  if (field.type === "select" && field.options.length === 0) {
+    throw new ConfigError(`Select field "${path}" needs at least one option`);
   }
 }
 

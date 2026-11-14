@@ -1,4 +1,4 @@
-export { checkAccess } from "./access";
+export { checkAccess, checkFieldAccess } from "./access";
 export { devAuth } from "./auth";
 export { defineCollection, extendCollection } from "./collection";
 export { defineConfig, definePlugin } from "./config";
@@ -21,6 +21,16 @@ export {
   mapLocalized,
   negotiateLocale,
 } from "./localize";
+export {
+  dateInTimeZone,
+  defaultTimeZone,
+  formatDateValue,
+  isTimeZone,
+  localDateTime,
+  toDatetimeValue,
+  toDateValue,
+  zonedTimeToUtc,
+} from "./time";
 export { compareBySort, compareValues, matchesWhere } from "./where";
 
 export type { AccessResult } from "./access";
@@ -37,12 +47,17 @@ export type {
 } from "./adapter";
 export type { AuthAdapter, DevAuthOptions, QuickbenUser } from "./auth";
 export type { PluginDefinition } from "./config";
-export type { ErrorCode, ValidationIssue } from "./errors";
+export type { ErrorCode, ForbiddenErrorOptions, ValidationIssue } from "./errors";
 export type { LocaleFromRequestOptions, LocalizedText } from "./localize";
+export type { DateLike, FormatDateOptions } from "./time";
 export type {
   AnyField,
   BooleanField,
   DateField,
+  DateOptions,
+  FieldAccess,
+  FieldAccessFn,
+  FieldAccessOperation,
   FieldAdmin,
   FieldType,
   FieldValidateContext,
@@ -65,6 +80,7 @@ export type {
   AdminMessageOverrides,
   AdminMeta,
   AfterChangeHook,
+  AfterCommitHook,
   AfterDeleteHook,
   AfterReadHook,
   AnyCollection,
