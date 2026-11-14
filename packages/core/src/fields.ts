@@ -1,4 +1,5 @@
 import type { QuickbenUser } from "./auth";
+import type { LocalizedText } from "./localize";
 import type { z } from "zod";
 
 /** Every field type. */
@@ -76,8 +77,8 @@ interface FieldBase<
   readonly unique: boolean;
   readonly index: boolean;
   readonly default: TInput | (() => TInput) | undefined;
-  readonly label: string | undefined;
-  readonly description: string | undefined;
+  readonly label: LocalizedText | undefined;
+  readonly description: LocalizedText | undefined;
   readonly validate: FieldValidator<TValue> | undefined;
   readonly admin: FieldAdmin;
   /** Type-level only. Always `undefined` at runtime. */
@@ -191,8 +192,10 @@ export interface FieldOptions<TValue, TRequired extends boolean, TDefault> {
   index?: boolean;
   /** Value used on create when the input leaves the field out. A function runs per create. */
   default?: TDefault;
-  label?: string;
-  description?: string;
+  /** Label in the admin UI. A string or a per-locale record. Default: the humanized name. */
+  label?: LocalizedText;
+  /** Help text in the admin UI. A string or a per-locale record. */
+  description?: LocalizedText;
   /** Runs after the built-in checks, only for values that are not `null`. */
   validate?: FieldValidator<TValue>;
   admin?: FieldAdmin;

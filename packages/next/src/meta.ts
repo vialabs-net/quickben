@@ -1,4 +1,4 @@
-import { checkAccess } from "@quickben/core";
+import { checkAccess, localize } from "@quickben/core";
 
 import type {
   AccessOperation,
@@ -70,12 +70,18 @@ function optional<K extends string, V>(key: K, value: V | undefined): Partial<Re
   return value === undefined ? {} : ({ [key]: value } as Record<K, V>);
 }
 
-function fieldMeta(field: SanitizedField): FieldMeta {
+/** Options of {@link getMeta} and {@link collectionMeta}. */
+export interface MetaOptions {
+  /** Locale for labels given per locale. Default: English, then the first value. */
+  locale?: string;
+}
+
+function fieldMeta(field: SanitizedField, locale: string | undefined): FieldMeta {
   return {
     name: field.name,
     type: field.type,
-    label: field.label,
-    description: field.description ?? null,
+    label: localize(field.label, locale),
+    description: field.description === undefined ? null : localize(field.description, locale),
     required: field.required,
     many: field.many,
     unique: field.unique,
@@ -103,7 +109,9 @@ async function allowed(
 export async function collectionMeta(
   collection: SanitizedCollection,
   ctx: RequestContext,
+  options: MetaOptions = {},
 ): Promise<CollectionMeta | null> {
+  const { locale } = options;
   if (!(await allowed(collection, "read", ctx))) return null;
   const [create, update, remove] = await Promise.all([
     allowed(collection, "create", ctx),
@@ -112,14 +120,20 @@ export async function collectionMeta(
   ]);
   return {
     slug: collection.slug,
-    labels: { singular: collection.labels.singular, plural: collection.labels.plural },
-    fields: collection.fieldList.map(fieldMeta),
+    labels: {
+      singular: localize(collection.labels.singular, locale),
+      plural: localize(collection.labels.plural, locale),
+    },
+    fields: collection.fieldList.map((field) => fieldMeta(field, locale)),
     admin: {
       useAsTitle: collection.admin.useAsTitle ?? "id",
       defaultColumns: collection.admin.defaultColumns ? [...collection.admin.defaultColumns] : null,
-      group: collection.admin.group ?? null,
+      group: collection.admin.group === undefined ? null : localize(collection.admin.group, locale),
       hidden: collection.admin.hidden ?? false,
-      description: collection.admin.description ?? null,
+      description:
+        collection.admin.description === undefined
+          ? null
+          : localize(collection.admin.description, locale),
     },
     access: { create, update, delete: remove },
   };
@@ -129,9 +143,14 @@ export async function collectionMeta(
  * Describe the collections and modules a user can read. Used by `GET /_meta` and the admin UI.
  * Access rules run without a document, so a rule that returns a filter counts as allowed.
  */
-export async function getMeta(qb: Quickben, ctx: RequestContext): Promise<MetaResponse> {
+export async function getMeta(
+  qb: Quickben,
+  ctx: RequestContext,
+  options: MetaOptions = {},
+): Promise<MetaResponse> {
+  const { locale } = options;
   const described = await Promise.all(
-    qb.config.collections.map((collection) => collectionMeta(collection, ctx)),
+    qb.config.collections.map((collection) => collectionMeta(collection, ctx, options)),
   );
   const collections = described.filter((meta) => meta !== null);
   const readable = new Set(collections.map((meta) => meta.slug));
@@ -140,9 +159,14 @@ export async function getMeta(qb: Quickben, ctx: RequestContext): Promise<MetaRe
     const slugs = module.collections.filter((slug) => readable.has(slug));
     const nav = (module.nav ?? [])
       .filter((item) => item.collection === undefined || readable.has(item.collection))
-      .map((item) => ({ ...item }));
+      .map((item) => ({ ...item, label: localize(item.label, locale) }));
     if (slugs.length === 0 && nav.length === 0) continue;
-    modules.push({ key: module.key, label: module.label, collections: slugs, nav });
+    modules.push({
+      key: module.key,
+      label: localize(module.label, locale),
+      collections: slugs,
+      nav,
+    });
   }
-  return { title: qb.config.admin.title, user: ctx.user, collections, modules };
+  return { title: localize(qb.config.admin.title, locale), user: ctx.user, collections, modules };
 }
