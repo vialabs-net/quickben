@@ -131,6 +131,8 @@ function FileControl({
   const url = context.files?.[field.name];
   return (
     <FileInput
+      // A new stored file (after a save) resets the input, so a chosen file is not sent again.
+      key={ref?.key ?? "none"}
       id={props.id}
       name={props.name}
       accept={field.accept}

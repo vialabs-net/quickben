@@ -145,6 +145,26 @@ describe("file fields in forms", () => {
     expect(screen.queryByRole("checkbox")).toBeNull();
   });
 
+  it("resets the chosen file when the stored file changes", () => {
+    vi.stubGlobal(
+      "URL",
+      Object.assign(URL, { createObjectURL: () => "blob:chosen", revokeObjectURL: vi.fn() }),
+    );
+    const { container, rerender } = render(
+      <FieldInput field={logoField} value={stored} context={context({ logo: "/f" })} />,
+    );
+    const input = container.querySelector<HTMLInputElement>("input[type=file]")!;
+    fireEvent.change(input, {
+      target: { files: [new File([new Uint8Array(1)], "new.png", { type: "image/png" })] },
+    });
+    expect(screen.getByRole("img", { name: "new.png" })).toBeTruthy();
+    const saved = { ...stored, key: "docs/logo/b.png", name: "new.png" };
+    rerender(<FieldInput field={logoField} value={saved} context={context({ logo: "/f" })} />);
+    expect(container.querySelector<HTMLInputElement>("input[type=file]")).not.toBe(input);
+    expect(screen.getAllByRole("img")).toHaveLength(1);
+    vi.unstubAllGlobals();
+  });
+
   it("requires a file on create", () => {
     const { container } = render(
       <FieldInput field={contractField} value={null} context={context()} />,
