@@ -21,7 +21,7 @@ export interface FieldInputContext {
   serverFunction: AdminServerFunction;
   /** Plural labels of collections, for placeholders. */
   labels: Readonly<Record<string, string>>;
-  /** The whole form is read-only. */
+  /** The input is read-only: the whole form is, or a field access rule denies the write. */
   readOnly: boolean;
   /** Scope of the control ids, from `formScope`. */
   scope: string;
@@ -156,7 +156,13 @@ function Control({
     case "boolean":
       return <Checkbox {...props} required={false} defaultChecked={value === true} />;
     case "datetime":
-      return <Input {...props} type="datetime-local" defaultValue={toDatetimeLocal(value)} />;
+      return (
+        <Input
+          {...props}
+          type="datetime-local"
+          defaultValue={toDatetimeLocal(value, context.i18n.timeZone)}
+        />
+      );
     case "select":
       return <SelectInput field={field} value={value} props={props} i18n={context.i18n} />;
     case "relation": {
@@ -241,7 +247,10 @@ export function FieldInput({
   const inline = field.type === "boolean" && !Custom;
   const width = widthOf(field);
   const hint =
-    field.description ?? (field.type === "datetime" && !Custom ? context.i18n.t("edit.utc") : null);
+    field.description ??
+    (field.type === "datetime" && !Custom
+      ? context.i18n.t("edit.timeZone", { zone: context.i18n.timeZone })
+      : null);
   const group = field.type === "select" && field.many && !Custom;
   const label = (
     <>

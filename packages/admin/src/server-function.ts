@@ -80,7 +80,8 @@ async function save(
   { qb, ctx, meta, i18n }: Scope,
   request: Extract<AdminRequest, { type: "save" }>,
 ): Promise<AdminResult> {
-  const { data, errors } = parseFormData(meta.fields, request.formData, i18n);
+  const operation = request.id === null ? "create" : "update";
+  const { data, errors } = parseFormData(meta.fields, request.formData, i18n, operation);
   if (Object.keys(errors).length > 0) return fieldErrorsState(errors, i18n);
   try {
     const doc =

@@ -1,4 +1,4 @@
-import { localeChain, localize } from "@quickben/core";
+import { formatDateValue, localeChain, localize } from "@quickben/core";
 
 import { formatMessage } from "./format";
 import { adminMessages } from "./messages";
@@ -111,10 +111,6 @@ const defaultDateTime: Intl.DateTimeFormatOptions = {
   timeZoneName: "short",
 };
 
-function invalidDate(date: Date, value: DateInput): string | null {
-  return Number.isNaN(date.getTime()) ? String(value) : null;
-}
-
 /** Build the translator for some {@link AdminI18nData}. Works on the server and in the browser. */
 export function createAdminI18n(data: AdminI18nData): AdminI18n {
   const { locale, timeZone } = data;
@@ -128,21 +124,10 @@ export function createAdminI18n(data: AdminI18nData): AdminI18n {
     text: (value) => (value === null || value === undefined ? "" : localize(value, locale)),
     lower: (text) => text.toLocaleLowerCase(locale),
     number: (value, options) => new Intl.NumberFormat(locale, options).format(value),
-    date(value, options = { dateStyle: "medium" }) {
-      const date = toDate(value);
-      const zone = typeof value === "string" && dateOnly.test(value) ? "UTC" : timeZone;
-      return (
-        invalidDate(date, value) ??
-        new Intl.DateTimeFormat(locale, { timeZone: zone, ...options }).format(date)
-      );
-    },
-    dateTime(value, options = defaultDateTime) {
-      const date = toDate(value);
-      return (
-        invalidDate(date, value) ??
-        new Intl.DateTimeFormat(locale, { timeZone, ...options }).format(date)
-      );
-    },
+    date: (value, options = { dateStyle: "medium" }) =>
+      formatDateValue(value, { ...options, type: "date", locale, timeZone }),
+    dateTime: (value, options = defaultDateTime) =>
+      formatDateValue(value, { ...options, type: "datetime", locale, timeZone }),
     relativeTime(value, now = Date.now()) {
       const seconds = (toDate(value).getTime() - toDate(now).getTime()) / 1000;
       if (Number.isNaN(seconds)) return String(value);
