@@ -5,7 +5,7 @@ import { defaultTimeZone, toDatetimeValue, toDateValue } from "./time";
 
 import type { QuickbenUser } from "./auth";
 import type { ValidationIssue } from "./errors";
-import type { AnyField, FieldValidator } from "./fields";
+import type { AnyField, FieldValidator, FileUpload } from "./fields";
 import type { SanitizedCollection } from "./types";
 
 /** `Date`, `YYYY-MM-DD`, or an ISO datetime with or without an offset. */
@@ -59,7 +59,29 @@ export function fieldValueSchema(field: AnyField): z.ZodType {
     }
     case "json":
       return field.schema ?? z.json();
+    case "file":
+      return z.union([fileRefSchema, z.custom<FileUpload>(isFileUpload, "Expected a file")]);
   }
+}
+
+/** Schema of a stored {@link FileRef}. */
+export const fileRefSchema = z.strictObject({
+  key: z.string().min(1).max(1024),
+  name: z.string().max(255),
+  mime: z.string().min(1).max(255),
+  size: z.int().nonnegative(),
+  sha256: z.string().regex(/^[\da-f]{64}$/),
+});
+
+/** Whether `value` is a new file: a `Blob`, or `{ name, bytes }`. */
+export function isFileUpload(value: unknown): value is FileUpload {
+  if (value instanceof Blob) return true;
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { name?: unknown }).name === "string" &&
+    (value as { bytes?: unknown }).bytes instanceof Uint8Array
+  );
 }
 
 function withLength(schema: z.ZodString | z.ZodEmail | z.ZodURL, min?: number, max?: number) {
@@ -133,6 +155,8 @@ export async function validateData(args: ValidateDataArgs): Promise<Record<strin
   for (const field of collection.fieldList) {
     const value = data[field.name];
     if (!field.validate || value === undefined || value === null) continue;
+    // File fields run `validate` on the stored reference, after the upload is checked.
+    if (field.type === "file") continue;
     const validate = field.validate as FieldValidator<unknown>;
     const outcome = await validate(value, { operation, data, original, user });
     if (outcome !== true) issues.push({ path: field.name, message: outcome });

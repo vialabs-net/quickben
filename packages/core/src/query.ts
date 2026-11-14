@@ -46,7 +46,12 @@ export function parseSort(
 function isSortable(collection: SanitizedCollection, field: string): boolean {
   if (systemSortable.has(field)) return true;
   const definition = Object.hasOwn(collection.fields, field) ? collection.fields[field] : undefined;
-  return definition !== undefined && !definition.many && definition.type !== "json";
+  return (
+    definition !== undefined &&
+    !definition.many &&
+    definition.type !== "json" &&
+    definition.type !== "file"
+  );
 }
 
 /** Validate `limit` and `page`. */
