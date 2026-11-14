@@ -83,10 +83,11 @@ describe("prismaSource", () => {
   });
 
   it("names models and fields Prisma accepts", () => {
-    expect(["blog-posts", "a_b", "2fa"].map(prismaModelName)).toEqual([
+    expect(["blog-posts", "a_b", "2fa", "string"].map(prismaModelName)).toEqual([
       "BlogPosts",
       "AB",
       "Model2fa",
+      "ModelString",
     ]);
     const source = prismaSource(
       {
@@ -124,6 +125,23 @@ describe("prismaSource", () => {
       ["postgresql", "postgres", undefined],
       ["sqlite", "sqlite", undefined],
     ] as const)("accepts the %s models (schema %s)", async (provider, dialect, schema) => {
+      const collections = [
+        ...fullSchema.collections,
+        // Names that need care: same model name, reserved name, prefixed field names.
+        { slug: "blog_posts", fields: [] },
+        { slug: "string", fields: [] },
+        {
+          slug: "odd",
+          fields: ["_a", "fa_", "f_a"].map((name) => ({
+            name,
+            type: "text" as const,
+            many: false,
+            required: false,
+            unique: false,
+            index: true,
+          })),
+        },
+      ];
       const file = join(dir, `${dialect}-${schema ?? "default"}.prisma`);
       const datasource = [
         "datasource db {",
@@ -132,7 +150,10 @@ describe("prismaSource", () => {
         "}",
         "",
       ];
-      await writeFile(file, [...datasource, prismaSource(fullSchema, dialect, schema)].join("\n"));
+      const source = prismaSource({ collections }, dialect, schema);
+      expect(source).toContain("model BlogPosts2 {");
+      expect(source).toContain("model ModelString {");
+      await writeFile(file, [...datasource, source].join("\n"));
       const { stdout } = await run(prisma, ["validate", "--schema", file], {
         env: { ...process.env, PRISMA_HIDE_UPDATE_MESSAGE: "1", CHECKPOINT_DISABLE: "1" },
       });

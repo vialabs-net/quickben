@@ -201,6 +201,43 @@ describe("verify (pglite)", () => {
     ]);
   });
 
+  it("ignores invalid indexes and does not reuse a taken index name", async () => {
+    const { client, db } = await pglite(`
+      create table "people" (
+        "id" text primary key, "createdAt" timestamp(3) with time zone not null,
+        "updatedAt" timestamp(3) with time zone not null, "name" text
+      );
+      create index "people_createdAt_idx" on "people" ("createdAt") where "name" is null;
+      create index "other" on "people" ("createdAt");`);
+    // What a failed `create index concurrently` leaves behind.
+    await client.exec(
+      "update pg_index set indisvalid = false where indexrelid = 'other'::regclass",
+    );
+    await db.init({ collections: [notes.collections[1]!] });
+    const report = await db.checkSchema();
+    expect(report.issues).toHaveLength(1);
+    expect(report.issues[0]).toMatchObject({ problem: "index", column: "createdAt" });
+    expect(report.issues[0]?.fix).toBeUndefined();
+    expect(report.statements).toEqual([]);
+  });
+
+  it('names "public" in queries, whatever the search_path', async () => {
+    const client = await PGlite.create();
+    await client.exec(`create schema "tenant";
+      create table "tenant"."people" ("id" text primary key, "createdAt" text, "updatedAt" text, "name" text);
+      set search_path = "tenant", public;`);
+    adapter = drizzleAdapter({ dialect: "pglite", client, schema: "public", verify: true });
+    await adapter.init({ collections: [notes.collections[1]!] });
+    await adapter.create({
+      collection: "people",
+      data: { id: "p1", createdAt: now, updatedAt: now, name: "a" },
+    });
+    const { rows } = await client.query('select count(*)::int as n from public."people"');
+    expect(rows).toEqual([{ n: 1 }]);
+    const tenant = await client.query('select count(*)::int as n from "tenant"."people"');
+    expect(tenant.rows).toEqual([{ n: 0 }]);
+  });
+
   it("needs init first", () => {
     adapter = drizzleAdapter({ dialect: "pglite" });
     expect(() => adapter?.checkSchema()).toThrow(ConfigError);

@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 
-import { sqlTypes } from "./columns";
+import { indexName, sqlTypes, uniqueIndexName } from "./columns";
 import { addColumnDdl, columnIndexDdl, createSchemaDdl, createTableDdl, indexDdl } from "./ddl";
 
 import type { ColumnSpec, Family, TableSpec } from "./columns";
@@ -67,6 +67,8 @@ export interface SchemaIssue {
   actual?: string;
   /** One line, e.g. `notes.title: type is varchar(20), expected text`. */
   message: string;
+  /** The statement in `statements` that fixes it. Missing when it needs a manual fix. */
+  fix?: string;
 }
 
 /** Result of comparing the expected tables with a database. */
@@ -146,7 +148,7 @@ async function inspectPg(db: Db, schema: string | undefined): Promise<DbSnapshot
         join pg_class i on i.oid = ix.indexrelid
         join pg_namespace n on n.oid = c.relnamespace
         join pg_am am on am.oid = i.relam
-        where n.nspname = ${namespace}`,
+        where n.nspname = ${namespace} and ix.indisvalid and ix.indisready`,
   );
   for (const row of indexes) {
     const entry = snapshot.tables.get(String(row.table));
@@ -273,7 +275,7 @@ interface Context {
   statements: string[];
 }
 
-function issue(context: Context, entry: Omit<SchemaIssue, "message">): void {
+function issue(context: Context, entry: Omit<SchemaIssue, "message" | "fix">, fix?: string): void {
   const where = entry.column === undefined ? entry.table : `${entry.table}.${entry.column}`;
   const messages: Record<SchemaProblem, string> = {
     "missing-table": `table is missing`,
@@ -284,7 +286,12 @@ function issue(context: Context, entry: Omit<SchemaIssue, "message">): void {
     unique: `unique index is missing, expected ${entry.expected}`,
     index: `index is missing, expected ${entry.expected}`,
   };
-  context.issues.push({ ...entry, message: `${where}: ${messages[entry.problem]}` });
+  context.issues.push({
+    ...entry,
+    message: `${where}: ${messages[entry.problem]}`,
+    ...(fix === undefined ? {} : { fix }),
+  });
+  if (fix !== undefined) context.statements.push(fix);
 }
 
 function checkShape(context: Context, spec: TableSpec, column: ColumnSpec, found: DbTable): void {
@@ -323,23 +330,32 @@ function checkIndex(context: Context, spec: TableSpec, column: ColumnSpec, found
     : column.index && !found.indexes.some((index) => covers(index, column, family));
   const ddl = columnIndexDdl(spec, column, family, { schema: context.schema });
   if (!missing || ddl === undefined) return;
-  issue(context, {
-    table: spec.slug,
-    column: column.name,
-    problem: column.unique ? "unique" : "index",
-    expected: ddl,
-  });
-  context.statements.push(ddl);
+  const name = column.unique
+    ? uniqueIndexName(spec.slug, column.name)
+    : indexName(spec.slug, column.name);
+  // An index with that name exists but does not fit: creating it again would fail.
+  const taken = found.indexes.some((index) => index.name === name);
+  issue(
+    context,
+    {
+      table: spec.slug,
+      column: column.name,
+      problem: column.unique ? "unique" : "index",
+      expected: ddl,
+    },
+    taken ? undefined : ddl,
+  );
 }
 
 function checkTable(context: Context, spec: TableSpec, found: DbTable | undefined): void {
   const { family, schema } = context;
   if (!found) {
-    issue(context, { table: spec.slug, problem: "missing-table", expected: spec.slug });
-    context.statements.push(
+    issue(
+      context,
+      { table: spec.slug, problem: "missing-table", expected: spec.slug },
       createTableDdl(spec, family, { schema }),
-      ...indexDdl(spec, family, { schema }),
     );
+    context.statements.push(...indexDdl(spec, family, { schema }));
     return;
   }
   for (const column of spec.columns) {

@@ -80,9 +80,12 @@ function sqliteColumn(spec: ColumnSpec): sqlite.SQLiteColumnBuilderBase {
 
 type ColumnsOf = Record<string, Column>;
 
-/** Drizzle's `pgSchema` for a schema name. `public` is the default schema in Drizzle. */
+/**
+ * Drizzle schema for a schema name. `pgSchema("public")` throws, but the class takes any name,
+ * so queries name `"public"` explicitly instead of following `search_path`.
+ */
 function pgSchemaOf(schema: string | undefined): pg.PgSchema | undefined {
-  return schema === undefined || schema === "public" ? undefined : pg.pgSchema(schema);
+  return schema === undefined ? undefined : new pg.PgSchema(schema);
 }
 
 function pgTable(spec: TableSpec, schema: string | undefined): pg.PgTable {

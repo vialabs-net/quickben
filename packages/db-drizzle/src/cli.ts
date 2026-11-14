@@ -91,9 +91,8 @@ async function runDiff(
     return 1;
   }
   const report = await checkDatabase(config, target, url);
-  const fixable = new Set(["missing-table", "missing-column", "unique", "index"]);
   for (const issue of report.issues) {
-    if (!fixable.has(issue.problem)) console.error(`Not fixed by this SQL: ${issue.message}`);
+    if (issue.fix === undefined) console.error(`Not fixed by this SQL: ${issue.message}`);
   }
   const source = report.statements.length === 0 ? "" : sqlScript(report.statements);
   if (out) {
