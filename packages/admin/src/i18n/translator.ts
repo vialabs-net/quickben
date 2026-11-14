@@ -101,6 +101,9 @@ function translator<K extends string>(data: AdminI18nData, bundle: MessageBundle
   };
 }
 
+/** `Jan 2, 2026`: medium date. */
+const defaultDate: Intl.DateTimeFormatOptions = { dateStyle: "medium" };
+
 /** `Jan 2, 2026, 10:30 AM UTC`: medium date, short time and the zone name. */
 const defaultDateTime: Intl.DateTimeFormatOptions = {
   year: "numeric",
@@ -124,7 +127,7 @@ export function createAdminI18n(data: AdminI18nData): AdminI18n {
     text: (value) => (value === null || value === undefined ? "" : localize(value, locale)),
     lower: (text) => text.toLocaleLowerCase(locale),
     number: (value, options) => new Intl.NumberFormat(locale, options).format(value),
-    date: (value, options = { dateStyle: "medium" }) =>
+    date: (value, options = defaultDate) =>
       formatDateValue(value, { ...options, type: "date", locale, timeZone }),
     dateTime: (value, options = defaultDateTime) =>
       formatDateValue(value, { ...options, type: "datetime", locale, timeZone }),
