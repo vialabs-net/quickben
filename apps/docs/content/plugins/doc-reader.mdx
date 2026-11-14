@@ -301,3 +301,7 @@ export default createAdminPage(config, { serverFunction, extensions: [docReaderA
 | `modelTimeoutMs`       | `60000`               | Deadline of one model call.                     |
 | `onReadingDone`        | none                  | Called when a reading ends.                     |
 | `log`                  | `console.warn`        | Failures that do not fail a reading.            |
+
+## Admin languages
+
+The admin pages ship English and Spanish messages in the `doc-reader` namespace (`docReaderMessages` from `@quickben/plugin-doc-reader/admin`). They follow the admin locale. Override a message with `admin.messages`, for example `{ es: { "doc-reader.<key>": "…" } }`. See [Languages](/docs/nextjs/admin#languages).

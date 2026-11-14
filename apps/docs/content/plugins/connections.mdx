@@ -195,3 +195,7 @@ Test on a credential that no connection uses opens a dialog that asks for the pr
 4. Deploy without `previousMasterKeys`.
 
 Each stored value names the key that sealed it: `v1:<key id>:<iv>:<tag>:<ciphertext>`.
+
+## Admin languages
+
+The admin pages ship English and Spanish messages in the `connections` namespace (`connectionsMessages` from `@quickben/plugin-connections/admin`). They follow the admin locale. Override a message with `admin.messages`, for example `{ es: { "connections.<key>": "…" } }`. See [Languages](/docs/nextjs/admin#languages).

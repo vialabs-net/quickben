@@ -1,3 +1,6 @@
 import { quickben } from "@quickben/eslint-config";
 
-export default quickben({ tsconfigRootDir: import.meta.dirname, uiFiles: ["src/admin/**/*.tsx", "src/client/**/*.tsx"] });
+export default quickben({
+  tsconfigRootDir: import.meta.dirname,
+  uiFiles: ["src/admin/**/*.tsx", "src/client/**/*.tsx"],
+});
