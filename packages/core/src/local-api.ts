@@ -537,25 +537,9 @@ function buildApi(
   };
   const write = async <T>(ctx: RequestContext, fn: (scope: OperationScope) => Promise<T>) => {
     const context = assertContext(ctx);
-    return inTransaction(async (tx, queue) => {
-      const uploads: (() => Promise<void>)[] = [];
-      try {
-        const result = await fn({
-          collections,
-          db: tx.db,
-          api: tx,
-          ctx: context,
-          commit: queue,
-          storage,
-          uploads,
-        });
-        queue.rollback.push(...uploads);
-        return result;
-      } catch (error) {
-        await runTasks(uploads, "Removing a stored file failed");
-        throw error;
-      }
-    });
+    return inTransaction((tx, queue) =>
+      fn({ collections, db: tx.db, api: tx, ctx: context, commit: queue, storage }),
+    );
   };
   const api = {
     config,

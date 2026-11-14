@@ -230,9 +230,9 @@ interface StorageAdapter {
 
 - `defineConfig({ storage })` is the default; a field's `storage` wins. Without one, an upload throws `ConfigError`.
 - Keys are relative paths (`<collection>/<field>/<uuidv7><ext>` for file fields). `assertStorageKey` rejects absolute paths, `\`, control characters and empty, `.` or `..` segments. Every adapter calls it.
-- Input of a file field: a `Blob`, `{ name, bytes }`, the stored reference (kept), or `null`. Another reference needs `overrideAccess`.
+- Input of a file field: a `Blob`, `{ name, bytes }`, the stored reference (left out of the write, so it keeps its stored metadata and never overwrites a newer file), or `null`. Another reference needs `overrideAccess`.
 - Checks: size, empty, type from the first bytes (`detectMime`: PDF, PNG, JPEG, GIF, WebP, AVIF, woff, woff2, else `text/plain` for UTF-8 text, else `application/octet-stream`), `accept`, `validate` (on the reference). Every upload of a write is checked before any is stored.
-- Cleanup: the old object of a replaced or cleared file, and every file of a deleted document, is removed after the outermost commit. Objects stored by a failed write, or by a transaction that rolls back, are removed. Removal errors are logged.
+- Cleanup: the old object of a replaced or cleared file, and every file of a deleted document, is removed after the outermost commit. Objects stored by writes of a transaction are removed when the outermost transaction rolls back. A write that fails inside a transaction that still commits keeps its objects. Removal errors are logged.
 - `qb.readFile` reads the document with `select: [field]`, so document and field read access apply.
 - Adapters: `memoryStorage()` (core), `@quickben/storage-local`, `@quickben/storage-gcs`, `@quickben/storage-s3` (SDKs as optional peers). `@quickben/adapter-tests` exports `runStorageContractTests`.
 

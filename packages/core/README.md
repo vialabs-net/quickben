@@ -67,7 +67,7 @@ See [ARCHITECTURE.md](../../ARCHITECTURE.md) for the query model and the adapter
 | `storage`     | `defineConfig({ storage })`: default `StorageAdapter` of file fields. Adapters: `memoryStorage()`, `@quickben/storage-local`, `-gcs`, `-s3`.   |
 | `f.file()`    | `{ accept, maxBytes, storage }`. Stores `{ key, name, mime, size, sha256 }`. Input: `Blob`, `{ name, bytes }`, the stored reference or `null`. |
 | Checks        | Size, empty, type from the first bytes, `accept`, `validate`. All uploads are checked before any is stored.                                    |
-| Cleanup       | Replaced and deleted files are removed after the commit; files of a failed write are removed.                                                  |
+| Cleanup       | Replaced and deleted files are removed after the commit; files of a rolled-back transaction are removed.                                       |
 | `qb.readFile` | `(slug, id, field, ctx)` → `{ file, body, size }`. Needs read access to the document and the field.                                            |
 
 ## Field access, afterCommit, time zones

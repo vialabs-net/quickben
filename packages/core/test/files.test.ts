@@ -109,6 +109,11 @@ describe("file types", () => {
     expect(cleanFileName("../../etc/passwd")).toBe("passwd");
     expect(cleanFileName("a\u0000b.txt")).toBe("ab.txt");
     expect(cleanFileName("  ")).toBe("file");
+    // Long names are cut by code point, never inside a character.
+    const long = cleanFileName(`${"a".repeat(254)}\u{1F600}.pdf`);
+    expect(Array.from(long)).toHaveLength(255);
+    expect(() => encodeURIComponent(long)).not.toThrow();
+    expect(cleanFileName("a\uD800b.txt")).toBe("ab.txt");
   });
 });
 
@@ -261,7 +266,7 @@ describe("file fields", () => {
     ).rejects.toThrow("rollback");
     expect(storage.objects.size).toBe(0);
 
-    // A failing write inside a transaction that goes on removes its own files at once.
+    // A write that fails before it stores anything leaves nothing behind.
     await qb.transaction(async (tx) => {
       await expect(
         tx.create("docs", { title: "hidden", logo: { name: "a.png", bytes: png } }, user),
@@ -271,6 +276,56 @@ describe("file fields", () => {
       ).rejects.toBeInstanceOf(NotFoundError);
     });
     expect(storage.objects.size).toBe(1);
+  });
+
+  it("keeps the files of a failed write while the outer transaction may still commit", async () => {
+    const storage = memoryStorage();
+    const docs = defineCollection({
+      slug: "docs",
+      fields: { title: f.text(), file: f.file() },
+      access: { create: () => true, read: () => true },
+      hooks: {
+        afterChange: [
+          ({ doc }) => {
+            if (doc.title === "boom") throw new Error("boom");
+          },
+        ],
+      },
+    });
+    const qb = await createQuickben(
+      defineConfig({ db: testAdapter(), storage, collections: [docs] }),
+    );
+    await qb.transaction(async (tx) => {
+      await expect(
+        tx.create("docs", { title: "boom", file: { name: "a.pdf", bytes: pdf } }, user),
+      ).rejects.toThrow("boom");
+    });
+    // The row may have been written in the outer transaction, so its object stays.
+    expect(storage.objects.size).toBe(1);
+  });
+
+  it("keeps the stored reference as stored and leaves it out of the write", async () => {
+    const db = testAdapter();
+    const updates: Record<string, unknown>[] = [];
+    const update = db.update.bind(db);
+    db.update = (args) => {
+      updates.push(args.data);
+      return update(args);
+    };
+    const docs = defineCollection({
+      slug: "docs",
+      fields: { title: f.text(), file: f.file() },
+      access: { create: () => true, read: () => true, update: () => true },
+    });
+    const qb = await createQuickben(
+      defineConfig({ db, storage: memoryStorage(), collections: [docs] }),
+    );
+    const doc = await qb.create("docs", { file: { name: "a.pdf", bytes: pdf } }, user);
+    const stored = doc.file!;
+    const tampered = { ...stored, name: "evil.html", mime: "text/html", size: 1 };
+    const updated = await qb.update("docs", doc.id, { title: "b", file: tampered }, user);
+    expect(updated.file).toEqual(stored);
+    expect(updates.at(-1)).not.toHaveProperty("file");
   });
 
   it("logs a failing cleanup and goes on", async () => {

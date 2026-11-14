@@ -17,8 +17,6 @@ export interface OperationScope {
   commit: CommitQueue | undefined;
   /** Default storage of `file` fields. */
   storage: StorageAdapter | undefined;
-  /** Removes the objects this write stored. Set for writes. */
-  uploads?: (() => Promise<void>)[];
 }
 
 /** Work that runs after the outermost transaction commits. */
@@ -26,7 +24,11 @@ export interface CommitQueue {
   /** The local API without a transaction, for `afterCommit` hooks. */
   root: Quickben;
   tasks: (() => Promise<void>)[];
-  /** Removes objects stored by writes of the transaction, when it rolls back. */
+  /**
+   * Removes objects stored by writes of the transaction when the outermost transaction rolls
+   * back. A failed write inside a transaction that still commits keeps its objects: its row
+   * may have been written.
+   */
   rollback: (() => Promise<void>)[];
 }
 
