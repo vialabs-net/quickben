@@ -124,6 +124,7 @@ async function renderContent(args: RenderArgs): Promise<ReactNode> {
         segments={route.segments}
         searchParams={searchParams}
         i18n={i18n}
+        serverFunction={serverFunction}
       />
     );
   }

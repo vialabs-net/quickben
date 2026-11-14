@@ -3,7 +3,7 @@ import { defineConfig } from "tsdown";
 export default defineConfig({
   // One output file per source file, so "use client" and "use server" directives stay at the
   // top of the modules that declare them. Next.js reads them from the published files.
-  entry: ["src/index.ts", "src/ui/index.ts", "src/i18n/index.ts"],
+  entry: ["src/index.ts", "src/ui/index.ts", "src/i18n/index.ts", "src/forms.ts"],
   unbundle: true,
   format: "esm",
   platform: "neutral",
