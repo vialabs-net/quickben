@@ -2,7 +2,7 @@ import { createClient } from "@libsql/client";
 import { describe, expect, it } from "vitest";
 
 import { tableSpec } from "../src";
-import { columnDdl, createTableDdl, indexDdl, quote } from "../src/push";
+import { columnDdl, createTableDdl, indexDdl, quote } from "../src/ddl";
 
 import { drizzleAdapter } from "./drizzle";
 import { fullSchema } from "./fixtures/schema";
@@ -45,10 +45,14 @@ describe("DDL", () => {
   });
 
   it("writes tables and indexes", () => {
-    expect(createTableDdl(spec, "sqlite")).toMatch(
+    const again = { ifNotExists: true, inline: true };
+    expect(createTableDdl(spec, "sqlite", again)).toMatch(
       /^create table if not exists "blog-posts" \("id" text primary key, /,
     );
-    expect(indexDdl(spec, "pg")).toEqual([
+    expect(createTableDdl(spec, "pg", { schema: "app" })).toMatch(
+      /^create table "app"\."blog-posts" \(\n {2}"id" text primary key,\n/,
+    );
+    expect(indexDdl(spec, "pg", { ifNotExists: true })).toEqual([
       'create index if not exists "blog-posts_createdAt_idx" on "blog-posts" ("createdAt")',
       'create index if not exists "blog-posts_title_idx" on "blog-posts" ("title")',
       'create unique index if not exists "blog-posts_slug_unique" on "blog-posts" ("slug")',
@@ -56,7 +60,10 @@ describe("DDL", () => {
       'create index if not exists "blog-posts_author_idx" on "blog-posts" ("author")',
     ]);
     expect(indexDdl(spec, "sqlite")).toContain(
-      'create index if not exists "blog-posts_labels_idx" on "blog-posts" ("labels")',
+      'create index "blog-posts_labels_idx" on "blog-posts" ("labels")',
+    );
+    expect(indexDdl(spec, "pg", { schema: "app" })[0]).toBe(
+      'create index "blog-posts_createdAt_idx" on "app"."blog-posts" ("createdAt")',
     );
   });
 });

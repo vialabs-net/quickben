@@ -3,12 +3,14 @@ import { count, eq } from "drizzle-orm";
 
 import { familyOf, tableSpecs } from "./columns";
 import { toConflict } from "./errors";
+import { compareSchema, inspectDatabase, uniqueIndexNames } from "./inspect";
 import { pushTables } from "./push";
 import { buildTable, decodeValue, encodeValue } from "./tables";
 import { orderToSql, whereToSql } from "./where";
 
 import type { Dialect, Family } from "./columns";
 import type { Connection, Connector, DrizzleAdapterOptions, DrizzleDatabase } from "./connect";
+import type { SchemaReport } from "./inspect";
 import type { RuntimeTable } from "./tables";
 import type {
   DatabaseAdapter,
@@ -32,7 +34,7 @@ export type DrizzleTableOf<D extends Dialect = Dialect> = D extends "sqlite"
  */
 export type PgGeneratedTable = PgTableWithColumns<{
   name: string;
-  schema: undefined;
+  schema: string | undefined;
   columns: Record<string, PgColumn>;
   dialect: "pg";
 }>;
@@ -64,6 +66,13 @@ export interface DrizzleAdapter<D extends Dialect = Dialect> extends DatabaseAda
   DrizzleRaw<D>
 > {
   readonly dialect: D;
+  /** Postgres schema of the tables (the `schema` option). `undefined`: the current schema. */
+  readonly schema: string | undefined;
+  /**
+   * Compare the tables the collections need with the database: what is missing or different,
+   * and the SQL that adds what is missing. Call it after `init`. The `verify` option runs it.
+   */
+  checkSchema(): Promise<SchemaReport>;
   transaction<T>(fn: (tx: DrizzleAdapter<D>) => Promise<T>): Promise<T>;
 }
 
@@ -91,6 +100,8 @@ interface QueryRunner {
 
 interface State {
   options: DrizzleAdapterOptions;
+  /** Postgres schema, `undefined` for the current one. */
+  schema: string | undefined;
   connect: Connector;
   family: Family;
   connection: Connection | undefined;
@@ -174,8 +185,11 @@ export function createDrizzleAdapter<O extends DrizzleAdapterOptions>(
   options: O,
   connect: Connector<O>,
 ): DrizzleAdapter<O["dialect"]> {
+  const schema = "schema" in options ? options.schema : undefined;
+  if (schema === "") throw new ConfigError("drizzleAdapter: `schema` must not be empty");
   const state: State = {
     options,
+    schema,
     connect: connect as Connector,
     family: familyOf(options.dialect),
     connection: undefined,
@@ -186,16 +200,47 @@ export function createDrizzleAdapter<O extends DrizzleAdapterOptions>(
   return createAdapter(state, undefined);
 }
 
+/** Compare the tables with the database and record the real unique index names. */
+async function checkSchema(
+  state: State,
+  db: Connection["db"],
+  inTransaction = false,
+): Promise<SchemaReport> {
+  const specs = [...state.tables.values()].map((table) => table.spec);
+  const inspect = () => inspectDatabase(db, state.family, specs, state.schema);
+  const snapshot = await (inTransaction ? inspect() : serialized(state, inspect));
+  for (const table of state.tables.values()) {
+    for (const [name, field] of uniqueIndexNames(table.spec, snapshot.tables.get(table.spec.slug)))
+      table.constraints.set(name, field);
+  }
+  return compareSchema(specs, snapshot, state.family, state.schema);
+}
+
+async function verify(state: State, connection: Connection): Promise<void> {
+  const mode = state.options.verify ?? false;
+  if (mode === false) return;
+  const { issues } = await checkSchema(state, connection.db);
+  if (issues.length === 0) return;
+  const message = [
+    `drizzleAdapter: the database does not match the collections (${String(issues.length)} issues):`,
+    ...issues.map((entry) => `  - ${entry.message}`),
+    "Run `quickben-drizzle sql --diff --url <url>` for the SQL that adds what is missing.",
+  ].join("\n");
+  if (mode === "warn") console.warn(message);
+  else throw new ConfigError(message);
+}
+
 function createAdapter(state: State, tx: QueryRunner | undefined): DrizzleAdapter {
   const dialect = state.options.dialect;
 
-  const runner = (): QueryRunner => {
-    if (tx) return tx;
+  const connected = (): Connection => {
     if (!state.connection) {
       throw new ConfigError("drizzleAdapter: not initialized. Call createQuickben(config) first.");
     }
-    return state.connection.db as unknown as QueryRunner;
+    return state.connection;
   };
+
+  const runner = (): QueryRunner => tx ?? (connected().db as unknown as QueryRunner);
 
   /** Outside a transaction, wait for our turn when the driver needs it. */
   const run = <T>(fn: (db: QueryRunner) => Promise<T>): Promise<T> =>
@@ -237,6 +282,7 @@ function createAdapter(state: State, tx: QueryRunner | undefined): DrizzleAdapte
   const adapter: DrizzleAdapter = {
     name: "drizzle",
     dialect,
+    schema: state.schema,
     get raw() {
       const tables = Object.fromEntries(
         [...state.tables].map(([slug, table]) => [slug, table.table]),
@@ -256,12 +302,21 @@ function createAdapter(state: State, tx: QueryRunner | undefined): DrizzleAdapte
         state.connecting ??= state.connect(state.options);
         state.connection = await state.connecting;
       }
+      const connection = state.connection;
       const specs = tableSpecs(schema);
-      state.tables = new Map(specs.map((spec) => [spec.slug, buildTable(spec, dialect)]));
-      if (state.options.push ?? state.connection.inMemory) {
-        const { db } = state.connection;
-        await serialized(state, () => pushTables(db, state.family, specs));
+      state.tables = new Map(
+        specs.map((spec) => [spec.slug, buildTable(spec, dialect, state.schema)]),
+      );
+      if (state.options.push ?? connection.inMemory) {
+        await serialized(state, () => pushTables(connection.db, state.family, specs, state.schema));
       }
+      await verify(state, connection);
+    },
+
+    checkSchema() {
+      return tx
+        ? checkSchema(state, tx as unknown as Connection["db"], true)
+        : checkSchema(state, connected().db);
     },
 
     find,
