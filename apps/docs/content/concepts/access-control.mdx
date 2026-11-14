@@ -68,3 +68,29 @@ await qb.create("tags", { name: "news" }, { user: null, overrideAccess: true });
 | `data`      | Input data for `create` and `update`                    |
 
 Filters returned by rules use the same [query model](/docs/concepts/query-model) as `find`. They are typed from the collection's fields.
+
+## Field access
+
+```ts
+import { defineCollection, fields as f } from "@quickben/core";
+
+const isHr = ({ user }: { user: { roles?: string[] } | null }) =>
+  user?.roles?.includes("hr") ?? false;
+
+export const employees = defineCollection({
+  slug: "employees",
+  fields: {
+    name: f.text({ required: true }),
+    salary: f.number({ access: { read: isHr, create: isHr, update: isHr } }),
+  },
+});
+```
+
+Field rules get the same arguments as collection rules and return `true` or `false`. A missing rule allows the operation. `overrideAccess` skips them.
+
+| Rule returns `false` | Effect                                                                                                                             |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `read`               | Removed from documents (also populated ones) and from `select`. In `where` and `sort`: `ValidationError`, as for an unknown field. |
+| `create`, `update`   | Input that sets the field throws `ForbiddenError`; `error.fields` lists the paths. Defaults and hooks may still set it.            |
+
+Fields are removed after `afterRead` hooks, so hooks see the full document. `afterChange` and `afterCommit` hooks also get full documents. `checkFieldAccess(collection, operation, ctx)` returns the names of denied fields, for UI code. The REST API and the admin leave unreadable fields out of `/_meta` and render unwritable ones read-only.

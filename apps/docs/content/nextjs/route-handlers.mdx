@@ -108,17 +108,17 @@ Every error has the same body:
 }
 ```
 
-| Code                     | Status | When                                                                                                                             | `details`                         |
-| ------------------------ | ------ | -------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
-| `VALIDATION`             | 400    | Invalid body or query string                                                                                                     | `{ issues: [{ path, message }] }` |
-| `UNAUTHORIZED`           | 401    | Access rule denies and there is no user                                                                                          | `null`                            |
-| `FORBIDDEN`              | 403    | Access rule denies a signed-in user; CSRF check fails                                                                            | `null`                            |
-| `NOT_FOUND`              | 404    | Unknown document, collection or route                                                                                            | `null`                            |
-| `METHOD_NOT_ALLOWED`     | 405    | For example `POST /posts/:id`. Has an `Allow` header.                                                                            | `null`                            |
-| `CONFLICT`               | 409    | Unique field already used                                                                                                        | `{ field }`                       |
-| `PAYLOAD_TOO_LARGE`      | 413    | Body larger than `maxBodyBytes`                                                                                                  | `null`                            |
-| `UNSUPPORTED_MEDIA_TYPE` | 415    | Body without `Content-Type: application/json`                                                                                    | `null`                            |
-| `INTERNAL`               | 500    | Any other error, including `ConfigError` (for example `devAuth()` in production). It is logged, and its message is not returned. | `null`                            |
+| Code                     | Status | When                                                                                                                             | `details`                                 |
+| ------------------------ | ------ | -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| `VALIDATION`             | 400    | Invalid body or query string                                                                                                     | `{ issues: [{ path, message }] }`         |
+| `UNAUTHORIZED`           | 401    | Access rule denies and there is no user                                                                                          | `null`                                    |
+| `FORBIDDEN`              | 403    | Access rule denies a signed-in user; a field rule denies a field in the body; CSRF check fails                                   | `{ fields }` for field rules, else `null` |
+| `NOT_FOUND`              | 404    | Unknown document, collection or route                                                                                            | `null`                                    |
+| `METHOD_NOT_ALLOWED`     | 405    | For example `POST /posts/:id`. Has an `Allow` header.                                                                            | `null`                                    |
+| `CONFLICT`               | 409    | Unique field already used                                                                                                        | `{ field }`                               |
+| `PAYLOAD_TOO_LARGE`      | 413    | Body larger than `maxBodyBytes`                                                                                                  | `null`                                    |
+| `UNSUPPORTED_MEDIA_TYPE` | 415    | Body without `Content-Type: application/json`                                                                                    | `null`                                    |
+| `INTERNAL`               | 500    | Any other error, including `ConfigError` (for example `devAuth()` in production). It is logged, and its message is not returned. | `null`                                    |
 
 `errorResponse(error)` builds the same response in your own route handlers.
 
@@ -145,6 +145,8 @@ A rejected request returns `403 FORBIDDEN`. The JSON content type also forces a 
 Returns `{ title, user, collections, modules }`: the admin title, the current user, and the collections and [modules](/docs/concepts/plugins-and-modules#modules) the user can read, with fields, labels, admin options and `access: { create, update, delete }`.
 
 - Collections whose read rule returns `false` are left out. A rule that returns a filter counts as allowed.
+- Fields the user cannot read are left out, also from `admin.defaultColumns`. An unreadable `useAsTitle` becomes `id`.
+- Each field has `access: { create, update }` from its field rules. `date` and `datetime` fields have `timeZone`.
 - Functions (`validate`, function defaults) are not included.
 
 ## Server helpers

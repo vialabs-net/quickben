@@ -15,7 +15,8 @@ pnpm add @quickben/core
 | `defineConfig`                                                                                 | Combine collections, plugins, auth and the adapter.                                                                         |
 | `definePlugin`, `extendCollection`                                                             | Write plugins that add or change collections.                                                                               |
 | `getQuickben`, `createQuickben`                                                                | Get the local API (`find`, `findById`, `count`, `create`, `update`, `delete`, `transaction`).                               |
-| `checkAccess`                                                                                  | Evaluate an access rule without touching data (for UI and HTTP layers).                                                     |
+| `checkAccess`, `checkFieldAccess`                                                              | Evaluate collection or field access rules without touching data (for UI and HTTP layers).                                   |
+| `formatDateValue`, `zonedTimeToUtc`, `localDateTime`, `dateInTimeZone`                         | Time zone helpers on `Intl`. Core never uses the server time zone.                                                          |
 | `devAuth`                                                                                      | Development-only auth adapter that trusts a header.                                                                         |
 | `QuickbenError` and subclasses                                                                 | Errors with stable `code` and suggested HTTP `status`.                                                                      |
 | `matchesWhere`, `compareValues`, `compareBySort`                                               | Reference query semantics, for adapter authors.                                                                             |
@@ -57,3 +58,11 @@ Every call takes a request context: `qb.find("posts", { limit: 10 }, { user })`.
 | `CONFIG`       | 500    | The config is invalid.                                          |
 
 See [ARCHITECTURE.md](../../ARCHITECTURE.md) for the query model and the adapter contract.
+
+## Field access, afterCommit, time zones
+
+| Feature       | Use                                                                                                                                                                                                                                       |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Field access  | `f.number({ access: { read, create, update } })`, rules return booleans. Unreadable fields leave documents and `select`; `where` and `sort` on them give `VALIDATION`. Writing an unwritable field gives `FORBIDDEN` with `error.fields`. |
+| `afterCommit` | Hook after the transaction commits, with `{ operation, doc, original, qb }`. `qb` is not transactional. Errors are logged. Nested writes wait for the outermost commit.                                                                   |
+| `timeZone`    | `defineConfig({ timeZone })` and `f.date({ timeZone })`. `Date` and offset inputs resolve in it. Default `UTC`.                                                                                                                           |

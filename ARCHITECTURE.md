@@ -73,20 +73,20 @@ const posts = defineCollection({
 });
 ```
 
-| Field              | Stored value                              | Options beyond the common ones        |
-| ------------------ | ----------------------------------------- | ------------------------------------- |
-| `text`, `textarea` | string                                    | `minLength`, `maxLength`              |
-| `email`            | string                                    | `minLength`, `maxLength`              |
-| `url`              | string (`http`/`https` only)              | `minLength`, `maxLength`              |
-| `number`           | number                                    | `integer`, `min`, `max`               |
-| `boolean`          | boolean                                   |                                       |
-| `date`             | `"YYYY-MM-DD"`                            | input also accepts `Date`             |
-| `datetime`         | ISO 8601 UTC string                       | input also accepts `Date` and offsets |
-| `select`           | one option, or an array with `many: true` | `options`, `many`                     |
-| `relation`         | id, or ids with `many: true`              | `to`, `many`                          |
-| `json`             | JSON value                                | `schema` (Zod) types and validates it |
+| Field              | Stored value                              | Options beyond the common ones                          |
+| ------------------ | ----------------------------------------- | ------------------------------------------------------- |
+| `text`, `textarea` | string                                    | `minLength`, `maxLength`                                |
+| `email`            | string                                    | `minLength`, `maxLength`                                |
+| `url`              | string (`http`/`https` only)              | `minLength`, `maxLength`                                |
+| `number`           | number                                    | `integer`, `min`, `max`                                 |
+| `boolean`          | boolean                                   |                                                         |
+| `date`             | `"YYYY-MM-DD"`                            | `timeZone`; input also accepts `Date` and ISO datetimes |
+| `datetime`         | ISO 8601 UTC string                       | `timeZone`; input also accepts `Date` and offsets       |
+| `select`           | one option, or an array with `many: true` | `options`, `many`                                       |
+| `relation`         | id, or ids with `many: true`              | `to`, `many`                                            |
+| `json`             | JSON value                                | `schema` (Zod) types and validates it                   |
 
-Common options: `required`, `unique`, `index`, `default` (value or function), `label`, `description`, `validate`, `admin { hidden, readOnly, width, component }`. `component` names a custom admin input (see `@quickben/admin`); core stores only the name.
+Common options: `required`, `unique`, `index`, `default` (value or function), `label`, `description`, `validate`, `access { read, create, update }`, `admin { hidden, readOnly, width, component }`. `component` names a custom admin input (see `@quickben/admin`); core stores only the name.
 
 Rules:
 
@@ -96,6 +96,7 @@ Rules:
 - `default` makes a field optional on create.
 - Slugs: lowercase letters, digits, `-`, `_`. Field names: letters, digits, `_`, unique without case (SQLite columns ignore case). `id`, `createdAt`, `updatedAt`, `and`, `or` are reserved, also in other cases.
 - Labels default to the humanized slug and field name.
+- Time zones: `date` and `datetime` inputs resolve in the field `timeZone`, then the config `timeZone`, then `UTC`. Core never reads the server time zone. `YYYY-MM-DD` and ISO strings without an offset are wall-clock values in that zone. `Date` values and strings with an offset are instants; a `date` field stores the calendar date of the instant in the zone. `where` operands resolve the same way. Other string formats are rejected. `formatDateValue(value, { locale, timeZone })` formats values for people; `date` values never shift.
 
 ### Type inference
 
@@ -196,7 +197,7 @@ qb.db.raw; // native client
 
 `ctx` is `{ user, req?, overrideAccess? }`, is required and is always the last argument (never merged with query options). `createQuickben(config)` calls `db.init(schema)`, then each plugin's `onInit`. `getQuickben` drops a failed instance so the next call retries.
 
-Writes (`create`, `update`, `delete`) run in one transaction together with their hooks. If a hook throws, nothing is written.
+Writes (`create`, `update`, `delete`) run in one transaction together with their hooks. If a hook throws, nothing is written. After the outermost transaction commits, queued `afterCommit` hooks run in write order with a `qb` outside the transaction. Their errors are logged. A rollback drops them. The write call resolves after them.
 
 **create:** access → defaults → `beforeValidate` → validation → related ids → `beforeChange` → access filter on the new document → write → `afterChange` → `afterRead`.
 
@@ -204,7 +205,7 @@ Writes (`create`, `update`, `delete`) run in one transaction together with their
 
 **delete:** load (needs read access; unreadable = `NOT_FOUND`) → access (filter must match) → `beforeDelete` → delete → `afterDelete` → `afterRead`. Documents that reference the deleted one keep its id.
 
-**reads:** access filter AND query → adapter → relations → `afterRead` → `select`. When a collection has `afterRead` hooks, core loads full documents and applies `select` after the hooks.
+**reads:** access filter AND query → adapter → relations → `afterRead` → remove unreadable fields → `select`. When a collection has `afterRead` hooks, core loads full documents and applies `select` after the hooks.
 
 ### Access
 
@@ -217,20 +218,23 @@ Writes (`create`, `update`, `delete`) run in one transaction together with their
 
 `false` throws `UnauthorizedError` without a user and `ForbiddenError` with one. A missing rule allows authenticated users only. Rules receive `{ user, req, ctx, qb, operation, id, data }`. `ctx` is the whole request context, including keys added by plugins. `qb` is the local API bound to the current transaction; it is `undefined` when UI code calls `checkAccess` itself.
 
+**Field access:** `access: { read, create, update }` on a field. Same arguments as collection rules; returns a boolean; a missing rule allows. `read: false` removes the field from documents (after `afterRead`, also populated documents) and from `select`; `where` and `sort` on it throw `ValidationError` like an unknown field. `create` or `update: false` makes input that sets the field throw `ForbiddenError` with `fields` (the paths). Defaults and hooks may still set it. `overrideAccess` skips field rules. `checkFieldAccess(collection, operation, ctx)` returns the denied field names.
+
 `checkAccess(collection, operation, ctx)` evaluates a rule without touching data and returns `true`, `false` or a normalized filter. The HTTP layer and the admin use it to decide what to show.
 
 ### Hooks
 
 Arrays per stage, run in order. Each gets `{ user, req, ctx, qb, collection }` plus stage data. `qb` is bound to the current transaction.
 
-| Hook             | Extra arguments                                 | Return                   |
-| ---------------- | ----------------------------------------------- | ------------------------ |
-| `beforeValidate` | `operation`, `data` (not validated), `original` | new data or nothing      |
-| `beforeChange`   | `operation`, `data` (validated), `original`     | new data or nothing      |
-| `afterChange`    | `operation`, `doc`, `original`                  | nothing                  |
-| `afterRead`      | `doc`                                           | new document or nothing  |
-| `beforeDelete`   | `id`, `doc`                                     | nothing; throw to cancel |
-| `afterDelete`    | `id`, `doc`                                     | nothing                  |
+| Hook             | Extra arguments                                              | Return                     |
+| ---------------- | ------------------------------------------------------------ | -------------------------- |
+| `beforeValidate` | `operation`, `data` (not validated), `original`              | new data or nothing        |
+| `beforeChange`   | `operation`, `data` (validated), `original`                  | new data or nothing        |
+| `afterChange`    | `operation`, `doc`, `original`                               | nothing                    |
+| `afterRead`      | `doc`                                                        | new document or nothing    |
+| `beforeDelete`   | `id`, `doc`                                                  | nothing; throw to cancel   |
+| `afterDelete`    | `id`, `doc`                                                  | nothing                    |
+| `afterCommit`    | `operation`, `doc`, `original`; `qb` outside the transaction | nothing; errors are logged |
 
 ### Plugins and modules
 
@@ -309,7 +313,8 @@ export default createAdminPage(config, { serverFunction }); // async server comp
 - Route handlers: `GET /_meta`, `GET|POST /:collection`, `GET|PATCH|DELETE /:collection/:id`. They take plain `Request` objects, so tests call them directly.
 - Query string: `where` is JSON; `sort` and `select` are comma-separated; `limit` (≤ `maxLimit`, default 100), `page`, `cursor`, `depth`. Unknown parameters are rejected.
 - Bodies: JSON objects only, at most `maxBodyBytes` (default 1 MB); `id`, `createdAt`, `updatedAt` are removed.
-- Errors: `{ error: { code, message, details } }` with the status of the error. HTTP-only codes: `METHOD_NOT_ALLOWED` 405, `PAYLOAD_TOO_LARGE` 413, `UNSUPPORTED_MEDIA_TYPE` 415, `INTERNAL` 500 (message hidden, error logged; also for 5xx Quickben errors such as `CONFIG`).
+- Errors: `{ error: { code, message, details } }` with the status of the error. `details` is `{ issues }` for `VALIDATION`, `{ field }` for `CONFLICT` and `{ fields }` for `FORBIDDEN` from field rules.
+- `GET /_meta` leaves out unreadable fields and gives each field `access: { create, update }`. HTTP-only codes: `METHOD_NOT_ALLOWED` 405, `PAYLOAD_TOO_LARGE` 413, `UNSUPPORTED_MEDIA_TYPE` 415, `INTERNAL` 500 (message hidden, error logged; also for 5xx Quickben errors such as `CONFIG`).
 - CSRF: `POST`, `PATCH` and `DELETE` require a same-origin `Origin` (or a trusted one) when the browser sends one, and reject `Sec-Fetch-Site: cross-site`.
 - Server helpers: `getRequestContext` / `getUser` resolve the user from `next/headers`, `singleton(key, create)` keeps database clients per process. No `next.config` wrapper.
 
@@ -317,6 +322,7 @@ export default createAdminPage(config, { serverFunction }); // async server comp
 
 - `createAdminPage(config, options)` returns one async server component that renders the shell, dashboard, list, create and edit views and custom pages. Data is loaded on the server with the local API and the current user.
 - Writes and relation searches go through one server function (`AdminRequest` → `AdminResult`). It must be defined in the app's page file so Next.js can load the config when it runs; the built-in fallback only works after the page module has loaded in the process.
+- Field access: unreadable fields are not in lists, filters or forms. Fields the user cannot set are disabled and not submitted. `datetime-local` inputs use the admin time zone (`admin.timeZone`, then the config `timeZone`).
 - Client components: form (submit, errors, focus), relation picker, JSON editor, delete confirmation, toast. Everything else is server-rendered.
 - Extensions: `components` (custom field inputs, chosen by `admin.component`), `views` (per collection), `pages`, `nav`, `sidebar` (components at the top of the sidebar), and `extensions` from plugins.
 - Styles: Tailwind v4 with the `qb:` prefix, compiled into `@quickben/admin/styles.css`; base styles only inside `.qb-root`, in `@layer base`. Utilities are unlayered, so unlayered app resets do not override them.

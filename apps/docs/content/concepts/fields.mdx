@@ -31,32 +31,33 @@ const productFields = {
 
 ## Types
 
-| Factory        | Stored value                                                | Extra options            |
-| -------------- | ----------------------------------------------------------- | ------------------------ |
-| `f.text()`     | string                                                      | `minLength`, `maxLength` |
-| `f.textarea()` | string                                                      | `minLength`, `maxLength` |
-| `f.email()`    | string                                                      | `minLength`, `maxLength` |
-| `f.url()`      | string, `http` or `https` only                              | `minLength`, `maxLength` |
-| `f.number()`   | number                                                      | `integer`, `min`, `max`  |
-| `f.boolean()`  | boolean                                                     |                          |
-| `f.date()`     | `"YYYY-MM-DD"`. Input also accepts `Date` (its UTC date).   |                          |
-| `f.datetime()` | ISO 8601 UTC string. Input also accepts `Date` and offsets. |                          |
-| `f.select()`   | one option, or an array with `many: true`                   | `options`, `many`        |
-| `f.relation()` | id, or ids with `many: true`                                | `to`, `many`             |
-| `f.json()`     | JSON value                                                  | `schema` (Zod)           |
+| Factory        | Stored value                                                 | Extra options            |
+| -------------- | ------------------------------------------------------------ | ------------------------ |
+| `f.text()`     | string                                                       | `minLength`, `maxLength` |
+| `f.textarea()` | string                                                       | `minLength`, `maxLength` |
+| `f.email()`    | string                                                       | `minLength`, `maxLength` |
+| `f.url()`      | string, `http` or `https` only                               | `minLength`, `maxLength` |
+| `f.number()`   | number                                                       | `integer`, `min`, `max`  |
+| `f.boolean()`  | boolean                                                      |                          |
+| `f.date()`     | `"YYYY-MM-DD"`. Input also accepts `Date` and ISO datetimes. | `timeZone`               |
+| `f.datetime()` | ISO 8601 UTC string. Input also accepts `Date` and offsets.  | `timeZone`               |
+| `f.select()`   | one option, or an array with `many: true`                    | `options`, `many`        |
+| `f.relation()` | id, or ids with `many: true`                                 | `to`, `many`             |
+| `f.json()`     | JSON value                                                   | `schema` (Zod)           |
 
 ## Common options
 
-| Option        | Effect                                                                        |
-| ------------- | ----------------------------------------------------------------------------- |
-| `required`    | The value is never `null`. On a `many` field: at least one value.             |
-| `unique`      | The adapter rejects duplicates with `ConflictError`. Not allowed with `many`. |
-| `index`       | Asks the adapter to index the field.                                          |
-| `default`     | Value or function used on create. Makes the field optional on create.         |
-| `label`       | Admin label. Default: humanized name (`publishedAt` → `Published at`).        |
-| `description` | Help text in the admin UI.                                                    |
-| `validate`    | Custom check. Returns `true` or an error message.                             |
-| `admin`       | `{ hidden, readOnly, width: "full" \| "half" \| "third", component }`         |
+| Option        | Effect                                                                                                                  |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `required`    | The value is never `null`. On a `many` field: at least one value.                                                       |
+| `unique`      | The adapter rejects duplicates with `ConflictError`. Not allowed with `many`.                                           |
+| `index`       | Asks the adapter to index the field.                                                                                    |
+| `default`     | Value or function used on create. Makes the field optional on create.                                                   |
+| `label`       | Admin label. Default: humanized name (`publishedAt` → `Published at`).                                                  |
+| `description` | Help text in the admin UI.                                                                                              |
+| `validate`    | Custom check. Returns `true` or an error message.                                                                       |
+| `admin`       | `{ hidden, readOnly, width: "full" \| "half" \| "third", component }`                                                   |
+| `access`      | `{ read, create, update }`, each returning a boolean. See [Access control](/docs/concepts/access-control#field-access). |
 
 `f.relation()` has no `default`.
 
@@ -69,6 +70,32 @@ const productFields = {
 | `many: true`     | `[]`        | `T[]`              |
 
 Values in a `many` array must be unique.
+
+## Dates and time zones
+
+Core never uses the server time zone. Inputs resolve in the field `timeZone`, then the config `timeZone`, then `UTC`.
+
+| Input                                       | `date` stores                                 | `datetime` stores               |
+| ------------------------------------------- | --------------------------------------------- | ------------------------------- |
+| `"2026-01-01"`                              | `2026-01-01`                                  | midnight in the time zone, UTC  |
+| `"2026-01-01T22:00"` (no offset)            | `2026-01-01` (date as written)                | that wall time in the time zone |
+| `Date` or `"2026-01-02T03:00:00Z"` / offset | calendar date of the instant in the time zone | the same instant                |
+
+With `timeZone: "America/New_York"`, `new Date("2026-01-02T03:00:00Z")` stores the date `2026-01-01`. Filter operands (`where`) resolve the same way. Other string formats are rejected.
+
+```ts
+import { defineConfig, fields as f } from "@quickben/core";
+import { memoryAdapter } from "@quickben/db-memory";
+
+const config = defineConfig({
+  db: memoryAdapter(),
+  timeZone: "America/Santiago", // default for every date and datetime field
+  collections: [],
+});
+const due = f.date({ timeZone: "UTC" }); // per field
+```
+
+`formatDateValue(value, { locale, timeZone, type, ...Intl options })` formats a value for people. `date` values print the same day in every time zone. Other helpers: `zonedTimeToUtc(local, zone)`, `localDateTime(value, zone)`, `dateInTimeZone(value, zone)`, `isTimeZone(zone)`.
 
 ## Custom validation
 
