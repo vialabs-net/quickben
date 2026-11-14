@@ -1,18 +1,16 @@
 import {
   BUST_VIEWBOX,
   HEAD_VIEWBOX,
-  MARK_EYE_COLOR,
   MARK_EYES,
+  MARK_FACE,
   MARK_HOOD,
   MARK_MANTLE,
-  MARK_NIGHT,
-  MARK_NIGHT_COLOR,
 } from "./logo-geometry";
 
 /**
- * Quickben mark: the High Mage. A hood with the night inside it and two half-moon eyes.
- * The hood takes the text colour, so it follows the theme. `bust` adds the mantle with its
- * twelve studs; leave it off below 48px.
+ * Quickben mark: the High Mage. A hood, a saffron moon for a face and two half-lidded eyes.
+ * The hood takes the text colour and the rest comes from the theme tokens. `bust` adds the
+ * mantle with its twelve studs; leave it off below 48px.
  */
 export function LogoMark({ size = 24, bust = false }: Readonly<{ size?: number; bust?: boolean }>) {
   return (
@@ -25,8 +23,8 @@ export function LogoMark({ size = 24, bust = false }: Readonly<{ size?: number; 
     >
       {bust ? <path d={MARK_MANTLE} fill="currentColor" fillRule="evenodd" /> : null}
       <path d={MARK_HOOD} fill="currentColor" />
-      <path d={MARK_NIGHT} fill={MARK_NIGHT_COLOR} />
-      <path d={MARK_EYES} fill={MARK_EYE_COLOR} />
+      <path d={MARK_FACE} fill="var(--qb-accent, #f2a413)" />
+      <path d={MARK_EYES} fill="var(--qb-accent-ink, #2a1b3d)" />
     </svg>
   );
 }

@@ -4,8 +4,8 @@
 // Construction, in units of a (a = 48). PHI is the golden ratio. Hours are clock positions.
 //   hood    head circle r = PHI^2. Two arcs leave it at 9:15 (r = 3 PHI) and 2:45 (r = PHI^4)
 //           and meet at the tip, which leans right because the radii differ.
-//   night   disc r = 3/PHI, centre (-1/PHI^5, 1/PHI).
-//   eyes    discs r = 1/PHI at +-(1/PHI + 1/PHI^3) from the night's centre, 1/PHI^2 below it.
+//   face    a moon: disc r = 3/PHI, centre (-1/PHI^5, 1/PHI).
+//   eyes    discs r = 1/PHI at +-(1/PHI + 1/PHI^3) from the face's centre, 1/PHI^2 below it.
 //           A lid cuts each one: the left is 3/10 open and tilts 15 deg, the right is
 //           1/PHI open and tilts -5 deg.
 //   mantle  circle r = PHI^3 centred (1/PHI^3, PHI^3 + PHI), cut level at y = PHI^3
@@ -14,11 +14,15 @@
 //           six from 10:05 and six from 1:00.
 import { writeFileSync } from "node:fs";
 
-import { WORDMARK_ADVANCE, WORDMARK_PATH, WORDMARK_UPEM } from "./logo-wordmark.mjs";
+import { WORDMARK_ADVANCE, WORDMARK_CAP_HEIGHT, WORDMARK_PATH } from "./logo-wordmark.mjs";
 
 const PHI = (1 + Math.sqrt(5)) / 2;
 const A = 48;
-const COLORS = { ink: "#142130", inkDark: "#e3e8ee", night: "#2747c9", eye: "#eef2f8" };
+// The hood takes the ink, the face is saffron and the eyes take the colour behind the mark.
+const COLORS = {
+  light: { ink: "#2a1b3d", face: "#f2a413", eye: "#2a1b3d" },
+  dark: { ink: "#f0e8da", face: "#f5b02e", eye: "#170f22" },
+};
 
 const n2 = (x) => String(Math.round(x * 100) / 100);
 const pt = ([x, y]) => `${n2(x * A)} ${n2(y * A)}`;
@@ -56,15 +60,15 @@ const HOOD =
   `M${pt(rightP)} ${arc(HEAD_R, 1, 1, leftP)} ${arc(LEFT.r, 0, 1, TIP)} ` +
   `${arc(RIGHT.r, 0, 1, rightP)} Z`;
 
-// Night and eyes
-const NIGHT_C = [-(PHI ** -5), 1 / PHI];
-const NIGHT_R = 3 / PHI;
-const NIGHT = disc(NIGHT_C, NIGHT_R);
+// Face and eyes
+const FACE_C = [-(PHI ** -5), 1 / PHI];
+const FACE_R = 3 / PHI;
+const FACE = disc(FACE_C, FACE_R);
 const EYE = { r: 1 / PHI, dx: 1 / PHI + PHI ** -3, dy: PHI ** -2 };
 
 /** The part of an eye disc below its lid. `open` is the visible share of the diameter. */
 function eye(side, open, tiltDeg) {
-  const c = [NIGHT_C[0] + side * EYE.dx, NIGHT_C[1] + EYE.dy];
+  const c = [FACE_C[0] + side * EYE.dx, FACE_C[1] + EYE.dy];
   const t = (tiltDeg * Math.PI) / 180;
   const lid = [Math.cos(t), Math.sin(t)];
   const down = [-lid[1], lid[0]];
@@ -108,12 +112,13 @@ const viewBox = (b) => [b.x, b.y, b.side, b.side].map((x) => n2(x * A)).join(" "
 const BUST_BOX = squareBox([baseL[0], baseR[0], -HEAD_R, HEAD_R], [TIP[1], BASE_Y]);
 const HEAD_BOX = squareBox([-HEAD_R, HEAD_R, TIP[0]], [TIP[1], HEAD_R]);
 
-// Files loaded through <img> or as a favicon follow the OS theme. Only the ink changes.
+// Files loaded through <img> or as a favicon follow the OS theme.
+const rules = (c) => `.ink{fill:${c.ink}}.face{fill:${c.face}}.eye{fill:${c.eye}}`;
 const STYLE =
-  `<style>.ink{fill:${COLORS.ink}}.night{fill:${COLORS.night}}.eye{fill:${COLORS.eye}}` +
-  `@media (prefers-color-scheme:dark){.ink{fill:${COLORS.inkDark}}}</style>`;
+  `<style>${rules(COLORS.light)}` +
+  `@media (prefers-color-scheme:dark){${rules(COLORS.dark)}}</style>`;
 const HEAD =
-  `<path class="ink" d="${HOOD}"/><path class="night" d="${NIGHT}"/>` +
+  `<path class="ink" d="${HOOD}"/><path class="face" d="${FACE}"/>` +
   `<path class="eye" d="${EYES}"/>`;
 const BUST = `<path class="ink" fill-rule="evenodd" d="${MANTLE}"/>${HEAD}`;
 const open = (box) =>
@@ -123,10 +128,9 @@ const bustSvg = `${open(viewBox(BUST_BOX))}${STYLE}${BUST}</svg>\n`;
 const headSvg = `${open(viewBox(HEAD_BOX))}${STYLE}${HEAD}</svg>\n`;
 
 // Lockup: the bust, then the wordmark with its capitals centred on the figure's height.
-const CAP_HEIGHT = 0.7 * WORDMARK_UPEM;
-const WORD_SCALE = (HEAD_R * 0.9 * A) / CAP_HEIGHT;
+const WORD_SCALE = (HEAD_R * 0.9 * A) / WORDMARK_CAP_HEIGHT;
 const WORD_X = (baseR[0] + 1) * A;
-const WORD_Y = ((TIP[1] + BASE_Y) / 2) * A + (CAP_HEIGHT * WORD_SCALE) / 2;
+const WORD_Y = ((TIP[1] + BASE_Y) / 2) * A + (WORDMARK_CAP_HEIGHT * WORD_SCALE) / 2;
 const lockW = WORD_X + WORDMARK_ADVANCE * WORD_SCALE + PHI ** -2 * A - BUST_BOX.x * A;
 const lockBox = [BUST_BOX.x * A, BUST_BOX.y * A, lockW, BUST_BOX.side * A].map(n2).join(" ");
 const lockupSvg =
@@ -144,11 +148,9 @@ const geometry = `${[
   decl("HEAD_VIEWBOX", viewBox(HEAD_BOX)),
   decl("BUST_VIEWBOX", viewBox(BUST_BOX)),
   decl("MARK_HOOD", HOOD),
-  decl("MARK_NIGHT", NIGHT),
+  decl("MARK_FACE", FACE),
   decl("MARK_EYES", EYES),
   decl("MARK_MANTLE", MANTLE),
-  decl("MARK_NIGHT_COLOR", COLORS.night),
-  decl("MARK_EYE_COLOR", COLORS.eye),
 ].join("\n")}\n`;
 
 writeFileSync(new URL("../public/logo.svg", import.meta.url), bustSvg);

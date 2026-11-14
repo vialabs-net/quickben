@@ -1,4 +1,4 @@
-import { Schibsted_Grotesk } from "next/font/google";
+import { Fraunces, Hanken_Grotesk } from "next/font/google";
 import { Head } from "nextra/components";
 import { getPageMap } from "nextra/page-map";
 import { Footer, Layout, Navbar } from "nextra-theme-docs";
@@ -12,10 +12,16 @@ import type { ReactNode } from "react";
 import "nextra-theme-docs/style.css";
 import "./globals.css";
 
-const display = Schibsted_Grotesk({
+const display = Fraunces({
   subsets: ["latin"],
-  weight: ["500", "700", "800"],
+  axes: ["SOFT", "WONK", "opsz"],
   variable: "--qb-font-display",
+  display: "swap",
+});
+
+const body = Hanken_Grotesk({
+  subsets: ["latin"],
+  variable: "--qb-font-body",
   display: "swap",
 });
 
@@ -36,8 +42,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#fbfcfd" },
-    { media: "(prefers-color-scheme: dark)", color: "#0e1620" },
+    { media: "(prefers-color-scheme: light)", color: "#f5efe2" },
+    { media: "(prefers-color-scheme: dark)", color: "#170f22" },
   ],
 };
 
@@ -58,14 +64,19 @@ const footer = (
 export default async function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   const pageMap = await getPageMap();
   return (
-    <html lang="en" dir="ltr" suppressHydrationWarning className={display.variable}>
+    <html
+      lang="en"
+      dir="ltr"
+      suppressHydrationWarning
+      className={`${display.variable} ${body.variable}`}
+    >
       <Head
         color={{
-          hue: { light: 228, dark: 230 },
-          saturation: { light: 68, dark: 100 },
-          lightness: { light: 47, dark: 78 },
+          hue: { light: 33, dark: 39 },
+          saturation: { light: 100, dark: 91 },
+          lightness: { light: 27, dark: 57 },
         }}
-        backgroundColor={{ light: "#fbfcfd", dark: "#0e1620" }}
+        backgroundColor={{ light: "#f5efe2", dark: "#170f22" }}
       />
       <body>
         <Layout

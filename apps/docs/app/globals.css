@@ -1,37 +1,43 @@
 :root {
-  --qb-paper: #fbfcfd;
-  --qb-surface: #f1f4f7;
-  --qb-ink: #142130;
-  --qb-muted: #556373;
-  --qb-rule: #d8dee5;
-  --qb-accent: #2747c9;
-  --qb-accent-ink: #ffffff;
+  /* Fraunces axes: sharp terminals, and the "wonky" letterforms on. */
+  --qb-display-settings: "SOFT" 0, "WONK" 1;
+  --qb-paper: #f5efe2;
+  --qb-surface: #ebe3d2;
+  --qb-ink: #2a1b3d;
+  --qb-muted: #64567a;
+  --qb-rule: #dcd2be;
+  --qb-accent: #f2a413;
+  --qb-accent-ink: #2a1b3d;
   --qb-mark: #fff1b8;
   --qb-mark-edge: #e5c64a;
   --qb-ok: #1d6b45;
   --qb-ok-bg: #e3f3ea;
   --qb-soon: #7a4b00;
   --qb-soon-bg: #fdf0d5;
-  --qb-later: #4b5563;
-  --qb-later-bg: #eceff3;
+  --qb-later: #5a4f6b;
+  --qb-later-bg: #e6dfd0;
 }
 
 html.dark {
-  --qb-paper: #0e1620;
-  --qb-surface: #15202c;
-  --qb-ink: #e3e8ee;
-  --qb-muted: #9aa7b6;
-  --qb-rule: #263443;
-  --qb-accent: #8ea2ff;
-  --qb-accent-ink: #0e1620;
+  --qb-paper: #170f22;
+  --qb-surface: #221832;
+  --qb-ink: #f0e8da;
+  --qb-muted: #afa3c2;
+  --qb-rule: #33264a;
+  --qb-accent: #f5b02e;
+  --qb-accent-ink: #170f22;
   --qb-mark: rgb(255 214 90 / 0.14);
   --qb-mark-edge: #c9a93a;
   --qb-ok: #7fd3a5;
   --qb-ok-bg: rgb(127 211 165 / 0.12);
   --qb-soon: #f3c66b;
   --qb-soon-bg: rgb(243 198 107 / 0.12);
-  --qb-later: #b4bfcc;
-  --qb-later-bg: rgb(180 191 204 / 0.1);
+  --qb-later: #c2b8d2;
+  --qb-later-bg: rgb(194 184 210 / 0.1);
+}
+
+body {
+  font-family: var(--qb-font-body), system-ui, sans-serif;
 }
 
 .qb-logo {
@@ -41,8 +47,9 @@ html.dark {
 }
 
 .qb-wordmark {
-  font-family: var(--qb-font-display), system-ui, sans-serif;
-  font-weight: 800;
+  font-family: var(--qb-font-display), Georgia, serif;
+  font-variation-settings: var(--qb-display-settings);
+  font-weight: 700;
   font-size: 1.125rem;
   letter-spacing: -0.02em;
 }
@@ -56,6 +63,7 @@ html.dark {
 article h1,
 article h2,
 article h3 {
-  font-family: var(--qb-font-display), system-ui, sans-serif;
+  font-family: var(--qb-font-display), Georgia, serif;
+  font-variation-settings: var(--qb-display-settings);
   letter-spacing: -0.015em;
 }
