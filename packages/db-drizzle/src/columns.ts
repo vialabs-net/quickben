@@ -42,6 +42,8 @@ export function columnKind(field: FieldSchema): ColumnKind {
     case "datetime":
     case "json":
       return field.type;
+    case "file":
+      return "json";
     default:
       return "text";
   }
