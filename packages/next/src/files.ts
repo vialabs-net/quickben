@@ -108,7 +108,11 @@ export function contentDisposition(type: "inline" | "attachment", name: string):
   const ascii = Array.from(name, (char) =>
     char >= " " && char <= "~" && char !== '"' && char !== "\\" ? char : "_",
   ).join("");
-  return `${type}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`;
+  // Lone surrogates cannot be encoded as UTF-8.
+  const wellFormed = Array.from(name, (char) =>
+    char.length === 1 && /[\uD800-\uDFFF]/.test(char) ? "_" : char,
+  ).join("");
+  return `${type}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(wellFormed)}`;
 }
 
 /**

@@ -237,5 +237,8 @@ describe("file metadata", () => {
     expect(contentDisposition("attachment", "a\\b\n.txt")).toBe(
       `attachment; filename="a_b_.txt"; filename*=UTF-8''a%5Cb%0A.txt`,
     );
+    expect(contentDisposition("inline", "a\uD800.pdf")).toBe(
+      `inline; filename="a_.pdf"; filename*=UTF-8''a_.pdf`,
+    );
   });
 });
