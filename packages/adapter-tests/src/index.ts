@@ -542,3 +542,5 @@ export function runAdapterContractTests(
     });
   });
 }
+
+export { runStorageContractTests } from "./storage";
