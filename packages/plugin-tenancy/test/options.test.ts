@@ -353,7 +353,8 @@ describe("review fixes", () => {
       hooks: {
         afterDelete: [
           async ({ doc, qb }) => {
-            const where = { organization: { eq: doc.organization as string } };
+            const organization = (doc as Record<string, unknown>).organization as string;
+            const where = { organization: { eq: organization } };
             for (const child of (await qb.find("children", { where }, system)).docs) {
               await qb.delete("children", child.id, internal);
             }
