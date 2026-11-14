@@ -1,10 +1,11 @@
 import { normalizeBasePath } from "./base-path";
 import { createMembersPage } from "./members";
 import { tenancyMessages } from "./messages";
-import { createOrganizationPage } from "./organization";
+import { assertSections, createOrganizationPage } from "./organization";
 import { registerTenancyAdmin } from "./registry";
 import { createSwitcher } from "./switcher";
 
+import type { OrganizationSection } from "./organization";
 import type { OrganizationSwitcherProps } from "./switcher";
 import type { AdminExtension, AdminI18n, AdminText } from "@quickben/admin";
 import type { MessageKey } from "@quickben/admin/i18n";
@@ -12,6 +13,7 @@ import type { QuickbenConfig } from "@quickben/core";
 import type { ReactNode } from "react";
 
 export { tenancyMessages } from "./messages";
+export type { OrganizationSection, OrganizationSectionProps } from "./organization";
 export type { OrganizationSwitcherProps } from "./switcher";
 
 /** Options of {@link tenancyAdmin}. */
@@ -20,6 +22,11 @@ export interface TenancyAdminOptions {
   basePath?: string;
   /** Sidebar group of the tenancy pages. Default `Organization` (translated). */
   group?: AdminText;
+  /**
+   * Extra tabs of the Organization settings page, from the host or other plugins. Each one is
+   * a server component at `<basePath>/organization/<key>` and can use its own server actions.
+   */
+  sections?: readonly OrganizationSection[];
 }
 
 /** Options of {@link createOrganizationSwitcher}. */
@@ -50,6 +57,8 @@ export function tenancyAdmin(
   const basePath = normalizeBasePath(options.basePath ?? "/admin");
   const key = registerTenancyAdmin({ config, basePath });
   const group = options.group ?? text("nav.group");
+  const sections = options.sections ?? [];
+  assertSections(sections);
   return {
     sidebar: [createSwitcher(config, key, basePath)],
     catalogs: [tenancyMessages],
@@ -64,7 +73,7 @@ export function tenancyAdmin(
         path: "organization",
         label: text("nav.organization"),
         group,
-        component: createOrganizationPage(config, key),
+        component: createOrganizationPage(config, key, sections),
       },
     ],
   };

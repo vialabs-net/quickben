@@ -1,5 +1,7 @@
 import { defineMessages } from "@quickben/admin/i18n";
 
+import type { ResolvedTenancy } from "../options";
+import type { AdminI18n } from "@quickben/admin";
 import type { MessageKey, Translator } from "@quickben/admin/i18n";
 
 /**
@@ -51,6 +53,11 @@ export const tenancyMessages = defineMessages("tenancy", {
     "members.save": "Save",
     "members.remove": "Remove",
     "members.removeWho": "Remove {who}",
+    "members.column.details": "Details",
+    "members.details": "Details",
+    "members.detailsOf": "Details of {who}",
+    "members.saveDetails": "Save details",
+    "members.close": "Close",
     "invite.title": "Invite a member",
     "invite.description":
       "An email address or a user id. The invitation is pending until they accept it.",
@@ -69,6 +76,11 @@ export const tenancyMessages = defineMessages("tenancy", {
     "settings.statusAndModules": "Status and modules",
     "settings.platformOnly": "Set by platform staff.",
     "settings.save": "Save settings",
+    "settings.general": "General",
+    "settings.sections": "Settings sections",
+    "settings.unknownSection": "That settings section does not exist.",
+    "settings.moduleUntil": "until {date}",
+    "settings.moduleExpired": "expired",
     "create.title": "New organization",
     "create.description": "You become its owner.",
     "create.slugPlaceholder": "acme-inc",
@@ -93,6 +105,7 @@ export const tenancyMessages = defineMessages("tenancy", {
     "error.organization-not-member": "You are not a member of that organization.",
     "error.organization-unknown": "That organization does not exist.",
     "error.organization-suspended": "That organization is suspended.",
+    "error.organization-inactive": "That organization is not open right now.",
     "error.last-owner":
       "An organization needs at least one active owner. Make someone else owner first.",
     "error.own-role": "You cannot change your own role or status. Ask another owner or admin.",
@@ -100,6 +113,7 @@ export const tenancyMessages = defineMessages("tenancy", {
       "You cannot remove your own owner or admin membership. Ask another owner or admin.",
     "error.higher-role": "Only a higher role can manage that role.",
     "error.platform-only": "Only platform staff can change modules or status.",
+    "error.not-empty": "The organization still has data. Delete it first.",
     "error.failed": "The change could not be saved.",
   },
   es: {
@@ -146,6 +160,11 @@ export const tenancyMessages = defineMessages("tenancy", {
     "members.save": "Guardar",
     "members.remove": "Quitar",
     "members.removeWho": "Quitar a {who}",
+    "members.column.details": "Detalles",
+    "members.details": "Detalles",
+    "members.detailsOf": "Detalles de {who}",
+    "members.saveDetails": "Guardar detalles",
+    "members.close": "Cerrar",
     "invite.title": "Invitar a un miembro",
     "invite.description":
       "Un correo o un id de usuario. La invitación queda pendiente hasta que la acepte.",
@@ -164,6 +183,11 @@ export const tenancyMessages = defineMessages("tenancy", {
     "settings.statusAndModules": "Estado y módulos",
     "settings.platformOnly": "Lo define el equipo de la plataforma.",
     "settings.save": "Guardar ajustes",
+    "settings.general": "General",
+    "settings.sections": "Secciones de ajustes",
+    "settings.unknownSection": "Esa sección de ajustes no existe.",
+    "settings.moduleUntil": "hasta el {date}",
+    "settings.moduleExpired": "vencido",
     "create.title": "Nueva organización",
     "create.description": "Serás su propietario.",
     "create.slugPlaceholder": "acme-inc",
@@ -188,6 +212,7 @@ export const tenancyMessages = defineMessages("tenancy", {
     "error.organization-not-member": "No eres miembro de esa organización.",
     "error.organization-unknown": "Esa organización no existe.",
     "error.organization-suspended": "Esa organización está suspendida.",
+    "error.organization-inactive": "Esa organización no está disponible por ahora.",
     "error.last-owner":
       "Una organización necesita al menos un propietario activo. Primero haz propietario a otra persona.",
     "error.own-role":
@@ -196,6 +221,7 @@ export const tenancyMessages = defineMessages("tenancy", {
       "No puedes quitar tu propia membresía de propietario o administrador. Pídeselo a otro propietario o administrador.",
     "error.higher-role": "Solo un rol superior puede administrar ese rol.",
     "error.platform-only": "Solo el equipo de la plataforma puede cambiar los módulos o el estado.",
+    "error.not-empty": "La organización aún tiene datos. Elimínalos primero.",
     "error.failed": "No se pudo guardar el cambio.",
   },
 });
@@ -227,4 +253,15 @@ export function roleLabel(t: TenancyT, role: string): string {
 export function statusLabel(t: TenancyT, status: string): string {
   const key = Object.hasOwn(statusKeys, status) ? statusKeys[status] : undefined;
   return key ? t(key) : status;
+}
+
+/** Label of an organization status: its configured `label`, else {@link statusLabel}. */
+export function organizationStatusLabel(
+  t: TenancyT,
+  i18n: AdminI18n,
+  tenancy: ResolvedTenancy,
+  status: string,
+): string {
+  const label = tenancy.statuses.find((s) => s.name === status)?.label;
+  return label === undefined ? statusLabel(t, status) : i18n.text(label);
 }

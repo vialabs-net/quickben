@@ -29,11 +29,13 @@ export const errorCodes = [
   "organization-not-member",
   "organization-unknown",
   "organization-suspended",
+  "organization-inactive",
   "last-owner",
   "own-role",
   "own-membership",
   "higher-role",
   "platform-only",
+  "not-empty",
   "failed",
 ] as const;
 

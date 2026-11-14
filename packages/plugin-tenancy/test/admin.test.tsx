@@ -93,6 +93,7 @@ const pageProps: PageProps = {
   segments: [],
   searchParams: {},
   i18n: englishI18n,
+  serverFunction: () => Promise.resolve({ status: "options", options: [] }),
 };
 
 const spanish = createAdminI18n({ locale: "es", timeZone: "UTC", overrides: {} });
