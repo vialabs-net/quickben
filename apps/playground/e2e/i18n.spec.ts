@@ -9,7 +9,7 @@ test.skip(
 
 test("the shell and dashboard are in Spanish", async ({ page }) => {
   await page.goto("/admin");
-  await expect(page.locator(".qb-root")).toHaveAttribute("lang", "es");
+  await expect(page.locator(".qb-root:not([aria-busy])")).toHaveAttribute("lang", "es");
   const sidebar = page.getByRole("navigation", { name: "Administración" });
   await expect(sidebar.getByRole("link", { name: "Panel" })).toHaveAttribute(
     "aria-current",
