@@ -5,8 +5,8 @@ import { usePathname } from "next/navigation";
 
 import type { AdminNav } from "@quickben/admin";
 
-function isActive(pathname: string, href: string, exact: boolean): boolean {
-  return exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
+function isWithin(pathname: string, href: string): boolean {
+  return pathname === href || pathname.startsWith(`${href}/`);
 }
 
 /** Links of the host navigation. The current one is marked with `aria-current`. */
@@ -17,7 +17,8 @@ export function HostNavLinks({ nav }: Readonly<{ nav: AdminNav }>) {
     <nav aria-label="Host" className="host-nav">
       <ul>
         {links.map((link) => {
-          const active = isActive(pathname, link.href, link === nav.dashboard);
+          const active =
+            link === nav.dashboard ? pathname === link.href : isWithin(pathname, link.href);
           return (
             <li key={link.href}>
               <Link href={link.href} aria-current={active ? "page" : undefined}>
