@@ -6,7 +6,7 @@
  * only while it is still `running` for that version, so a job cancelled or retried mid-run keeps
  * the newer state.
  */
-import { NotFoundError, ValidationError } from "@quickben/core";
+import { NotFoundError, sniffMime as sniffType, ValidationError } from "@quickben/core";
 
 import { classifyType } from "./classify";
 import { DOC_JOBS } from "./collections";
@@ -113,14 +113,10 @@ export function toReading(job: JobRecord): Reading {
   };
 }
 
-/** The file type from its first bytes. The declared type is not trusted. */
+/** The file type from its first bytes, when the reader accepts it. The declared type is not trusted. */
 export function sniffMime(bytes: Uint8Array): string | null {
-  const ascii = (from: number, to: number) => String.fromCodePoint(...bytes.subarray(from, to));
-  if (ascii(0, 5) === "%PDF-") return PDF;
-  if (bytes[0] === 0x89 && ascii(1, 4) === "PNG") return "image/png";
-  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
-  if (ascii(0, 4) === "RIFF" && ascii(8, 12) === "WEBP") return "image/webp";
-  return null;
+  const mime = sniffType(bytes);
+  return mime !== null && Object.hasOwn(ACCEPTED_MIMES, mime) ? mime : null;
 }
 
 /** Bytes, name and type of an uploaded file, checked against the plugin's limits. */
@@ -213,7 +209,7 @@ export async function readDocument(
   const params = parseParams(input.params);
   const upload = await readUpload(state, input.file);
   const fileRef = storageRef("readings", upload.mime);
-  await state.files.write(fileRef, upload.bytes, upload.mime);
+  await state.files.put(fileRef, upload.bytes, { contentType: upload.mime });
 
   const created = qb.create(
     DOC_JOBS,
@@ -236,7 +232,7 @@ export async function readDocument(
   try {
     job = (await created) as unknown as JobRecord;
   } catch (error) {
-    await state.files.delete?.(fileRef).catch(() => undefined);
+    await state.files.delete(fileRef).catch(() => undefined);
     throw error;
   }
   await enqueue(qb, state, job);
@@ -276,7 +272,7 @@ export async function readingFile(
   ctx: RequestContext,
 ): Promise<{ bytes: Uint8Array; mime: string; fileName: string }> {
   const job = await loadJob(qb, id, ctx);
-  const bytes = await getDocReader(qb).files.read(job.fileRef);
+  const bytes = await getDocReader(qb).files.getBytes(job.fileRef);
   if (!bytes) throw new NotFoundError("The file of this reading is gone");
   return { bytes, mime: job.mime, fileName: job.fileName ?? "document" };
 }
@@ -405,7 +401,7 @@ async function read(
   state: DocReaderState,
   job: JobRecord,
 ): Promise<Record<string, unknown>> {
-  const bytes = await state.files.read(job.fileRef);
+  const bytes = await state.files.getBytes(job.fileRef);
   if (!bytes) return { state: "failed", error: "The file of this reading is gone" };
   const type = await resolveType(qb, job, bytes);
   if (!type) {
