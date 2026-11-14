@@ -9,6 +9,7 @@ import { createDb } from "./lib/db";
 import { docReaderEnabled, playgroundDocReader } from "./lib/doc-reader";
 import { playgroundLocale } from "./lib/locale";
 import { seedIfEmpty } from "./lib/seed";
+import { playgroundStorage } from "./lib/storage";
 import { invoice, templatesEnabled } from "./lib/templates";
 import { tenancyEnabled } from "./lib/tenancy";
 
@@ -37,6 +38,16 @@ export const authors = defineCollection({
       access: { read: canEdit },
     }),
     bio: f.textarea({ maxLength: 2000, label: { en: "Bio", es: "Biografía" } }),
+    // A file field: stored in `storage`, shown with a preview, served by /api/authors/:id/photo.
+    photo: f.file({
+      accept: ["image/png", "image/jpeg", "image/webp"],
+      maxBytes: 512 * 1024,
+      label: { en: "Photo", es: "Foto" },
+      description: {
+        en: "PNG, JPEG or WebP, at most 512 KB.",
+        es: "PNG, JPEG o WebP, 512 KB como máximo.",
+      },
+    }),
     active: f.boolean({
       default: true,
       label: { en: "Active", es: "Activo" },
@@ -200,6 +211,8 @@ const integrations = connections({ masterKey: demoMasterKey });
 
 const config = defineConfig({
   db: createDb(),
+  // Local files for `file` fields, the brand logo and the doc reader.
+  storage: playgroundStorage,
   collections: [authors, tags, posts, settings],
   plugins: [
     demo,

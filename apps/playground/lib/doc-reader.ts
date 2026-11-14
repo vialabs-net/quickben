@@ -1,4 +1,4 @@
-import { docReader, localFileStore } from "@quickben/plugin-doc-reader";
+import { docReader } from "@quickben/plugin-doc-reader";
 import { MockLanguageModelV4 } from "ai/test";
 
 import type { DocumentTypeInput, ModelInfo } from "@quickben/plugin-doc-reader";
@@ -99,9 +99,11 @@ const invoice: DocumentTypeInput = {
   },
 };
 
-/** The doc reader of the playground. Readings run in the web process. */
+/**
+ * The doc reader of the playground. Readings run in the web process. Files go to the config
+ * `storage` (lib/storage.ts).
+ */
 export const playgroundDocReader = docReader({
-  files: localFileStore("./.doc-reader-files"),
   isStaff: (user) => user.roles?.includes("admin") === true,
   types: [invoice],
   templates: {

@@ -310,6 +310,9 @@ importers:
       '@quickben/plugin-tenancy':
         specifier: workspace:*
         version: link:../../packages/plugin-tenancy
+      '@quickben/storage-local':
+        specifier: workspace:*
+        version: link:../../packages/storage-local
       '@tiptap/core':
         specifier: 3.33.1
         version: 3.33.1(@tiptap/pm@3.33.1)
