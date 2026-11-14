@@ -7,6 +7,7 @@ import { playgroundAuth } from "./lib/auth";
 import { connectionsEnabled, demoMasterKey } from "./lib/connections";
 import { createDb } from "./lib/db";
 import { docReaderEnabled, playgroundDocReader } from "./lib/doc-reader";
+import { playgroundLocale } from "./lib/locale";
 import { seedIfEmpty } from "./lib/seed";
 import { invoice, templatesEnabled } from "./lib/templates";
 import { tenancyEnabled } from "./lib/tenancy";
@@ -23,11 +24,15 @@ const isAdmin = hasRole("admin");
 
 export const authors = defineCollection({
   slug: "authors",
+  labels: {
+    singular: { en: "Author", es: "Autor" },
+    plural: { en: "Authors", es: "Autores" },
+  },
   fields: {
-    name: f.text({ required: true, maxLength: 120 }),
-    email: f.email({ unique: true }),
-    bio: f.textarea({ maxLength: 2000 }),
-    active: f.boolean({ default: true }),
+    name: f.text({ required: true, maxLength: 120, label: { en: "Name", es: "Nombre" } }),
+    email: f.email({ unique: true, label: { en: "Email", es: "Correo" } }),
+    bio: f.textarea({ maxLength: 2000, label: { en: "Bio", es: "Biografía" } }),
+    active: f.boolean({ default: true, label: { en: "Active", es: "Activo" } }),
   },
   access: { read: () => true, create: canEdit, update: canEdit, delete: isAdmin },
   admin: { useAsTitle: "name", defaultColumns: ["name", "email", "active", "updatedAt"] },
@@ -35,9 +40,19 @@ export const authors = defineCollection({
 
 export const tags = defineCollection({
   slug: "tags",
+  labels: { singular: { en: "Tag", es: "Etiqueta" }, plural: { en: "Tags", es: "Etiquetas" } },
   fields: {
-    name: f.text({ required: true, unique: true, maxLength: 60 }),
-    color: f.select({ options: ["gray", "blue", "green", "amber", "red"], default: "gray" }),
+    name: f.text({
+      required: true,
+      unique: true,
+      maxLength: 60,
+      label: { en: "Name", es: "Nombre" },
+    }),
+    color: f.select({
+      options: ["gray", "blue", "green", "amber", "red"],
+      default: "gray",
+      label: { en: "Color", es: "Color" },
+    }),
   },
   access: { read: () => true, create: canEdit, update: canEdit, delete: canEdit },
   admin: { useAsTitle: "name" },
@@ -45,12 +60,20 @@ export const tags = defineCollection({
 
 export const posts = defineCollection({
   slug: "posts",
+  labels: {
+    singular: { en: "Post", es: "Publicación" },
+    plural: { en: "Posts", es: "Publicaciones" },
+  },
   fields: {
-    title: f.text({ required: true, maxLength: 200 }),
+    title: f.text({ required: true, maxLength: 200, label: { en: "Title", es: "Título" } }),
     slug: f.text({
       unique: true,
       maxLength: 200,
-      description: "Lowercase letters, digits and dashes.",
+      label: { en: "Slug", es: "Slug" },
+      description: {
+        en: "Lowercase letters, digits and dashes.",
+        es: "Minúsculas, dígitos y guiones.",
+      },
       validate: (value) =>
         /^[a-z\d]+(?:-[a-z\d]+)*$/.test(value) || "Use lowercase letters, digits and dashes",
       admin: { width: "half" },
@@ -59,13 +82,21 @@ export const posts = defineCollection({
       options: ["draft", "review", "published"],
       required: true,
       default: "draft",
+      label: { en: "Status", es: "Estado" },
       admin: { width: "third" },
     }),
-    author: f.relation({ to: "authors", admin: { width: "third" } }),
-    publishedAt: f.datetime({ admin: { width: "third" } }),
-    tags: f.relation({ to: "tags", many: true }),
-    featured: f.boolean({ default: false }),
-    body: f.textarea(),
+    author: f.relation({
+      to: "authors",
+      label: { en: "Author", es: "Autor" },
+      admin: { width: "third" },
+    }),
+    publishedAt: f.datetime({
+      label: { en: "Published at", es: "Publicado el" },
+      admin: { width: "third" },
+    }),
+    tags: f.relation({ to: "tags", many: true, label: { en: "Tags", es: "Etiquetas" } }),
+    featured: f.boolean({ default: false, label: { en: "Featured", es: "Destacado" } }),
+    body: f.textarea({ label: { en: "Body", es: "Contenido" } }),
   },
   access: {
     // Anonymous visitors see published posts only.
@@ -77,16 +108,27 @@ export const posts = defineCollection({
   admin: {
     useAsTitle: "title",
     defaultColumns: ["title", "status", "author", "tags", "publishedAt"],
-    description: "Articles shown on the public page once published.",
+    description: {
+      en: "Articles shown on the public page once published.",
+      es: "Artículos que aparecen en la página pública una vez publicados.",
+    },
   },
 });
 
 export const settings = defineCollection({
   slug: "settings",
+  labels: {
+    singular: { en: "Setting", es: "Ajuste" },
+    plural: { en: "Settings", es: "Ajustes" },
+  },
   fields: {
-    key: f.text({ required: true, unique: true }),
-    value: f.json({ required: true, description: "Any JSON value." }),
-    description: f.text(),
+    key: f.text({ required: true, unique: true, label: { en: "Key", es: "Clave" } }),
+    value: f.json({
+      required: true,
+      label: { en: "Value", es: "Valor" },
+      description: { en: "Any JSON value.", es: "Cualquier valor JSON." },
+    }),
+    description: f.text({ label: { en: "Description", es: "Descripción" } }),
   },
   access: { read: isAdmin, create: isAdmin, update: isAdmin, delete: isAdmin },
   admin: { useAsTitle: "key", defaultColumns: ["key", "value", "description"] },
@@ -95,8 +137,12 @@ export const settings = defineCollection({
 const demo = definePlugin({
   name: "playground",
   modules: [
-    { key: "content", label: "Content", collections: ["posts", "authors", "tags"] },
-    { key: "system", label: "System", collections: ["settings"] },
+    {
+      key: "content",
+      label: { en: "Content", es: "Contenido" },
+      collections: ["posts", "authors", "tags"],
+    },
+    { key: "system", label: { en: "System", es: "Sistema" }, collections: ["settings"] },
   ],
   onInit: seedIfEmpty,
 });
@@ -129,7 +175,8 @@ const config = defineConfig({
     ...(connectionsEnabled ? [integrations] : []),
   ],
   auth: playgroundAuth(),
-  admin: { title: "Quickben Playground" },
+  // QUICKBEN_LOCALE=es shows the admin in Spanish; otherwise cookie, Accept-Language, English.
+  admin: { title: "Quickben Playground", locale: playgroundLocale },
 });
 
 export default config;
