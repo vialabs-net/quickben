@@ -13,7 +13,14 @@ export {
 } from "./errors";
 export { fields } from "./fields";
 export { createQuickben, getQuickben } from "./local-api";
-export { defaultLocale, localeChain, localize, mapLocalized } from "./localize";
+export {
+  defaultLocale,
+  localeChain,
+  localeFromRequest,
+  localize,
+  mapLocalized,
+  negotiateLocale,
+} from "./localize";
 export { compareBySort, compareValues, matchesWhere } from "./where";
 
 export type { AccessResult } from "./access";
@@ -31,7 +38,7 @@ export type {
 export type { AuthAdapter, DevAuthOptions, QuickbenUser } from "./auth";
 export type { PluginDefinition } from "./config";
 export type { ErrorCode, ValidationIssue } from "./errors";
-export type { LocalizedText } from "./localize";
+export type { LocaleFromRequestOptions, LocalizedText } from "./localize";
 export type {
   AnyField,
   BooleanField,

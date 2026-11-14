@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { defineCollection, fields, localeChain, localize, mapLocalized } from "../src";
+import {
+  defineCollection,
+  fields,
+  localeChain,
+  localeFromRequest,
+  localize,
+  mapLocalized,
+  negotiateLocale,
+} from "../src";
 
 describe("localize", () => {
   it("returns strings as they are", () => {
@@ -39,5 +47,25 @@ describe("localize", () => {
       fields: { name: fields.text({ label: { en: "Name", es: "Nombre" } }) },
     });
     expect(clients.labels.singular).toEqual({ en: "Client", es: "Cliente" });
+  });
+});
+
+describe("negotiateLocale", () => {
+  it("follows q values and keeps the region", () => {
+    expect(negotiateLocale("es-CL,es;q=0.9,en;q=0.8", ["en", "es"])).toBe("es-CL");
+    expect(negotiateLocale("fr;q=0.5,EN-us;q=0.8", ["en-US", "es"])).toBe("en-US");
+    expect(negotiateLocale("de, *;q=0.1", ["en", "es"])).toBe("en");
+    expect(negotiateLocale("es;q=0", ["en", "es"], "es")).toBe("es");
+    expect(negotiateLocale(null, [])).toBe("en");
+  });
+
+  it("reads the cookie first", () => {
+    const resolve = localeFromRequest({ supported: ["en", "es"], cookie: "locale" });
+    const req = (headers: Record<string, string>) => new Request("https://x.test/", { headers });
+    expect(resolve(req({ cookie: "a=1; locale=es", "accept-language": "en" }))).toBe("es");
+    expect(resolve(req({ cookie: "locale=fr", "accept-language": "es-MX" }))).toBe("es-MX");
+    expect(resolve(req({ cookie: "locale=%E0%A4%A", "accept-language": "de" }))).toBe("en");
+    expect(resolve(undefined)).toBe("en");
+    expect(localeFromRequest({ supported: [] })(req({}))).toBe("en");
   });
 });
