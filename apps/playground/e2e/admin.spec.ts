@@ -62,6 +62,33 @@ test("the role switcher changes what the admin shows", async ({ page }) => {
   await expect(page.getByRole("link", { name: "New post" })).toBeVisible();
 });
 
+test("field access hides and locks fields per role", async ({ page, request }) => {
+  await page.goto("/admin/authors");
+  await expect(page.getByRole("columnheader", { name: "Email" })).toBeVisible();
+  await page.getByLabel("Acting as").selectOption("viewer");
+  await expect(page.getByRole("columnheader", { name: "Email" })).toHaveCount(0);
+  await expect(page.getByRole("columnheader", { name: "Name" })).toBeVisible();
+  const viewer = await request.get(
+    "/api/authors?where=" + encodeURIComponent('{"email":{"exists":true}}'),
+    { headers: { cookie: "qb-playground-role=viewer" } },
+  );
+  expect(viewer.status()).toBe(400);
+
+  // The switcher reloads the page; the expectations wait for it.
+  await page.getByLabel("Acting as").selectOption("editor");
+  await expect(page.getByRole("columnheader", { name: "Email" })).toBeVisible();
+  await page.getByRole("link", { name: "Ada Lovelace" }).click();
+  await expect(page.getByRole("checkbox", { name: "Active" })).toBeDisabled();
+  await expect(page.getByRole("textbox", { name: "Email" })).toBeEnabled();
+  const id = new URL(page.url()).pathname.split("/").pop() ?? "";
+  const editor = await request.patch(`/api/authors/${id}`, {
+    data: { active: false },
+    headers: { cookie: "qb-playground-role=editor" },
+  });
+  expect(editor.status()).toBe(403);
+  await page.getByLabel("Acting as").selectOption("admin");
+});
+
 test("the public page and the API read through access rules", async ({ page, request }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Published posts" })).toBeVisible();

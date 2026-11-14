@@ -30,9 +30,18 @@ export const authors = defineCollection({
   },
   fields: {
     name: f.text({ required: true, maxLength: 120, label: { en: "Name", es: "Nombre" } }),
-    email: f.email({ unique: true, label: { en: "Email", es: "Correo" } }),
+    // Field access: viewers cannot read emails; only admins change `active`.
+    email: f.email({
+      unique: true,
+      label: { en: "Email", es: "Correo" },
+      access: { read: canEdit },
+    }),
     bio: f.textarea({ maxLength: 2000, label: { en: "Bio", es: "Biografía" } }),
-    active: f.boolean({ default: true, label: { en: "Active", es: "Activo" } }),
+    active: f.boolean({
+      default: true,
+      label: { en: "Active", es: "Activo" },
+      access: { create: isAdmin, update: isAdmin },
+    }),
   },
   access: { read: () => true, create: canEdit, update: canEdit, delete: isAdmin },
   admin: { useAsTitle: "name", defaultColumns: ["name", "email", "active", "updatedAt"] },
