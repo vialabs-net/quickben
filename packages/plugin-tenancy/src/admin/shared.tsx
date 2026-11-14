@@ -3,9 +3,10 @@ import { Card, CardBody, Toast } from "@quickben/admin/ui";
 import { resolveTenant } from "../api";
 import { OrganizationError } from "../tenant";
 
-import { errorMessage, toastMessage } from "./feedback";
+import { errorCode, errorMessage, toastMessage } from "./feedback";
 
 import type { Tenant } from "../tenant";
+import type { TenancyT } from "./messages";
 import type { Quickben, RequestContext } from "@quickben/core";
 import type { ReactNode } from "react";
 
@@ -19,8 +20,8 @@ function first(value: string | string[] | undefined): string | undefined {
 export function Heading({ title, description }: Readonly<{ title: string; description: string }>) {
   return (
     <header className="qb:mb-6">
-      <h1 className="qb:text-2xl qb:font-semibold qb:tracking-tight qb:text-zinc-900">{title}</h1>
-      <p className="qb:mt-1 qb:text-sm qb:text-zinc-500">{description}</p>
+      <h1 className="qb:text-2xl qb:font-semibold qb:tracking-tight qb:text-fg">{title}</h1>
+      <p className="qb:mt-1 qb:text-sm qb:text-fg-muted">{description}</p>
     </header>
   );
 }
@@ -30,7 +31,7 @@ export function Notice({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <Card>
       <CardBody>
-        <p className="qb:text-sm qb:text-zinc-600">{children}</p>
+        <p className="qb:text-sm qb:text-fg-muted">{children}</p>
       </CardBody>
     </Card>
   );
@@ -40,10 +41,13 @@ export function Notice({ children }: Readonly<{ children: ReactNode }>) {
  * Toast for the `?toast=` or `?error=` code set by the server actions. Codes map to fixed
  * messages; unknown codes show nothing.
  */
-export function Feedback({ searchParams }: Readonly<{ searchParams: SearchParams }>) {
-  const error = errorMessage(first(searchParams.error));
+export function Feedback({
+  searchParams,
+  t,
+}: Readonly<{ searchParams: SearchParams; t: TenancyT }>) {
+  const error = errorMessage(t, first(searchParams.error));
   if (error) return <Toast message={error} tone="error" param="error" duration={8000} />;
-  const toast = toastMessage(first(searchParams.toast));
+  const toast = toastMessage(t, first(searchParams.toast));
   return toast ? <Toast message={toast} param="toast" /> : null;
 }
 
@@ -51,17 +55,16 @@ export function Feedback({ searchParams }: Readonly<{ searchParams: SearchParams
 export async function tenantOrMessage(
   qb: Quickben,
   ctx: RequestContext,
+  t: TenancyT,
 ): Promise<{ tenant: Tenant; message: null } | { tenant: null; message: string }> {
-  if (!ctx.user) return { tenant: null, message: "Sign in to manage an organization." };
+  if (!ctx.user) return { tenant: null, message: t("notice.signIn") };
   try {
     return { tenant: await resolveTenant(qb, ctx), message: null };
   } catch (error) {
     if (!(error instanceof OrganizationError)) throw error;
-    const hint =
-      error.reason === "none"
-        ? "Create an organization or ask to be invited."
-        : "Choose an organization in the sidebar.";
-    return { tenant: null, message: `${error.message}. ${hint}` };
+    if (error.reason === "none") return { tenant: null, message: t("notice.none") };
+    const problem = errorMessage(t, errorCode(error)) ?? "";
+    return { tenant: null, message: t("notice.problem", { problem, hint: t("notice.choose") }) };
   }
 }
 
@@ -73,7 +76,7 @@ export function Field({
 }: Readonly<{ label: string; htmlFor: string; children: ReactNode }>) {
   return (
     <div className="qb:space-y-1.5">
-      <label htmlFor={htmlFor} className="qb:text-sm qb:font-medium qb:text-zinc-900">
+      <label htmlFor={htmlFor} className="qb:text-sm qb:font-medium qb:text-fg">
         {label}
       </label>
       {children}

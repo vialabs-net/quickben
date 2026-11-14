@@ -3,13 +3,14 @@ import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 
+import { createAdminI18n, englishI18n } from "@quickben/admin/i18n";
 import { defineConfig, devAuth, getQuickben } from "@quickben/core";
 import { memoryAdapter } from "@quickben/db-memory";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { tenancy } from "../src";
-import { tenancyAdmin } from "../src/admin";
+import { createOrganizationSwitcher, tenancyAdmin } from "../src/admin";
 import {
   createOrganizationAction,
   inviteMemberAction,
@@ -22,12 +23,13 @@ import {
 import { actAs, incoming, jar, navigation } from "./next-mocks";
 import { alice, bob, carol, dave, notes, posts, reports, staff, system } from "./setup";
 
-import type { AdminExtension, PageProps } from "@quickben/admin";
+import type { AdminExtension, AdminI18n, AdminText, PageProps } from "@quickben/admin";
 import type { QuickbenUser } from "@quickben/core";
 import type { ReactElement } from "react";
 
-function makeAdminConfig() {
+function makeAdminConfig(locale?: string) {
   return defineConfig({
+    ...(locale === undefined ? {} : { admin: { locale } }),
     db: memoryAdapter(),
     collections: [posts, notes, reports],
     modules: [
@@ -85,18 +87,36 @@ function selectOrg(id: string) {
   incoming.set("x-quickben-organization", id);
 }
 
-const pageProps: PageProps = { user: null, basePath: "/admin", segments: [], searchParams: {} };
+const pageProps: PageProps = {
+  user: null,
+  basePath: "/admin",
+  segments: [],
+  searchParams: {},
+  i18n: englishI18n,
+};
 
-async function renderSidebar() {
-  const Sidebar = extension.sidebar![0]! as unknown as () => Promise<ReactElement | null>;
-  const element = await Sidebar();
+const spanish = createAdminI18n({ locale: "es", timeZone: "UTC", overrides: {} });
+
+type Switcher = (props: { i18n?: AdminI18n }) => Promise<ReactElement | null>;
+
+async function renderSidebar(i18n: AdminI18n = englishI18n) {
+  const Sidebar = extension.sidebar![0]! as unknown as Switcher;
+  const element = await Sidebar({ i18n });
   return element ? render(element) : null;
 }
 
-async function renderPage(path: string, searchParams: PageProps["searchParams"] = {}) {
+async function renderPage(
+  path: string,
+  searchParams: PageProps["searchParams"] = {},
+  i18n: AdminI18n = englishI18n,
+) {
   const page = extension.pages!.find((p) => p.path === path)!;
   const Page = page.component as unknown as (props: PageProps) => Promise<ReactElement>;
-  return render(await Page({ ...pageProps, searchParams }));
+  return render(await Page({ ...pageProps, searchParams, i18n }));
+}
+
+function label(value: AdminText | undefined, i18n: AdminI18n = englishI18n): string | undefined {
+  return typeof value === "function" ? value(i18n) : i18n.text(value);
 }
 
 function form(entries: Record<string, string | string[]>): FormData {
@@ -115,10 +135,15 @@ async function run(action: (key: string, data: FormData) => Promise<void>, data:
 describe("tenancyAdmin", () => {
   it("adds a sidebar switcher and two pages", () => {
     expect(extension.sidebar).toHaveLength(1);
-    expect(extension.pages?.map((p) => [p.path, p.label, p.group])).toEqual([
+    expect(extension.pages?.map((p) => [p.path, label(p.label), label(p.group)])).toEqual([
       ["members", "Members", "Organization"],
       ["organization", "Organization settings", "Organization"],
     ]);
+    expect(extension.pages?.map((p) => label(p.label, spanish))).toEqual([
+      "Miembros",
+      "Ajustes de la organización",
+    ]);
+    expect(extension.catalogs?.map((bundle) => bundle.namespace)).toEqual(["tenancy"]);
     expect(tenancyAdmin(config, { basePath: "x", group: "Team" }).pages?.[0]?.group).toBe("Team");
   });
 
@@ -130,7 +155,7 @@ describe("tenancyAdmin", () => {
       within(select)
         .getAllByRole("option")
         .map((o) => o.textContent),
-    ).toEqual(["Choose…", "Acme (admin)", "Globex (owner)"]);
+    ).toEqual(["Choose…", "Acme (Admin)", "Globex (Owner)"]);
     cleanup();
     selectOrg(ids.globex!);
     await renderSidebar();
@@ -195,7 +220,8 @@ describe("tenancyAdmin", () => {
     await renderPage("members", { error: "forbidden" });
     expect(screen.queryByRole("button", { name: "Invite" })).toBeNull();
     expect(screen.queryByRole("columnheader", { name: "Actions" })).toBeNull();
-    expect(screen.getAllByText("active").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Active").length).toBeGreaterThan(0);
+    expect(screen.getByText("Viewer")).toBeTruthy();
     expect(screen.getByRole("alert").textContent).toContain("You are not allowed to do that.");
   });
 
@@ -220,7 +246,7 @@ describe("tenancyAdmin", () => {
     cleanup();
     actAs({ id: "nobody" });
     await renderPage("members");
-    expect(screen.getByText(/Create an organization or ask to be invited/)).toBeTruthy();
+    expect(screen.getByText(/Create one or ask to be invited/)).toBeTruthy();
     cleanup();
     actAs(null);
     await renderPage("members");
@@ -330,12 +356,94 @@ describe("tenancyAdmin", () => {
   });
 });
 
+describe("tenancy admin in Spanish", () => {
+  it("renders the pages and the switcher in the request locale", async () => {
+    actAs(alice);
+    await renderPage("members", { toast: "invited" }, spanish);
+    expect(screen.getByRole("heading", { level: 1, name: "Miembros" })).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Rol" })).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Rol de carol@example.com" })).toBeTruthy();
+    expect(screen.getByText("(tú)")).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toContain("Invitación creada");
+    cleanup();
+    await renderPage("organization", { error: "slug-taken" }, spanish);
+    expect(screen.getByRole("button", { name: "Crear organización" })).toBeTruthy();
+    expect(screen.getByRole("alert").textContent).toContain("Otra organización ya usa ese slug.");
+    cleanup();
+    actAs(bob);
+    await renderPage("members", {}, spanish);
+    expect(screen.getByText(/Perteneces a varias organizaciones/)).toBeTruthy();
+    cleanup();
+    await renderSidebar(spanish);
+    expect(
+      within(screen.getByRole("combobox", { name: "Organización activa" }))
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual(["Elige…", "Acme (Administrador)", "Globex (Propietario)"]);
+  });
+
+  it("uses overrides from admin.messages", async () => {
+    actAs(alice);
+    const i18n = createAdminI18n({
+      locale: "en",
+      timeZone: "UTC",
+      overrides: { "tenancy.members.title": "Team" },
+    });
+    await renderPage("members", {}, i18n);
+    expect(screen.getByRole("heading", { level: 1, name: "Team" })).toBeTruthy();
+  });
+});
+
+describe("createOrganizationSwitcher", () => {
+  it("renders outside the admin and resolves the locale from the config", async () => {
+    const esConfig = makeAdminConfig("es");
+    const Switcher = createOrganizationSwitcher(esConfig, {
+      basePath: "/app/admin/",
+    }) as unknown as Switcher;
+    actAs({ id: "nobody" });
+    render(await Switcher({}));
+    expect(screen.getByRole("link", { name: "Crear una" }).getAttribute("href")).toBe(
+      "/app/admin/organization",
+    );
+    cleanup();
+    render(await Switcher({ i18n: englishI18n }));
+    expect(screen.getByRole("link", { name: "Create one" })).toBeTruthy();
+    actAs(null);
+    expect(await Switcher({})).toBeNull();
+  });
+
+  it("registers the instance so the switch action works", async () => {
+    const other = makeAdminConfig();
+    createOrganizationSwitcher(other, { basePath: "/embedded" });
+    const qb = await getQuickben(other);
+    const org = await qb.create(
+      "organizations",
+      { name: "Initech", slug: "initech" },
+      { user: bob },
+    );
+    actAs(bob);
+    await expect(
+      switchOrganizationAction("/embedded", form({ organizationId: org.id })),
+    ).rejects.toThrow(/NEXT_REDIRECT/);
+    expect(navigation.redirects.at(-1)).toBe("/embedded");
+    expect(jar.get("quickben-organization")).toBe(org.id);
+    const Switcher = createOrganizationSwitcher(other) as unknown as Switcher;
+    expect(await Switcher({ i18n: englishI18n })).not.toBeNull();
+  });
+});
+
 describe("styles", () => {
   it("uses only classes that exist in @quickben/admin/styles.css", async () => {
     const require = createRequire(import.meta.url);
     const adminDir = dirname(require.resolve("@quickben/admin/package.json"));
     const css = await readFile(join(adminDir, "dist/styles.css"), "utf8");
-    const sources = ["shared.tsx", "switcher.tsx", "members.tsx", "organization.tsx"];
+    const sources = [
+      "shared.tsx",
+      "switcher.tsx",
+      "members.tsx",
+      "organization.tsx",
+      "auto-submit.tsx",
+    ];
     const missing: string[] = [];
     for (const file of sources) {
       const source = await readFile(join(import.meta.dirname, "../src/admin", file), "utf8");

@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { AdminI18nProvider, createAdminI18n, missingMessages } from "@quickben/admin/i18n";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -23,7 +24,8 @@ vi.mock("../src/client/session-client", async (importOriginal) => {
   };
 });
 
-const { FirebaseSignInPage, safeRedirect, signInErrorMessage } = await import("../src/admin");
+const { FirebaseSignInPage, firebaseAuthMessages, safeRedirect, signInErrorMessage } =
+  await import("../src/admin");
 const { SessionRequestError } = await import("../src/client");
 
 type GsiWindow = typeof globalThis & { google?: unknown };
@@ -129,6 +131,57 @@ describe("signInErrorMessage", () => {
     expect(signInErrorMessage({ code: "auth/wrong-password" })).toBe("Wrong email or password.");
     expect(signInErrorMessage({ code: "auth/popup-closed-by-user" })).toBeNull();
     expect(signInErrorMessage(new Error("other"))).toBe("Sign-in failed. Try again.");
+  });
+});
+
+describe("sign-in page in other locales", () => {
+  it("has every key in Spanish", () => {
+    expect(missingMessages(firebaseAuthMessages)).toEqual([]);
+  });
+
+  it("renders in Spanish from the locale prop and translates errors", async () => {
+    vi.stubGlobal("location", { search: "", replace });
+    fake.signInWithPassword.mockRejectedValueOnce({ code: "auth/wrong-password" });
+    render(
+      <FirebaseSignInPage firebaseConfig={{ apiKey: "k" }} methods={["password"]} locale="es" />,
+    );
+    expect(screen.getByRole("heading", { name: "Iniciar sesión" })).toBeTruthy();
+    expect(screen.getByLabelText("Mantener la sesión iniciada")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Correo"), { target: { value: "ada@example.com" } });
+    fireEvent.change(screen.getByLabelText("Contraseña"), { target: { value: "pw" } });
+    fireEvent.submit(screen.getByRole("button", { name: "Iniciar sesión" }).closest("form")!);
+    await flush();
+    expect(screen.getByRole("alert").textContent).toBe("Correo o contraseña incorrectos.");
+  });
+
+  it("uses i18n data with overrides, then the admin provider", () => {
+    render(
+      <FirebaseSignInPage
+        firebaseConfig={{ apiKey: "k" }}
+        locale="es"
+        i18n={{ locale: "en", timeZone: "UTC", overrides: { "auth-firebase.title": "Staff only" } }}
+      />,
+    );
+    expect(screen.getByRole("heading", { name: "Staff only" })).toBeTruthy();
+    cleanup();
+    render(
+      <AdminI18nProvider value={{ locale: "es", timeZone: "UTC", overrides: {} }}>
+        <FirebaseSignInPage firebaseConfig={{ apiKey: "k" }} />
+      </AdminI18nProvider>,
+    );
+    expect(screen.getByRole("button", { name: /Continuar con Google/ })).toBeTruthy();
+  });
+
+  it("translates error messages with a scoped translator", () => {
+    const t = createAdminI18n({ locale: "es", timeZone: "UTC", overrides: {} }).scope(
+      firebaseAuthMessages,
+    ).t;
+    expect(signInErrorMessage(new SessionRequestError(403, "FORBIDDEN", "x", "revoked"), t)).toBe(
+      "Este inicio de sesión fue revocado. Vuelve a iniciar sesión.",
+    );
+    expect(signInErrorMessage({ code: "constructor" }, t)).toBe(
+      "No se pudo iniciar sesión. Inténtalo de nuevo.",
+    );
   });
 });
 

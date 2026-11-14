@@ -2,43 +2,43 @@ import { ConflictError, ValidationError } from "@quickben/core";
 
 import { OrganizationError, TenancyRuleError } from "../tenant";
 
+import type { TenancyT } from "./messages";
 import type { QuickbenError } from "@quickben/core";
 
-/** Success messages of the tenancy admin, by the code in `?toast=`. */
-export const toastMessages = {
-  invited: "Invitation created",
-  "member-updated": "Member updated",
-  "member-removed": "Member removed",
-  "organization-saved": "Organization saved",
-  "organization-created": "Organization created",
-} as const;
+/** `?toast=` codes of the tenancy admin. Each one has the message `tenancy.toast.<code>`. */
+export const toastCodes = [
+  "invited",
+  "member-updated",
+  "member-removed",
+  "organization-saved",
+  "organization-created",
+] as const;
 
-/** Error messages of the tenancy admin, by the code in `?error=`. */
-export const errorMessages = {
-  unauthorized: "Sign in again to continue.",
-  forbidden: "You are not allowed to do that.",
-  "not-found": "That item does not exist or you cannot see it.",
-  invalid: "Some values are not valid. Check the form and try again.",
-  "invalid-slug": "Use lowercase letters, digits and -, e.g. acme-inc.",
-  "slug-taken": "That slug is already used by another organization.",
-  "already-member": "That person is already a member or has an invitation.",
-  conflict: "That value is already used.",
-  "organization-none": "Choose an organization first.",
-  "organization-ambiguous": "You belong to several organizations. Choose one.",
-  "organization-not-member": "You are not a member of that organization.",
-  "organization-unknown": "That organization does not exist.",
-  "organization-suspended": "That organization is suspended.",
-  "last-owner": "An organization needs at least one active owner. Make someone else owner first.",
-  "own-role": "You cannot change your own role or status. Ask another owner or admin.",
-  "own-membership":
-    "You cannot remove your own owner or admin membership. Ask another owner or admin.",
-  "higher-role": "Only a higher role can manage that role.",
-  "platform-only": "Only platform staff can change modules or status.",
-  failed: "The change could not be saved.",
-} as const;
+/** `?error=` codes of the tenancy admin. Each one has the message `tenancy.error.<code>`. */
+export const errorCodes = [
+  "unauthorized",
+  "forbidden",
+  "not-found",
+  "invalid",
+  "invalid-slug",
+  "slug-taken",
+  "already-member",
+  "conflict",
+  "organization-none",
+  "organization-ambiguous",
+  "organization-not-member",
+  "organization-unknown",
+  "organization-suspended",
+  "last-owner",
+  "own-role",
+  "own-membership",
+  "higher-role",
+  "platform-only",
+  "failed",
+] as const;
 
-export type ToastCode = keyof typeof toastMessages;
-export type FeedbackErrorCode = keyof typeof errorMessages;
+export type ToastCode = (typeof toastCodes)[number];
+export type FeedbackErrorCode = (typeof errorCodes)[number];
 
 /** The `?error=` code for an error thrown by a tenancy admin action. */
 export function errorCode(error: QuickbenError): FeedbackErrorCode {
@@ -64,16 +64,16 @@ export function errorCode(error: QuickbenError): FeedbackErrorCode {
   }
 }
 
-function lookup(messages: Readonly<Record<string, string>>, code: unknown): string | undefined {
-  return typeof code === "string" && Object.hasOwn(messages, code) ? messages[code] : undefined;
+function isCode<C extends string>(codes: readonly C[], code: unknown): code is C {
+  return typeof code === "string" && (codes as readonly string[]).includes(code);
 }
 
-/** The fixed message for a `?toast=` code. Unknown codes give `undefined`. */
-export function toastMessage(code: unknown): string | undefined {
-  return lookup(toastMessages, code);
+/** The message for a `?toast=` code. Unknown codes give `undefined`. */
+export function toastMessage(t: TenancyT, code: unknown): string | undefined {
+  return isCode(toastCodes, code) ? t(`toast.${code}`) : undefined;
 }
 
-/** The fixed message for an `?error=` code. Unknown codes give `undefined`. */
-export function errorMessage(code: unknown): string | undefined {
-  return lookup(errorMessages, code);
+/** The message for an `?error=` code. Unknown codes give `undefined`. */
+export function errorMessage(t: TenancyT, code: unknown): string | undefined {
+  return isCode(errorCodes, code) ? t(`error.${code}`) : undefined;
 }

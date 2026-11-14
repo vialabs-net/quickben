@@ -1,3 +1,4 @@
+import { createAdminI18n, englishI18n, missingMessages } from "@quickben/admin/i18n";
 import {
   ConfigError,
   ConflictError,
@@ -9,13 +10,17 @@ import {
 import { describe, expect, it } from "vitest";
 
 import { OrganizationError, TenancyRuleError } from "../src";
+import { tenancyMessages } from "../src/admin";
 import {
   errorCode,
+  errorCodes,
   errorMessage,
-  errorMessages,
+  toastCodes,
   toastMessage,
-  toastMessages,
 } from "../src/admin/feedback";
+import { roleLabel, statusLabel } from "../src/admin/messages";
+
+const t = englishI18n.scope(tenancyMessages).t;
 
 describe("tenancy admin feedback codes", () => {
   it("maps errors to codes", () => {
@@ -38,16 +43,35 @@ describe("tenancy admin feedback codes", () => {
 
   it("every code has a message", () => {
     for (const reason of ["none", "ambiguous", "not-member", "unknown", "suspended"] as const) {
-      expect(errorMessage(errorCode(new OrganizationError(reason, "")))).toBeTruthy();
+      expect(errorMessage(t, errorCode(new OrganizationError(reason, "")))).toBeTruthy();
     }
-    for (const code of Object.keys(errorMessages)) expect(errorMessage(code)).toBeTruthy();
-    for (const code of Object.keys(toastMessages)) expect(toastMessage(code)).toBeTruthy();
+    for (const code of errorCodes) expect(errorMessage(t, code)).not.toMatch(/^error\./);
+    for (const code of toastCodes) expect(toastMessage(t, code)).not.toMatch(/^toast\./);
   });
 
   it("ignores unknown codes", () => {
-    expect(errorMessage("Free text")).toBeUndefined();
-    expect(errorMessage("constructor")).toBeUndefined();
-    expect(errorMessage(undefined)).toBeUndefined();
-    expect(toastMessage("hasOwnProperty")).toBeUndefined();
+    expect(errorMessage(t, "Free text")).toBeUndefined();
+    expect(errorMessage(t, "constructor")).toBeUndefined();
+    expect(errorMessage(t, undefined)).toBeUndefined();
+    expect(toastMessage(t, "hasOwnProperty")).toBeUndefined();
+  });
+
+  it("translates codes, roles and statuses", () => {
+    const es = createAdminI18n({ locale: "es", timeZone: "UTC", overrides: {} }).scope(
+      tenancyMessages,
+    ).t;
+    expect(errorMessage(es, "forbidden")).toBe("No tienes permiso para hacer eso.");
+    expect(toastMessage(es, "invited")).toBe("Invitación creada");
+    expect(roleLabel(es, "owner")).toBe("Propietario");
+    expect(roleLabel(es, "auditor")).toBe("auditor");
+    expect(roleLabel(es, "toString")).toBe("toString");
+    expect(statusLabel(es, "suspended")).toBe("Suspendido");
+    expect(statusLabel(t, "archived")).toBe("archived");
+  });
+});
+
+describe("tenancy messages", () => {
+  it("has every key in Spanish", () => {
+    expect(missingMessages(tenancyMessages)).toEqual([]);
   });
 });
