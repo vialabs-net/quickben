@@ -11,11 +11,11 @@ export type ButtonVariant = "primary" | "secondary" | "danger" | "ghost";
 export type ButtonSize = "sm" | "md";
 
 const variants: Record<ButtonVariant, string> = {
-  primary: "qb:bg-zinc-900 qb:text-white qb:hover:bg-zinc-700 qb:shadow-xs",
+  primary: "qb:bg-accent qb:text-accent-fg qb:hover:bg-accent-hover qb:shadow-xs",
   secondary:
-    "qb:border qb:border-zinc-300 qb:bg-white qb:text-zinc-900 qb:hover:bg-zinc-50 qb:shadow-xs",
-  danger: "qb:bg-red-600 qb:text-white qb:hover:bg-red-500 qb:shadow-xs",
-  ghost: "qb:text-zinc-700 qb:hover:bg-zinc-100 qb:hover:text-zinc-900",
+    "qb:border qb:border-line-strong qb:bg-surface qb:text-fg qb:hover:bg-surface-muted qb:shadow-xs",
+  danger: "qb:bg-danger qb:text-danger-fg qb:hover:bg-danger-hover qb:shadow-xs",
+  ghost: "qb:text-fg qb:hover:bg-surface-strong qb:hover:text-fg",
 };
 
 const sizes: Record<ButtonSize, string> = {

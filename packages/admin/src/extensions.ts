@@ -13,6 +13,7 @@ export function resolveExtensions(options: AdminOptions): ResolvedExtensions {
     pages: [],
     nav: [],
     sidebar: [],
+    catalogs: [],
   };
   for (const extension of [...(options.extensions ?? []), options]) {
     Object.assign(resolved.components, extension.components);
@@ -24,8 +25,23 @@ export function resolveExtensions(options: AdminOptions): ResolvedExtensions {
     }
     resolved.nav.push(...(extension.nav ?? []));
     resolved.sidebar.push(...(extension.sidebar ?? []));
+    for (const bundle of extension.catalogs ?? []) {
+      resolved.catalogs = [
+        ...resolved.catalogs.filter((existing) => existing.namespace !== bundle.namespace),
+        bundle,
+      ];
+    }
   }
   return resolved;
+}
+
+/** Check message namespaces: `admin` is the admin's own. */
+export function assertMessages(extensions: ResolvedExtensions): void {
+  for (const bundle of extensions.catalogs) {
+    if (bundle.namespace === "admin") {
+      throw new ConfigError('Message namespace "admin" is reserved for @quickben/admin');
+    }
+  }
 }
 
 /** Check custom page paths: valid, unique and not a collection slug. */

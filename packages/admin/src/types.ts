@@ -1,6 +1,15 @@
-import type { NavItem, QuickbenUser } from "@quickben/core";
+import type { MessageBundle } from "./i18n/catalog";
+import type { AdminI18nOptions } from "./i18n/resolve";
+import type { AdminI18n, AdminI18nData } from "./i18n/translator";
+import type { LocalizedText, NavItem, QuickbenUser } from "@quickben/core";
 import type { CollectionMeta, FieldMeta } from "@quickben/next";
 import type { ComponentType } from "react";
+
+/**
+ * Text in the admin chrome: a string, a per-locale record, or a function of the translator,
+ * e.g. `(i18n) => i18n.scope(messages).t("nav.reports")`.
+ */
+export type AdminText = LocalizedText | ((i18n: AdminI18n) => string);
 
 /** Search parameters of a Next.js page. */
 export type SearchParams = Record<string, string | string[] | undefined>;
@@ -27,6 +36,8 @@ export interface FieldComponentProps {
   disabled: boolean;
   /** Ids of the hint and error elements, for `aria-describedby`. */
   describedBy: string;
+  /** Locale data: `createAdminI18n(i18n)` on the server, or `useAdminI18n()` in the browser. */
+  i18n: AdminI18nData;
 }
 
 /** Props of a custom list or edit view. */
@@ -37,6 +48,7 @@ export interface ViewProps {
   searchParams: SearchParams;
   /** Document id, for edit views of existing documents. */
   id?: string;
+  i18n: AdminI18n;
 }
 
 /** Props of a custom admin page. */
@@ -46,26 +58,28 @@ export interface PageProps {
   /** Path segments after the page path: `/admin/reports/2024` gives `["2024"]`. */
   segments: string[];
   searchParams: SearchParams;
+  i18n: AdminI18n;
 }
 
 /** Props of a sidebar component. */
 export interface SidebarProps {
   user: QuickbenUser | null;
   basePath: string;
+  i18n: AdminI18n;
 }
 
 /** A custom page inside the admin shell, at `<basePath>/<path>`. */
 export interface AdminPageDefinition {
   /** First path segment. Lowercase letters, digits and `-`. Must not be a collection slug. */
   path: string;
-  label: string;
+  label: AdminText;
   /** Sidebar group. Default `Pages`. */
-  group?: string;
+  group?: AdminText;
   component: ComponentType<PageProps>;
 }
 
 /** Extra sidebar link. */
-export type AdminNavItem = NavItem & { group?: string };
+export type AdminNavItem = Omit<NavItem, "label"> & { label: AdminText; group?: AdminText };
 
 /**
  * Additions to the admin UI. Plugins can export one, and apps pass it in `extensions`.
@@ -87,10 +101,20 @@ export interface AdminExtension {
    * example an organization switcher.
    */
   sidebar?: readonly ComponentType<SidebarProps>[];
+  /** Message catalogs of the extension, one namespace each. See `defineMessages`. */
+  catalogs?: readonly MessageBundle[];
 }
 
+/**
+ * How much of the admin layout `createAdminPage` renders. `full` (default): sidebar, header
+ * and page. `none`: only the page, for a host app that brings its own layout and navigation.
+ */
+export type AdminChrome = "full" | "none";
+
 /** Options of `createAdminPage`. */
-export interface AdminOptions extends AdminExtension {
+export interface AdminOptions extends AdminExtension, AdminI18nOptions {
+  /** Layout around pages. Default `full`. Use `none` to embed pages in your own layout. */
+  chrome?: AdminChrome;
   /** URL path of the admin route. Default `/admin`. */
   basePath?: string;
   /** Extensions from plugins, applied before the options above. */
@@ -122,6 +146,7 @@ export interface ResolvedExtensions {
   pages: AdminPageDefinition[];
   nav: AdminNavItem[];
   sidebar: ComponentType<SidebarProps>[];
+  catalogs: MessageBundle[];
 }
 
 /** An option of a relation picker. */

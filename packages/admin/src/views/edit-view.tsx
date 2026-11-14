@@ -1,6 +1,6 @@
 import { DeleteButton } from "../client/delete-button";
 import { DocumentForm } from "../client/document-form";
-import { documentTitle, formatDatetime } from "../format";
+import { documentTitle } from "../format";
 import { formScope } from "../ids";
 import { Badge } from "../ui/badge";
 import { ButtonLink } from "../ui/button";
@@ -9,6 +9,7 @@ import { Card, CardBody, CardHeader } from "../ui/card";
 import { FieldInput } from "./field-input";
 import { PageHeader } from "./panels";
 
+import type { AdminI18n } from "../i18n/translator";
 import type { AdminServerFunction } from "../types";
 import type { FieldInputContext } from "./field-input";
 import type { CollectionMeta } from "@quickben/next";
@@ -20,7 +21,8 @@ export interface EditViewProps {
   /** The stored document, or `null` on create. */
   doc: Record<string, unknown> | null;
   serverFunction: AdminServerFunction;
-  context: Omit<FieldInputContext, "readOnly" | "serverFunction" | "scope">;
+  context: Omit<FieldInputContext, "readOnly" | "serverFunction" | "scope" | "i18n">;
+  i18n: AdminI18n;
 }
 
 function initialValue(field: CollectionMeta["fields"][number]): unknown {
@@ -35,24 +37,25 @@ export function EditView({
   doc,
   serverFunction,
   context,
+  i18n,
 }: Readonly<EditViewProps>) {
+  const singular = i18n.lower(collection.labels.singular);
   const listHref = `${basePath}/${collection.slug}`;
   const id = doc ? String(doc.id) : null;
   const scope = formScope(collection.slug, id);
   const creating = doc === null;
   const readOnly = creating ? !collection.access.create : !collection.access.update;
-  const title = creating
-    ? `New ${collection.labels.singular.toLowerCase()}`
-    : documentTitle(collection, doc);
+  const title = creating ? i18n.t("edit.new", { singular }) : documentTitle(collection, doc);
   return (
     <>
       <PageHeader
         title={title}
         crumbs={[
           { label: collection.labels.plural, href: listHref },
-          { label: creating ? "New" : "Edit" },
+          { label: creating ? i18n.t("edit.crumbNew") : i18n.t("edit.crumbEdit") },
         ]}
-        actions={readOnly ? <Badge>Read only</Badge> : null}
+        actions={readOnly ? <Badge>{i18n.t("edit.readOnly")}</Badge> : null}
+        i18n={i18n}
       />
       <div className="qb:grid qb:items-start qb:gap-6 qb:xl:grid-cols-[minmax(0,60rem)_18rem]">
         <Card>
@@ -61,13 +64,11 @@ export function EditView({
             basePath={basePath}
             slug={collection.slug}
             id={id}
-            submitLabel={
-              creating ? `Create ${collection.labels.singular.toLowerCase()}` : "Save changes"
-            }
+            submitLabel={creating ? i18n.t("edit.create", { singular }) : i18n.t("edit.save")}
             readOnly={readOnly}
             secondary={
               <ButtonLink href={listHref} variant="ghost">
-                Cancel
+                {i18n.t("edit.cancel")}
               </ButtonLink>
             }
           >
@@ -77,7 +78,7 @@ export function EditView({
                   key={field.name}
                   field={field}
                   value={doc ? doc[field.name] : initialValue(field)}
-                  context={{ ...context, serverFunction, readOnly, scope }}
+                  context={{ ...context, serverFunction, readOnly, scope, i18n }}
                 />
               ))}
             </div>
@@ -85,22 +86,22 @@ export function EditView({
         </Card>
         {doc ? (
           <Card>
-            <CardHeader title="Details" />
+            <CardHeader title={i18n.t("edit.details")} />
             <CardBody className="qb:space-y-4">
               <dl className="qb:space-y-3 qb:text-sm">
                 <div>
-                  <dt className="qb:text-zinc-500">ID</dt>
-                  <dd className="qb:font-mono qb:text-xs qb:break-all qb:text-zinc-900">
+                  <dt className="qb:text-fg-muted">{i18n.t("column.id")}</dt>
+                  <dd className="qb:font-mono qb:text-xs qb:break-all qb:text-fg">
                     {String(doc.id)}
                   </dd>
                 </div>
                 <div>
-                  <dt className="qb:text-zinc-500">Created</dt>
-                  <dd className="qb:text-zinc-900">{formatDatetime(String(doc.createdAt))}</dd>
+                  <dt className="qb:text-fg-muted">{i18n.t("column.createdAt")}</dt>
+                  <dd className="qb:text-fg">{i18n.dateTime(String(doc.createdAt))}</dd>
                 </div>
                 <div>
-                  <dt className="qb:text-zinc-500">Updated</dt>
-                  <dd className="qb:text-zinc-900">{formatDatetime(String(doc.updatedAt))}</dd>
+                  <dt className="qb:text-fg-muted">{i18n.t("column.updatedAt")}</dt>
+                  <dd className="qb:text-fg">{i18n.dateTime(String(doc.updatedAt))}</dd>
                 </div>
               </dl>
               {collection.access.delete ? (

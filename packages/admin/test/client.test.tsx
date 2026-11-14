@@ -7,6 +7,7 @@ import { DeleteButton } from "../src/client/delete-button";
 import { DocumentForm } from "../src/client/document-form";
 import { JsonEditor } from "../src/client/json-editor";
 import { RelationPicker } from "../src/client/relation-picker";
+import { englishI18n } from "../src/i18n/translator";
 import { formScope } from "../src/ids";
 import { Badge, Button, ButtonLink, Card, CardBody, CardHeader, Toast } from "../src/ui";
 import { FieldInput } from "../src/views/field-input";
@@ -44,6 +45,7 @@ function renderForm(fn: AdminServerFunction, id: string | null = null) {
           readOnly: false,
           serverFunction: fn,
           scope: formScope("posts", id),
+          i18n: englishI18n,
         }}
       />
     </DocumentForm>,

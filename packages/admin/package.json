@@ -30,6 +30,10 @@
       "types": "./dist/ui/index.d.ts",
       "default": "./dist/ui/index.js"
     },
+    "./i18n": {
+      "types": "./dist/i18n/index.d.ts",
+      "default": "./dist/i18n/index.js"
+    },
     "./styles.css": "./dist/styles.css",
     "./package.json": "./package.json"
   },

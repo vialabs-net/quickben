@@ -1,3 +1,6 @@
+import { englishI18n } from "./i18n/translator";
+
+import type { AdminI18n } from "./i18n/translator";
 import type { ValidationIssue } from "@quickben/core";
 import type { FieldMeta } from "@quickben/next";
 
@@ -7,6 +10,8 @@ export function editableFields(fields: readonly FieldMeta[]): FieldMeta[] {
 }
 
 type Parsed = { value: unknown } | { error: string };
+
+type T = AdminI18n["t"];
 
 function text(formData: FormData, name: string): string {
   const value = formData.get(name);
@@ -19,56 +24,56 @@ function texts(formData: FormData, name: string): string[] {
     .filter((value): value is string => typeof value === "string" && value !== "");
 }
 
-function parseNumber(raw: string, field: FieldMeta): Parsed {
+function parseNumber(raw: string, field: FieldMeta, t: T): Parsed {
   const value = Number(raw);
-  if (!Number.isFinite(value)) return { error: "Enter a number" };
-  if (field.integer === true && !Number.isInteger(value)) return { error: "Enter a whole number" };
+  if (!Number.isFinite(value)) return { error: t("error.number") };
+  if (field.integer === true && !Number.isInteger(value)) return { error: t("error.wholeNumber") };
   return { value };
 }
 
-function parseDatetime(raw: string): Parsed {
+function parseDatetime(raw: string, t: T): Parsed {
   // `<input type="datetime-local">` gives `YYYY-MM-DDTHH:mm` or `…:ss`. The admin uses UTC.
   const withSeconds = raw.length === 16 ? `${raw}:00` : raw;
   const date = new Date(`${withSeconds}Z`);
-  if (Number.isNaN(date.getTime())) return { error: "Enter a valid date and time" };
+  if (Number.isNaN(date.getTime())) return { error: t("error.datetime") };
   return { value: date.toISOString() };
 }
 
-function parseJson(raw: string): Parsed {
+function parseJson(raw: string, t: T): Parsed {
   try {
     return { value: JSON.parse(raw) as unknown };
   } catch {
-    return { error: "Enter valid JSON" };
+    return { error: t("error.json") };
   }
 }
 
-function parseSingle(raw: string, field: FieldMeta): Parsed {
+function parseSingle(raw: string, field: FieldMeta, t: T): Parsed {
   switch (field.type) {
     case "number":
-      return parseNumber(raw, field);
+      return parseNumber(raw, field, t);
     case "datetime":
-      return parseDatetime(raw);
+      return parseDatetime(raw, t);
     case "json":
-      return parseJson(raw);
+      return parseJson(raw, t);
     default:
       return { value: raw };
   }
 }
 
-function parseField(formData: FormData, field: FieldMeta): Parsed {
+function parseField(formData: FormData, field: FieldMeta, t: T): Parsed {
   if (field.type === "boolean") {
     const value = text(formData, field.name);
     return { value: value === "on" || value === "true" };
   }
   if (field.many) {
     const values = texts(formData, field.name);
-    if (field.required && values.length === 0) return { error: "Choose at least one" };
+    if (field.required && values.length === 0) return { error: t("error.chooseOne") };
     return { value: values };
   }
   const raw =
     field.type === "json" ? text(formData, field.name).trim() : text(formData, field.name);
-  if (raw === "") return field.required ? { error: "Required" } : { value: null };
-  return parseSingle(raw, field);
+  if (raw === "") return field.required ? { error: t("error.required") } : { value: null };
+  return parseSingle(raw, field, t);
 }
 
 /**
@@ -79,11 +84,12 @@ function parseField(formData: FormData, field: FieldMeta): Parsed {
 export function parseFormData(
   fields: readonly FieldMeta[],
   formData: FormData,
+  i18n: AdminI18n = englishI18n,
 ): { data: Record<string, unknown>; errors: Record<string, string> } {
   const data: Record<string, unknown> = {};
   const errors: Record<string, string> = {};
   for (const field of editableFields(fields)) {
-    const parsed = parseField(formData, field);
+    const parsed = parseField(formData, field, i18n.t);
     if ("error" in parsed) errors[field.name] = parsed.error;
     else data[field.name] = parsed.value;
   }

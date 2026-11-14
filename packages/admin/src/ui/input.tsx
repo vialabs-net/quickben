@@ -3,9 +3,9 @@ import { cn, focusRing } from "./cn";
 import type { ComponentProps, ReactNode } from "react";
 
 const control = cn(
-  "qb:block qb:w-full qb:rounded-md qb:border qb:border-zinc-300 qb:bg-white qb:px-3 qb:py-2 qb:text-sm qb:text-zinc-900 qb:shadow-xs",
-  "qb:placeholder:text-zinc-400 qb:disabled:cursor-not-allowed qb:disabled:bg-zinc-50 qb:disabled:text-zinc-500",
-  "qb:aria-invalid:border-red-500",
+  "qb:block qb:w-full qb:rounded-md qb:border qb:border-line-strong qb:bg-surface qb:px-3 qb:py-2 qb:text-sm qb:text-fg qb:shadow-xs",
+  "qb:placeholder:text-fg-subtle qb:disabled:cursor-not-allowed qb:disabled:bg-surface-muted qb:disabled:text-fg-muted",
+  "qb:aria-invalid:border-danger",
   focusRing,
 );
 
@@ -29,7 +29,7 @@ export function Checkbox({ className, ...props }: Readonly<ComponentProps<"input
   return (
     <input
       type="checkbox"
-      className={cn("qb:size-4 qb:rounded qb:accent-zinc-900", focusRing, className)}
+      className={cn("qb:size-4 qb:rounded qb:accent-accent", focusRing, className)}
       {...props}
     />
   );
@@ -46,7 +46,7 @@ export function Label({ htmlFor, className, children, ...props }: Readonly<Label
   return (
     <label
       htmlFor={htmlFor}
-      className={cn("qb:text-sm qb:font-medium qb:text-zinc-900", className)}
+      className={cn("qb:text-sm qb:font-medium qb:text-fg", className)}
       {...props}
     >
       {children}
@@ -57,7 +57,7 @@ export function Label({ htmlFor, className, children, ...props }: Readonly<Label
 /** Help text under a field. */
 export function FieldHint({ id, children }: Readonly<{ id?: string; children: ReactNode }>) {
   return (
-    <p id={id} className="qb:text-xs qb:text-zinc-500">
+    <p id={id} className="qb:text-xs qb:text-fg-muted">
       {children}
     </p>
   );

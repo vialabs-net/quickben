@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { startTransition, useActionState, useEffect, useRef, useState } from "react";
 
 import { idleState } from "../form-state";
+import { useAdminI18n } from "../i18n/context";
 import { Button } from "../ui/button";
 
 import type { FormState } from "../form-state";
@@ -32,6 +33,8 @@ export function DeleteButton({
   title,
 }: Readonly<DeleteButtonProps>) {
   const router = useRouter();
+  const i18n = useAdminI18n();
+  const singular = i18n.lower(label);
   const [confirming, setConfirming] = useState(false);
   const [state, runDelete, pending] = useActionState(async (): Promise<FormState> => {
     const result = await serverFunction({ type: "delete", slug, id });
@@ -51,20 +54,20 @@ export function DeleteButton({
     return (
       <Button
         variant="secondary"
-        className="qb:w-full qb:text-red-700"
+        className="qb:w-full qb:text-danger-strong"
         onClick={() => {
           setConfirming(true);
         }}
       >
-        Delete {label.toLowerCase()}
+        {i18n.t("delete.open", { singular })}
       </Button>
     );
   }
   return (
-    <div role="group" aria-label={`Delete ${label.toLowerCase()}`} className="qb:space-y-3">
-      <p className="qb:text-sm qb:text-zinc-700">Delete “{title}”? This cannot be undone.</p>
+    <div role="group" aria-label={i18n.t("delete.open", { singular })} className="qb:space-y-3">
+      <p className="qb:text-sm qb:text-fg">{i18n.t("delete.confirm", { title })}</p>
       {state.status === "error" ? (
-        <p role="alert" className="qb:text-sm qb:text-red-600">
+        <p role="alert" className="qb:text-sm qb:text-danger">
           {state.message}
         </p>
       ) : null}
@@ -79,7 +82,7 @@ export function DeleteButton({
             });
           }}
         >
-          {pending ? "Deleting…" : "Delete"}
+          {pending ? i18n.t("delete.pending") : i18n.t("delete.submit")}
         </Button>
         <Button
           variant="secondary"
@@ -88,7 +91,7 @@ export function DeleteButton({
             setConfirming(false);
           }}
         >
-          Cancel
+          {i18n.t("delete.cancel")}
         </Button>
       </div>
     </div>
