@@ -36,6 +36,65 @@ html.dark {
   --qb-later-bg: rgb(194 184 210 / 0.1);
 }
 
+/*
+ * Nextra surfaces. Nextra paints its chrome (sidebar, search, borders, table stripes, code
+ * blocks, callouts) from Tailwind's cool gray, neutral and slate scales. Swap them for one
+ * Azafrán scale: parchment at the light end (hue 85), plum at the dark end (hue 300), so light
+ * mode uses the 50–300 steps and dark mode the 600–900 steps.
+ */
+:root {
+  --qb-scale-50: oklch(97.6% 0.012 85);
+  --qb-scale-100: oklch(93.8% 0.02 85);
+  --qb-scale-200: oklch(89.6% 0.026 85);
+  --qb-scale-300: oklch(85.2% 0.03 85);
+  --qb-scale-400: oklch(70% 0.03 300);
+  --qb-scale-500: oklch(56% 0.036 300);
+  --qb-scale-600: oklch(45% 0.045 300);
+  --qb-scale-700: oklch(36% 0.055 300);
+  --qb-scale-800: oklch(26.5% 0.05 300);
+  --qb-scale-900: oklch(20% 0.04 300);
+  --x-color-gray-50: var(--qb-scale-50);
+  --x-color-gray-100: var(--qb-scale-100);
+  --x-color-gray-200: var(--qb-scale-200);
+  --x-color-gray-300: var(--qb-scale-300);
+  --x-color-gray-400: var(--qb-scale-400);
+  --x-color-gray-500: var(--qb-scale-500);
+  --x-color-gray-600: var(--qb-scale-600);
+  --x-color-gray-700: var(--qb-scale-700);
+  --x-color-gray-800: var(--qb-scale-800);
+  --x-color-gray-900: var(--qb-scale-900);
+  --x-color-neutral-50: var(--qb-scale-50);
+  --x-color-neutral-100: var(--qb-scale-100);
+  --x-color-neutral-200: var(--qb-scale-200);
+  --x-color-neutral-300: var(--qb-scale-300);
+  --x-color-neutral-400: var(--qb-scale-400);
+  --x-color-neutral-500: var(--qb-scale-500);
+  --x-color-neutral-600: var(--qb-scale-600);
+  --x-color-neutral-700: var(--qb-scale-700);
+  --x-color-neutral-800: var(--qb-scale-800);
+  --x-color-neutral-900: var(--qb-scale-900);
+  --x-color-slate-50: var(--qb-scale-50);
+  --x-color-slate-100: var(--qb-scale-100);
+  --x-color-slate-200: var(--qb-scale-200);
+  --x-color-slate-700: var(--qb-scale-700);
+  --x-color-slate-900: var(--qb-scale-900);
+  /* Info callouts and links in callouts: lavender from the plum end instead of Tailwind blue. */
+  --x-color-blue-100: oklch(93.5% 0.03 300);
+  --x-color-blue-400: oklch(74% 0.09 300);
+  --x-color-blue-600: oklch(52% 0.13 300);
+  --x-color-blue-700: oklch(45% 0.13 300);
+  --x-color-blue-900: oklch(33% 0.09 300);
+}
+
+/* Code blocks: Nextra uses pure white and black; use the page surfaces instead. */
+.nextra-code > pre {
+  background-color: var(--qb-scale-50);
+}
+
+html.dark .nextra-code > pre {
+  background-color: var(--qb-surface);
+}
+
 body {
   font-family: var(--qb-font-body), system-ui, sans-serif;
 }
