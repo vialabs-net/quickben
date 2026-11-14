@@ -42,8 +42,10 @@ import {
   updateSampleAction,
 } from "./actions";
 import { AutoRefresh, FilePreview } from "./client";
+import { docReaderT, stateLabel } from "./messages";
 import {
   AlignedSubmit,
+  EMPTY,
   Field,
   first,
   formatMs,
@@ -64,7 +66,9 @@ import type { DocumentType, FieldDefinition, ParamDefinition, PipelineStep } fro
 import type { ModelChoice } from "../models";
 import type { DocReaderState } from "../options";
 import type { Sample, TestRun, TypeVersion, VersionSummary } from "../studio";
+import type { DocReaderT } from "./messages";
 import type { SearchParams } from "./shared";
+import type { AdminI18n } from "@quickben/admin";
 import type { Quickben, QuickbenConfig, RequestContext } from "@quickben/core";
 import type { ReactNode } from "react";
 
@@ -114,28 +118,36 @@ export function initialVersion(versions: readonly VersionSummary[]): number | un
 
 const id = (...parts: (string | number)[]) => `qb-dr-${parts.join("-")}`;
 
-function FieldRow({ field, index }: Readonly<{ field: FieldDefinition | null; index: number }>) {
+function FieldRow({
+  field,
+  index,
+  t,
+}: Readonly<{ field: FieldDefinition | null; index: number; t: DocReaderT }>) {
   const p = `fields.${String(index)}.`;
-  const name = field?.label ?? `new field`;
+  const name = field?.label ?? t("field.newName");
   return (
-    <div className="qb:grid qb:grid-cols-1 qb:gap-3 qb:md:grid-cols-6 qb:border-b qb:border-zinc-100 qb:py-4">
-      <Field label="Key" htmlFor={id("field", index, "key")}>
+    <div className="qb:grid qb:grid-cols-1 qb:gap-3 qb:md:grid-cols-6 qb:border-b qb:border-line-soft qb:py-4">
+      <Field label={t("field.key")} htmlFor={id("field", index, "key")}>
         <Input
           id={id("field", index, "key")}
           name={`${p}key`}
           defaultValue={field?.key ?? ""}
-          placeholder="invoiceNumber"
+          placeholder={t("field.keyPlaceholder")}
         />
       </Field>
-      <Field label="Name" htmlFor={id("field", index, "label")} className="qb:md:col-span-2">
+      <Field
+        label={t("field.name")}
+        htmlFor={id("field", index, "label")}
+        className="qb:md:col-span-2"
+      >
         <Input
           id={id("field", index, "label")}
           name={`${p}label`}
           defaultValue={field?.label ?? ""}
-          placeholder={field ? "" : "Add a field"}
+          placeholder={field ? "" : t("field.add")}
         />
       </Field>
-      <Field label="Type" htmlFor={id("field", index, "type")}>
+      <Field label={t("field.type")} htmlFor={id("field", index, "type")}>
         <Select
           id={id("field", index, "type")}
           name={`${p}type`}
@@ -143,21 +155,21 @@ function FieldRow({ field, index }: Readonly<{ field: FieldDefinition | null; in
         >
           {FIELD_TYPES.map((type) => (
             <option key={type} value={type}>
-              {type}
+              {t(`fieldType.${type}`)}
             </option>
           ))}
         </Select>
       </Field>
-      <Field label="Transform" htmlFor={id("field", index, "transform")}>
+      <Field label={t("field.transform")} htmlFor={id("field", index, "transform")}>
         <Select
           id={id("field", index, "transform")}
           name={`${p}transform`}
           defaultValue={field?.transform ?? ""}
         >
-          <option value="">none</option>
+          <option value="">{t("transform.none")}</option>
           {FIELD_TRANSFORMS.map((transform) => (
             <option key={transform} value={transform}>
-              {transform}
+              {t(`transform.${transform}`)}
             </option>
           ))}
         </Select>
@@ -167,22 +179,22 @@ function FieldRow({ field, index }: Readonly<{ field: FieldDefinition | null; in
           <Checkbox
             name={`${p}required`}
             defaultChecked={field?.required ?? false}
-            aria-label={`${name} is required`}
+            aria-label={t("field.requiredAria", { name })}
           />
-          Required
+          {t("field.required")}
         </label>
         {field ? (
           <label className="qb:flex qb:items-center qb:gap-2">
-            <Checkbox name={`${p}remove`} aria-label={`Remove ${name}`} />
-            Remove
+            <Checkbox name={`${p}remove`} aria-label={t("field.removeAria", { name })} />
+            {t("field.remove")}
           </label>
         ) : null}
       </div>
       <Field
-        label="Description"
+        label={t("field.description")}
         htmlFor={id("field", index, "description")}
         className="qb:md:col-span-3"
-        hint="Helps people and the model find the value."
+        hint={t("field.descriptionHint")}
       >
         <Input
           id={id("field", index, "description")}
@@ -191,10 +203,10 @@ function FieldRow({ field, index }: Readonly<{ field: FieldDefinition | null; in
         />
       </Field>
       <Field
-        label="Pattern"
+        label={t("field.pattern")}
         htmlFor={id("field", index, "pattern")}
         className="qb:md:col-span-2"
-        hint="Regular expression the value must match."
+        hint={t("field.patternHint")}
       >
         <Input
           id={id("field", index, "pattern")}
@@ -204,19 +216,19 @@ function FieldRow({ field, index }: Readonly<{ field: FieldDefinition | null; in
         />
       </Field>
       {field?.type === "date" ? (
-        <Field label="Date order" htmlFor={id("field", index, "dateOrder")}>
+        <Field label={t("field.dateOrder")} htmlFor={id("field", index, "dateOrder")}>
           <Select
             id={id("field", index, "dateOrder")}
             name={`${p}dateOrder`}
             defaultValue={field.dateOrder ?? "dmy"}
           >
-            <option value="dmy">day/month/year</option>
-            <option value="mdy">month/day/year</option>
+            <option value="dmy">{t("field.dmy")}</option>
+            <option value="mdy">{t("field.mdy")}</option>
           </Select>
         </Field>
       ) : null}
       {field?.type === "number" ? (
-        <Field label="Decimal separator" htmlFor={id("field", index, "decimal")}>
+        <Field label={t("field.decimal")} htmlFor={id("field", index, "decimal")}>
           <Select
             id={id("field", index, "decimal")}
             name={`${p}decimalSeparator`}
@@ -231,39 +243,47 @@ function FieldRow({ field, index }: Readonly<{ field: FieldDefinition | null; in
   );
 }
 
-function ParamRow({ param, index }: Readonly<{ param: ParamDefinition | null; index: number }>) {
+function ParamRow({
+  param,
+  index,
+  t,
+}: Readonly<{ param: ParamDefinition | null; index: number; t: DocReaderT }>) {
   const p = `params.${String(index)}.`;
   return (
-    <div className="qb:grid qb:grid-cols-1 qb:gap-3 qb:md:grid-cols-6 qb:border-b qb:border-zinc-100 qb:py-4">
-      <Field label="Key" htmlFor={id("param", index, "key")}>
+    <div className="qb:grid qb:grid-cols-1 qb:gap-3 qb:md:grid-cols-6 qb:border-b qb:border-line-soft qb:py-4">
+      <Field label={t("field.key")} htmlFor={id("param", index, "key")}>
         <Input
           id={id("param", index, "key")}
           name={`${p}key`}
           defaultValue={param?.key ?? ""}
-          placeholder={param ? "" : "Add a parameter"}
+          placeholder={param ? "" : t("param.add")}
         />
       </Field>
-      <Field label="Name" htmlFor={id("param", index, "label")} className="qb:md:col-span-2">
+      <Field
+        label={t("field.name")}
+        htmlFor={id("param", index, "label")}
+        className="qb:md:col-span-2"
+      >
         <Input
           id={id("param", index, "label")}
           name={`${p}label`}
           defaultValue={param?.label ?? ""}
         />
       </Field>
-      <Field label="Type" htmlFor={id("param", index, "type")}>
+      <Field label={t("param.type")} htmlFor={id("param", index, "type")}>
         <Select
           id={id("param", index, "type")}
           name={`${p}type`}
           defaultValue={param?.type ?? "string"}
         >
-          <option value="string">text</option>
-          <option value="string-list">list of texts</option>
+          <option value="string">{t("paramType.string")}</option>
+          <option value="string-list">{t("paramType.string-list")}</option>
         </Select>
       </Field>
       <Field
-        label="Never the value of"
+        label={t("param.excludes")}
         htmlFor={id("param", index, "excludes")}
-        hint="Field keys, comma-separated."
+        hint={t("param.excludesHint")}
       >
         <Input
           id={id("param", index, "excludes")}
@@ -273,8 +293,8 @@ function ParamRow({ param, index }: Readonly<{ param: ParamDefinition | null; in
       </Field>
       {param ? (
         <label className="qb:flex qb:items-center qb:gap-2 qb:text-sm">
-          <Checkbox name={`${p}remove`} aria-label={`Remove parameter ${param.key}`} />
-          Remove
+          <Checkbox name={`${p}remove`} aria-label={t("param.removeAria", { key: param.key })} />
+          {t("field.remove")}
         </label>
       ) : null}
     </div>
@@ -290,7 +310,7 @@ function Options({ values, current }: Readonly<{ values: readonly string[]; curr
   const all = current && !values.includes(current) ? [current, ...values] : values;
   return (
     <>
-      <option value="">—</option>
+      <option value="">{EMPTY}</option>
       {all.map((value) => (
         <option key={value} value={value}>
           {value}
@@ -300,12 +320,15 @@ function Options({ values, current }: Readonly<{ values: readonly string[]; curr
   );
 }
 
-const extractorLabels: Readonly<Record<string, string>> = {
-  [TEXT_LAYER]: "text-layer (free: the PDF's text)",
-  [VISION_LLM]: "vision-llm (paid: a vision model)",
-};
+/** The label of an extractor: built-in ones say whether they cost money. */
+function extractorLabel(t: DocReaderT, key: string): string {
+  if (key === TEXT_LAYER) return t("extractor.text-layer");
+  if (key === VISION_LLM) return t("extractor.vision-llm");
+  return key;
+}
 
 interface StepInputsProps {
+  readonly t: DocReaderT;
   readonly index: number;
   readonly config: Readonly<Record<string, unknown>>;
   readonly state: DocReaderState;
@@ -317,11 +340,15 @@ const configText = (config: Readonly<Record<string, unknown>>, key: string) => {
   return typeof value === "string" ? value : "";
 };
 
-function TextLayerInputs({ index, config, state }: StepInputsProps) {
+function TextLayerInputs({ t, index, config, state }: StepInputsProps) {
   const p = `steps.${String(index)}.`;
   return (
     <>
-      <Field label="Template" htmlFor={id("step", index, "template")} className="qb:md:col-span-3">
+      <Field
+        label={t("step.template")}
+        htmlFor={id("step", index, "template")}
+        className="qb:md:col-span-3"
+      >
         <Select
           id={id("step", index, "template")}
           name={`${p}template`}
@@ -330,7 +357,11 @@ function TextLayerInputs({ index, config, state }: StepInputsProps) {
           <Options values={state.templateKeys} current={configText(config, "template")} />
         </Select>
       </Field>
-      <Field label="Reader" htmlFor={id("step", index, "reader")} className="qb:md:col-span-3">
+      <Field
+        label={t("step.reader")}
+        htmlFor={id("step", index, "reader")}
+        className="qb:md:col-span-3"
+      >
         <Select
           id={id("step", index, "reader")}
           name={`${p}reader`}
@@ -352,7 +383,7 @@ function ConnectionInput({ index, config, models }: StepInputsProps) {
   const known = models.some((choice) => choice.connectionId === connection);
   return (
     <Select id={id("step", index, "connection")} name={name} defaultValue={connection}>
-      <option value="">—</option>
+      <option value="">{EMPTY}</option>
       {models.map((choice) => (
         <option key={choice.connectionId} value={choice.connectionId}>
           {choice.connectionName}
@@ -364,23 +395,23 @@ function ConnectionInput({ index, config, models }: StepInputsProps) {
 }
 
 function VisionInputs(props: StepInputsProps) {
-  const { index, config, models } = props;
+  const { t, index, config, models } = props;
   const p = `steps.${String(index)}.`;
   const listId = id("models", index);
   return (
     <>
       <Field
-        label="Connection"
+        label={t("step.connection")}
         htmlFor={id("step", index, "connection")}
         className="qb:md:col-span-2"
       >
         <ConnectionInput {...props} />
       </Field>
       <Field
-        label="Model"
+        label={t("step.model")}
         htmlFor={id("step", index, "model")}
         className="qb:md:col-span-2"
-        hint="Empty: the connection's default model."
+        hint={t("step.modelHint")}
       >
         <Input
           id={id("step", index, "model")}
@@ -401,9 +432,9 @@ function VisionInputs(props: StepInputsProps) {
         </datalist>
       </Field>
       <Field
-        label="Max pages"
+        label={t("step.maxPages")}
         htmlFor={id("step", index, "maxPages")}
-        hint="Empty: the model's limit."
+        hint={t("step.maxPagesHint")}
       >
         <Input
           id={id("step", index, "maxPages")}
@@ -422,19 +453,21 @@ function StepRow({
   index,
   state,
   models,
+  t,
 }: Readonly<{
   step: PipelineStep | null;
   index: number;
   state: DocReaderState;
   models: readonly ModelChoice[];
+  t: DocReaderT;
 }>) {
   const p = `steps.${String(index)}.`;
-  const inputs = { index, config: step?.config ?? {}, state, models };
+  const inputs = { t, index, config: step?.config ?? {}, state, models };
   const typed =
     step?.extractor === VISION_LLM ? ["connectionId", "model", "maxPages"] : ["template", "reader"];
   return (
-    <div className="qb:grid qb:grid-cols-1 qb:gap-3 qb:md:grid-cols-6 qb:border-b qb:border-zinc-100 qb:py-4">
-      <Field label="Order" htmlFor={id("step", index, "order")}>
+    <div className="qb:grid qb:grid-cols-1 qb:gap-3 qb:md:grid-cols-6 qb:border-b qb:border-line-soft qb:py-4">
+      <Field label={t("step.order")} htmlFor={id("step", index, "order")}>
         <Input
           id={id("step", index, "order")}
           name={`${p}order`}
@@ -444,7 +477,7 @@ function StepRow({
         />
       </Field>
       <Field
-        label={step ? "Extractor" : "Add a step"}
+        label={step ? t("step.extractor") : t("step.add")}
         htmlFor={id("step", index, "extractor")}
         className="qb:md:col-span-2"
       >
@@ -453,10 +486,10 @@ function StepRow({
           name={`${p}extractor`}
           defaultValue={step?.extractor ?? ""}
         >
-          {step ? null : <option value="">—</option>}
+          {step ? null : <option value="">{EMPTY}</option>}
           {Object.keys(state.extractors).map((key) => (
             <option key={key} value={key}>
-              {extractorLabels[key] ?? key}
+              {extractorLabel(t, key)}
             </option>
           ))}
         </Select>
@@ -464,13 +497,13 @@ function StepRow({
       {step ? (
         <>
           <label className="qb:flex qb:items-center qb:gap-2 qb:text-sm">
-            <Checkbox name={`${p}remove`} aria-label={`Remove step ${String(index + 1)}`} />
-            Remove
+            <Checkbox name={`${p}remove`} aria-label={t("step.removeAria", { step: index + 1 })} />
+            {t("field.remove")}
           </label>
           {step.extractor === TEXT_LAYER ? <TextLayerInputs {...inputs} /> : null}
           {step.extractor === VISION_LLM ? <VisionInputs {...inputs} /> : null}
           <Field
-            label="Other settings (JSON)"
+            label={t("step.config")}
             htmlFor={id("step", index, "config")}
             className="qb:md:col-span-6"
           >
@@ -505,11 +538,13 @@ function Editor({
   state,
   models,
   save,
+  t,
 }: Readonly<{
   version: TypeVersion;
   state: DocReaderState;
   models: readonly ModelChoice[];
   save: Action;
+  t: DocReaderT;
 }>) {
   const type: DocumentType = version.definition;
   const draft = version.state === "draft";
@@ -528,13 +563,11 @@ function Editor({
         }}
       />
       <fieldset disabled={!draft} className="qb:space-y-4">
-        <legend className="qb:sr-only">Definition of {version.label}</legend>
-        {draft ? null : (
-          <Notice>Published versions cannot change. Create a draft to edit this type.</Notice>
-        )}
-        <Section title="General">
+        <legend className="qb:sr-only">{t("editor.legend", { label: version.label })}</legend>
+        {draft ? null : <Notice>{t("editor.readOnly")}</Notice>}
+        <Section title={t("editor.general")}>
           <div className="qb:grid qb:grid-cols-1 qb:gap-4 qb:md:grid-cols-6">
-            <Field label="Name" htmlFor={id("label")} className="qb:md:col-span-3">
+            <Field label={t("field.name")} htmlFor={id("label")} className="qb:md:col-span-3">
               <Input
                 id={id("label")}
                 name="label"
@@ -544,47 +577,42 @@ function Editor({
               />
             </Field>
             <Field
-              label="Pages to read"
+              label={t("editor.pages")}
               htmlFor={id("pages")}
               className="qb:md:col-span-3"
-              hint="Comma-separated. The first page is 1."
+              hint={t("editor.pagesHint")}
             >
               <Input id={id("pages")} name="pages" defaultValue={type.pages.join(", ")} />
             </Field>
-            <Field label="Description" htmlFor={id("description")} className="qb:md:col-span-6">
+            <Field
+              label={t("field.description")}
+              htmlFor={id("description")}
+              className="qb:md:col-span-6"
+            >
               <Input
                 id={id("description")}
                 name="description"
                 defaultValue={type.description ?? ""}
-                placeholder="What the document is and who issues it"
+                placeholder={t("editor.descriptionPlaceholder")}
               />
             </Field>
           </div>
         </Section>
-        <Section
-          title="Fields"
-          description="What is read from the document. Required fields decide whether a reading is complete."
-        >
+        <Section title={t("editor.fields")} description={t("editor.fieldsDescription")}>
           {fields.map((field, index) => (
-            <FieldRow key={field?.key ?? "new"} field={field} index={index} />
+            <FieldRow key={field?.key ?? "new"} field={field} index={index} t={t} />
           ))}
         </Section>
-        <Section
-          title="Instructions"
-          description="Extra text for vision models: where each value is, what not to confuse."
-        >
+        <Section title={t("editor.instructions")} description={t("editor.instructionsDescription")}>
           <Textarea
-            aria-label="Instructions"
+            aria-label={t("editor.instructions")}
             name="instructions"
             defaultValue={type.instructions}
           />
         </Section>
-        <Section
-          title="Recognition"
-          description="For readings with type auto. Regular expressions, one per line."
-        >
+        <Section title={t("editor.recognition")} description={t("editor.recognitionDescription")}>
           <div className="qb:grid qb:grid-cols-1 qb:gap-4 qb:sm:grid-cols-2">
-            <Field label="Text on the first page" htmlFor={id("classText")}>
+            <Field label={t("editor.classText")} htmlFor={id("classText")}>
               <Textarea
                 id={id("classText")}
                 name="classText"
@@ -592,7 +620,7 @@ function Editor({
                 defaultValue={type.classification.text.join("\n")}
               />
             </Field>
-            <Field label="File name" htmlFor={id("classFileName")}>
+            <Field label={t("editor.classFileName")} htmlFor={id("classFileName")}>
               <Textarea
                 id={id("classFileName")}
                 name="classFileName"
@@ -602,26 +630,20 @@ function Editor({
             </Field>
           </div>
         </Section>
-        <Section
-          title="Parameters"
-          description="Values callers pass with a reading, e.g. the issuer's own tax ids."
-        >
+        <Section title={t("editor.params")} description={t("editor.paramsDescription")}>
           {params.map((param, index) => (
-            <ParamRow key={param?.key ?? "new"} param={param} index={index} />
+            <ParamRow key={param?.key ?? "new"} param={param} index={index} t={t} />
           ))}
         </Section>
-        <Section
-          title="Reading"
-          description="Steps run in order and stop once the fields the rule asks for are read."
-        >
+        <Section title={t("editor.reading")} description={t("editor.readingDescription")}>
           {steps.map((step, index) => (
-            <StepRow key={index} step={step} index={index} state={state} models={models} />
+            <StepRow key={index} step={step} index={index} state={state} models={models} t={t} />
           ))}
           <div className="qb:mt-5 qb:grid qb:grid-cols-1 qb:gap-4 qb:sm:grid-cols-2">
             <Field
-              label="Minimum confidence"
+              label={t("editor.threshold")}
               htmlFor={id("threshold")}
-              hint="0 to 1. Below it, a field goes on to the next step."
+              hint={t("editor.thresholdHint")}
             >
               <Input
                 id={id("threshold")}
@@ -633,17 +655,17 @@ function Editor({
                 defaultValue={type.pipeline.threshold}
               />
             </Field>
-            <Field label="Stop when read" htmlFor={id("stopWhen")}>
+            <Field label={t("editor.stopWhen")} htmlFor={id("stopWhen")}>
               <Select id={id("stopWhen")} name="stopWhen" defaultValue={type.pipeline.stopWhen}>
-                <option value="required">the required fields</option>
-                <option value="all">all fields</option>
+                <option value="required">{t("editor.stopRequired")}</option>
+                <option value="all">{t("editor.stopAll")}</option>
               </Select>
             </Field>
           </div>
         </Section>
         {draft ? (
           <div className="qb:flex">
-            <Button type="submit">Save draft</Button>
+            <Button type="submit">{t("editor.save")}</Button>
           </div>
         ) : null}
       </fieldset>
@@ -659,13 +681,20 @@ function SampleEditor({
   version,
   preview,
   update,
-}: Readonly<{ sample: Sample; version: TypeVersion; preview: ReactNode; update: Action }>) {
+  t,
+}: Readonly<{
+  sample: Sample;
+  version: TypeVersion;
+  preview: ReactNode;
+  update: Action;
+  t: DocReaderT;
+}>) {
   const type = version.definition;
   return (
     <Card className="qb:mt-5">
       <CardHeader
-        title={`Expected values · ${sample.fileName}`}
-        description="What the document says. Readings are compared with it. Leave a value empty to skip it."
+        title={t("sample.title", { file: sample.fileName })}
+        description={t("sample.description")}
       />
       <CardBody>
         <div className="qb:grid qb:grid-cols-1 qb:gap-6 qb:md:grid-cols-6">
@@ -691,9 +720,9 @@ function SampleEditor({
               return (
                 <Field
                   key={param.key}
-                  label={`Parameter: ${param.label}`}
+                  label={t("sample.param", { label: param.label })}
                   htmlFor={id("sample-param", param.key)}
-                  hint={param.type === "string-list" ? "Comma-separated." : undefined}
+                  hint={param.type === "string-list" ? t("sample.listHint") : undefined}
                 >
                   <Input
                     id={id("sample-param", param.key)}
@@ -703,15 +732,15 @@ function SampleEditor({
                 </Field>
               );
             })}
-            <Field label="Note" htmlFor={id("note")}>
+            <Field label={t("sample.note")} htmlFor={id("note")}>
               <Input
                 id={id("note")}
                 name="note"
                 defaultValue={sample.note ?? ""}
-                placeholder="e.g. a crooked scan"
+                placeholder={t("sample.notePlaceholder")}
               />
             </Field>
-            <Button type="submit">Save values</Button>
+            <Button type="submit">{t("sample.save")}</Button>
           </form>
           <div className="qb:min-w-0 qb:md:col-span-3">{preview}</div>
         </div>
@@ -720,42 +749,49 @@ function SampleEditor({
   );
 }
 
-function variantLabel(run: TestRun, models: readonly ModelChoice[]): string {
-  if (!run.variant) return "This version";
+function variantLabel(t: DocReaderT, run: TestRun, models: readonly ModelChoice[]): string {
+  if (!run.variant) return t("run.thisVersion");
   const connection = models.find((c) => c.connectionId === run.variant?.connectionId);
   return [
     connection?.connectionName ?? run.variant.connectionId,
-    run.variant.model ?? "default model",
+    run.variant.model ?? t("run.defaultModel"),
   ].join(" · ");
 }
 
-function RunCard({ run, label }: Readonly<{ run: TestRun; label: string }>) {
+function RunCard({ run, label, i18n }: Readonly<{ run: TestRun; label: string; i18n: AdminI18n }>) {
+  const t = docReaderT(i18n);
   const summary = run.summary;
   const fields = run.results[0]?.fields.map((f) => f.label) ?? [];
   return (
     <Card>
       <CardHeader
         title={label}
-        description={formatWhen(run.createdAt)}
-        actions={<StateBadge state={run.state} />}
+        description={formatWhen(i18n, run.createdAt)}
+        actions={<StateBadge state={run.state} i18n={i18n} />}
       />
       <CardBody className="qb:space-y-4">
         <div className="qb:grid qb:grid-cols-1 qb:gap-4 qb:sm:grid-cols-2 qb:xl:grid-cols-3">
-          <Stat label="Matches">
+          <Stat label={t("run.matches")}>
             {summary && summary.checked > 0
-              ? `${formatPercent(summary.accuracy)} (${String(summary.matched)}/${String(summary.checked)})`
-              : "—"}
+              ? t("run.matchesValue", {
+                  percent: formatPercent(i18n, summary.accuracy),
+                  matched: summary.matched,
+                  checked: summary.checked,
+                })
+              : EMPTY}
           </Stat>
-          <Stat label="Cost">{formatUsd(run.costUsd)}</Stat>
-          <Stat label="Average time">{summary ? formatMs(summary.avgLatencyMs) : "—"}</Stat>
+          <Stat label={t("col.cost")}>{formatUsd(i18n, run.costUsd)}</Stat>
+          <Stat label={t("run.averageTime")}>
+            {summary ? formatMs(i18n, summary.avgLatencyMs) : EMPTY}
+          </Stat>
         </div>
-        {run.error ? <p className="qb:text-sm qb:text-red-700">{run.error}</p> : null}
+        {run.error ? <p className="qb:text-sm qb:text-danger-strong">{run.error}</p> : null}
       </CardBody>
       {run.results.length > 0 ? (
-        <Table aria-label={`Results of ${label}`}>
+        <Table aria-label={t("run.results", { label })}>
           <thead>
             <tr>
-              <Th>Sample</Th>
+              <Th>{t("col.sample")}</Th>
               {fields.map((name) => (
                 <Th key={name}>{name}</Th>
               ))}
@@ -765,18 +801,18 @@ function RunCard({ run, label }: Readonly<{ run: TestRun; label: string }>) {
             {run.results.map((result) => (
               <Tr key={result.sampleId}>
                 <Td>
-                  <p className="qb:font-medium qb:text-zinc-900">{result.fileName}</p>
-                  <StatusBadge status={result.status} />
+                  <p className="qb:font-medium qb:text-fg">{result.fileName}</p>
+                  <StatusBadge status={result.status} i18n={i18n} />
                   {result.error ? (
-                    <p className="qb:text-xs qb:text-red-700">{result.error}</p>
+                    <p className="qb:text-xs qb:text-danger-strong">{result.error}</p>
                   ) : null}
                 </Td>
                 {result.fields.map((check) => (
                   <Td key={check.key}>
-                    <span className="qb:font-mono qb:text-sm">{check.read ?? "—"}</span>{" "}
-                    {check.match === true ? <Badge tone="green">match</Badge> : null}
+                    <span className="qb:font-mono qb:text-sm">{check.read ?? EMPTY}</span>{" "}
+                    {check.match === true ? <Badge tone="green">{t("run.match")}</Badge> : null}
                     {check.match === false ? (
-                      <Badge tone="red">expected {check.expected}</Badge>
+                      <Badge tone="red">{t("run.expected", { value: check.expected ?? "" })}</Badge>
                     ) : null}
                   </Td>
                 ))}
@@ -793,15 +829,16 @@ function ModelPicker({
   prefix,
   label,
   models,
-}: Readonly<{ prefix: string; label: string; models: readonly ModelChoice[] }>) {
+  t,
+}: Readonly<{ prefix: string; label: string; models: readonly ModelChoice[]; t: DocReaderT }>) {
   if (models.length > 0) {
     return (
       <Field label={label} htmlFor={id("variant", prefix)}>
         <Select id={id("variant", prefix)} name={`${prefix}.choice`} required>
-          <option value="">Choose a model</option>
+          <option value="">{t("picker.choose")}</option>
           {models.flatMap((choice) => [
             <option key={choice.connectionId} value={choice.connectionId}>
-              {choice.connectionName} · default model
+              {t("picker.default", { connection: choice.connectionName })}
             </option>,
             ...choice.models.map((model) => (
               <option
@@ -818,10 +855,13 @@ function ModelPicker({
   }
   return (
     <div className="qb:flex qb:flex-wrap qb:gap-4">
-      <Field label={`${label}: connection id`} htmlFor={id("variant", prefix, "connection")}>
+      <Field
+        label={t("picker.connectionId", { label })}
+        htmlFor={id("variant", prefix, "connection")}
+      >
         <Input id={id("variant", prefix, "connection")} name={`${prefix}.connectionId`} required />
       </Field>
-      <Field label={`${label}: model`} htmlFor={id("variant", prefix, "model")}>
+      <Field label={t("picker.model", { label })} htmlFor={id("variant", prefix, "model")}>
         <Input id={id("variant", prefix, "model")} name={`${prefix}.model`} />
       </Field>
     </div>
@@ -838,6 +878,7 @@ function Bench({
   basePath,
   preview,
   actions,
+  i18n,
 }: Readonly<{
   version: TypeVersion;
   samples: readonly Sample[];
@@ -848,7 +889,9 @@ function Bench({
   basePath: string;
   preview: ReactNode;
   actions: Actions;
+  i18n: AdminI18n;
 }>) {
+  const t = docReaderT(i18n);
   const href = (query: Record<string, string>) =>
     `${basePath}/document-types/${encodeURIComponent(version.key)}?${new URLSearchParams({ v: String(version.version), tab: "bench", ...query }).toString()}`;
   const editing = samples.find((sample) => sample.id === sampleParam);
@@ -861,18 +904,15 @@ function Bench({
   return (
     <div className="qb:space-y-4">
       <Card>
-        <CardHeader
-          title="Samples"
-          description="Real documents with the values they should read to. They belong to the type, so every version is tested on them."
-        />
+        <CardHeader title={t("bench.samples")} description={t("bench.samplesDescription")} />
         {samples.length > 0 ? (
           <Table>
             <thead>
               <tr>
-                <Th>File</Th>
-                <Th>Expected values</Th>
-                <Th>Note</Th>
-                <Th>Actions</Th>
+                <Th>{t("col.file")}</Th>
+                <Th>{t("col.expected")}</Th>
+                <Th>{t("col.note")}</Th>
+                <Th>{t("col.actions")}</Th>
               </tr>
             </thead>
             <tbody>
@@ -884,7 +924,10 @@ function Bench({
                     </Link>
                   </Td>
                   <Td>
-                    {Object.keys(sample.expected).length} of {version.definition.fields.length}
+                    {t("bench.filled", {
+                      filled: Object.keys(sample.expected).length,
+                      total: version.definition.fields.length,
+                    })}
                   </Td>
                   <Td>{sample.note ?? ""}</Td>
                   <Td>
@@ -894,9 +937,9 @@ function Bench({
                         type="submit"
                         size="sm"
                         variant="ghost"
-                        aria-label={`Remove ${sample.fileName}`}
+                        aria-label={t("bench.removeSample", { file: sample.fileName })}
                       >
-                        Remove
+                        {t("bench.remove")}
                       </Button>
                     </form>
                   </Td>
@@ -912,9 +955,9 @@ function Bench({
           >
             <Hidden values={keys} />
             <Field
-              label="Add samples"
+              label={t("bench.addSamples")}
               htmlFor={id("samples")}
-              hint="PDF, JPEG, PNG or WebP. Then open each one to enter its expected values."
+              hint={t("bench.addSamplesHint")}
             >
               <Input
                 id={id("samples")}
@@ -926,7 +969,7 @@ function Bench({
             </Field>
             <AlignedSubmit>
               <Button type="submit" variant="secondary">
-                Upload
+                {t("bench.upload")}
               </Button>
             </AlignedSubmit>
           </form>
@@ -938,34 +981,29 @@ function Bench({
           version={version}
           preview={preview}
           update={actions.updateSample}
+          t={t}
         />
       ) : null}
       <Card>
-        <CardHeader
-          title="Test"
-          description="Reads every sample and compares each field with its expected value. Paid steps are billed to the platform."
-        />
+        <CardHeader title={t("bench.test")} description={t("bench.testDescription")} />
         <CardBody className="qb:space-y-4">
           <form action={actions.startTest}>
             <Hidden values={{ ...keys, mode: "version" }} />
             <Button type="submit" disabled={samples.length === 0}>
-              Test this version on {samples.length} {samples.length === 1 ? "sample" : "samples"}
+              {t("bench.testRun", { count: samples.length })}
             </Button>
           </form>
           <form
             action={actions.startTest}
-            className="qb:space-y-3 qb:border-t qb:border-zinc-100 qb:pt-4"
+            className="qb:space-y-3 qb:border-t qb:border-line-soft qb:pt-4"
           >
             <Hidden values={{ ...keys, mode: "compare" }} />
-            <p className="qb:text-sm qb:text-zinc-600">
-              Compare two models side by side. Each model reads alone, without the other steps, to
-              show the difference.
-            </p>
+            <p className="qb:text-sm qb:text-fg-muted">{t("bench.compareText")}</p>
             <div className="qb:flex qb:flex-wrap qb:items-end qb:gap-4">
-              <ModelPicker prefix="a" label="Model A" models={models} />
-              <ModelPicker prefix="b" label="Model B" models={models} />
+              <ModelPicker prefix="a" label={t("bench.modelA")} models={models} t={t} />
+              <ModelPicker prefix="b" label={t("bench.modelB")} models={models} t={t} />
               <Button type="submit" variant="secondary" disabled={samples.length === 0}>
-                Compare models
+                {t("bench.compare")}
               </Button>
             </div>
           </form>
@@ -978,21 +1016,21 @@ function Bench({
           style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(24rem, 100%), 1fr))" }}
         >
           {shown.map((run) => (
-            <RunCard key={run.id} run={run} label={variantLabel(run, models)} />
+            <RunCard key={run.id} run={run} label={variantLabel(t, run, models)} i18n={i18n} />
           ))}
         </div>
       ) : null}
       {runs.length > 1 ? (
         <Card>
-          <CardHeader title="Earlier tests" />
+          <CardHeader title={t("bench.earlier")} />
           <Table>
             <thead>
               <tr>
-                <Th>When</Th>
-                <Th>What</Th>
-                <Th>State</Th>
-                <Th>Matches</Th>
-                <Th>Cost</Th>
+                <Th>{t("col.when")}</Th>
+                <Th>{t("col.what")}</Th>
+                <Th>{t("col.state")}</Th>
+                <Th>{t("col.matches")}</Th>
+                <Th>{t("col.cost")}</Th>
               </tr>
             </thead>
             <tbody>
@@ -1000,19 +1038,19 @@ function Bench({
                 <Tr key={run.id}>
                   <Td>
                     <Link href={href({ run: run.id })} className={linkClass}>
-                      {formatWhen(run.createdAt)}
+                      {formatWhen(i18n, run.createdAt)}
                     </Link>
                   </Td>
                   <Td>
                     {run.compareGroup
-                      ? `Comparison: ${variantLabel(run, models)}`
-                      : variantLabel(run, models)}
+                      ? t("run.comparison", { label: variantLabel(t, run, models) })
+                      : variantLabel(t, run, models)}
                   </Td>
                   <Td>
-                    <StateBadge state={run.state} />
+                    <StateBadge state={run.state} i18n={i18n} />
                   </Td>
-                  <Td>{formatPercent(run.summary?.accuracy ?? null)}</Td>
-                  <Td>{formatUsd(run.costUsd)}</Td>
+                  <Td>{formatPercent(i18n, run.summary?.accuracy ?? null)}</Td>
+                  <Td>{formatUsd(i18n, run.costUsd)}</Td>
                 </Tr>
               ))}
             </tbody>
@@ -1030,15 +1068,16 @@ async function previewOf(
   qb: Quickben,
   ctx: RequestContext,
   sample: Sample | undefined,
+  t: DocReaderT,
 ): Promise<ReactNode> {
   if (!sample) return null;
   if ((sample.size ?? 0) > PREVIEW_MAX_BYTES)
-    return <p className="qb:text-sm qb:text-zinc-500">The file is too large to preview.</p>;
+    return <p className="qb:text-sm qb:text-fg-muted">{t("preview.tooLarge")}</p>;
   try {
     const file = await sampleFile(qb, ctx, sample.id);
     return <FilePreview base64={toBase64(file.bytes)} mime={file.mime} name={file.fileName} />;
   } catch {
-    return <p className="qb:text-sm qb:text-red-700">The file of this sample is gone.</p>;
+    return <p className="qb:text-sm qb:text-danger-strong">{t("studio.sampleGone")}</p>;
   }
 }
 
@@ -1059,13 +1098,16 @@ export async function StudioPage({
   basePath,
   typeKey,
   searchParams,
+  i18n,
 }: Readonly<{
   config: QuickbenConfig;
   adminKey: string;
   basePath: string;
   typeKey: string;
   searchParams: SearchParams;
+  i18n: AdminI18n;
 }>) {
+  const t = docReaderT(i18n);
   const qb = await getQuickben(config);
   const ctx = await getRequestContext(config);
   const state = getDocReader(qb);
@@ -1076,11 +1118,11 @@ export async function StudioPage({
   } catch {
     return (
       <>
-        <Heading title="Document type not found" />
+        <Heading title={t("studio.notFound")} />
         <Notice>
-          There is no document type <span className="qb:font-mono">{typeKey}</span>.{" "}
+          {t("studio.notFoundBody", { key: typeKey })}{" "}
           <Link href={`${basePath}/document-types`} className={linkClass}>
-            Back to document types
+            {t("studio.backToTypes")}
           </Link>
         </Notice>
       </>
@@ -1108,16 +1150,19 @@ export async function StudioPage({
     <>
       <p className="qb:mb-3 qb:text-sm">
         <Link href={`${basePath}/document-types`} className={linkClass}>
-          ← Document types
+          {t("studio.back")}
         </Link>
       </p>
       <Heading
         title={version.label}
         description={
           <>
-            <span className="qb:font-mono">{typeKey}</span> · v{version.version} ·{" "}
-            <StateBadge state={version.state} />
-            {version.publishedAt ? ` · published ${formatWhen(version.publishedAt)}` : ""}
+            <span className="qb:font-mono">{typeKey}</span> ·{" "}
+            {t("version.short", { version: version.version })} ·{" "}
+            <StateBadge state={version.state} i18n={i18n} />
+            {version.publishedAt
+              ? ` · ${t("studio.publishedAt", { when: formatWhen(i18n, version.publishedAt) })}`
+              : ""}
           </>
         }
         actions={
@@ -1129,15 +1174,15 @@ export async function StudioPage({
                   <Button
                     type="submit"
                     disabled={!publishable}
-                    title={publishable ? undefined : "Test this version first"}
+                    title={publishable ? undefined : t("studio.testFirst")}
                   >
-                    Publish v{version.version}
+                    {t("studio.publish", { version: version.version })}
                   </Button>
                 </form>
                 <form action={actions.deleteDraft}>
                   <Hidden values={keys} />
                   <Button type="submit" variant="danger">
-                    Delete draft
+                    {t("studio.deleteDraft")}
                   </Button>
                 </form>
               </>
@@ -1146,14 +1191,14 @@ export async function StudioPage({
               <form action={actions.createDraft}>
                 <Hidden values={{ typeKey, from: number }} />
                 <Button type="submit" variant="secondary">
-                  New draft from v{version.version}
+                  {t("studio.newDraft", { version: version.version })}
                 </Button>
               </form>
             )}
           </>
         }
       />
-      <nav aria-label="Versions" className="qb:mb-3 qb:flex qb:flex-wrap qb:gap-2">
+      <nav aria-label={t("studio.versions")} className="qb:mb-3 qb:flex qb:flex-wrap qb:gap-2">
         {versions.map((v) => (
           <ButtonLink
             key={v.version}
@@ -1162,13 +1207,13 @@ export async function StudioPage({
             variant={v.version === number ? "primary" : "ghost"}
             aria-current={v.version === number ? "page" : undefined}
           >
-            v{v.version} · {v.state}
+            {t("version.chip", { version: v.version, state: stateLabel(t, v.state) })}
           </ButtonLink>
         ))}
       </nav>
       <nav
-        aria-label="Sections"
-        className="qb:mb-6 qb:flex qb:gap-2 qb:border-b qb:border-zinc-200 qb:pb-4"
+        aria-label={t("studio.sections")}
+        className="qb:mb-6 qb:flex qb:gap-2 qb:border-b qb:border-line qb:pb-4"
       >
         <ButtonLink
           href={tabHref("definition")}
@@ -1176,7 +1221,7 @@ export async function StudioPage({
           variant={tab === "definition" ? "secondary" : "ghost"}
           aria-current={tab === "definition" ? "page" : undefined}
         >
-          Definition
+          {t("studio.definition")}
         </ButtonLink>
         <ButtonLink
           href={tabHref("bench")}
@@ -1184,16 +1229,14 @@ export async function StudioPage({
           variant={tab === "bench" ? "secondary" : "ghost"}
           aria-current={tab === "bench" ? "page" : undefined}
         >
-          Test bench ({samples.length})
+          {t("studio.bench", { count: samples.length })}
         </ButtonLink>
       </nav>
       {version.state === "draft" && !publishable ? (
-        <p className="qb:mb-3 qb:text-sm qb:text-zinc-500">
-          Publishing needs a finished test of this version, as it is now, on the test bench.
-        </p>
+        <p className="qb:mb-3 qb:text-sm qb:text-fg-muted">{t("studio.needsTest")}</p>
       ) : null}
       {tab === "definition" ? (
-        <Editor version={version} state={state} models={models} save={actions.saveDraft} />
+        <Editor version={version} state={state} models={models} save={actions.saveDraft} t={t} />
       ) : (
         <Bench
           version={version}
@@ -1207,8 +1250,10 @@ export async function StudioPage({
             qb,
             ctx,
             samples.find((s) => s.id === sampleParam),
+            t,
           )}
           actions={actions}
+          i18n={i18n}
         />
       )}
     </>

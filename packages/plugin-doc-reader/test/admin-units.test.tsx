@@ -3,6 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 
+import { createAdminI18n, englishI18n, missingMessages } from "@quickben/admin/i18n";
 import {
   ConflictError,
   ForbiddenError,
@@ -15,6 +16,7 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { StudioError } from "../src";
+import { docReaderMessages } from "../src/admin";
 import { AutoRefresh } from "../src/admin/client";
 import {
   describeIssue,
@@ -30,13 +32,25 @@ import {
   paramsFromForm,
   variantFromForm,
 } from "../src/admin/forms";
-import { formatMs, formatUsd, formatWhen, Meter } from "../src/admin/shared";
+import { docReaderT, stateLabel, statusLabel } from "../src/admin/messages";
+import {
+  formatCount,
+  formatMs,
+  formatPercent,
+  formatUsd,
+  formatWhen,
+  Meter,
+} from "../src/admin/shared";
 
 import { invoice } from "./helpers";
 
 afterEach(() => {
   cleanup();
 });
+
+const en = englishI18n;
+const t = docReaderT(en);
+const es = createAdminI18n({ locale: "es", timeZone: "UTC", overrides: {} });
 
 function form(entries: Record<string, string | string[]>): FormData {
   const data = new FormData();
@@ -55,9 +69,11 @@ describe("feedback", () => {
     expect(errorCode(new ForbiddenError())).toBe("forbidden");
     expect(errorCode(new NotFoundError())).toBe("not-found");
     expect(errorCode(new QuickbenError("CONFIG", "x"))).toBe("failed");
-    expect(toastMessage("published")).toBe("Version published");
-    expect(toastMessage("toString")).toBeUndefined();
-    expect(errorMessage(3)).toBeUndefined();
+    expect(toastMessage(t, "published")).toBe("Version published");
+    expect(toastMessage(t, "toString")).toBeUndefined();
+    expect(errorMessage(t, 3)).toBeUndefined();
+    expect(errorMessage(t, "no-file")).toBe("Choose a file.");
+    expect(errorMessage(docReaderT(es), "no-file")).toBe("Elige un archivo.");
   });
 
   it("names invalid values without echoing input", () => {
@@ -66,12 +82,13 @@ describe("feedback", () => {
     );
     expect(issuePath(new ValidationError([{ path: "<script>", message: "x" }]))).toBeUndefined();
     expect(issuePath(new Error("x"))).toBeUndefined();
-    expect(describeIssue("fields.1.key")).toBe("Field 2 key");
-    expect(describeIssue("pipeline.steps.0.config")).toBe("Step 1 config");
-    expect(describeIssue("classification.text.0")).toBe("Text pattern 1");
-    expect(describeIssue("a b")).toBeUndefined();
-    expect(describeIssue("pipeline")).toBeUndefined();
-    expect(describeIssue(undefined)).toBeUndefined();
+    expect(describeIssue(t, "fields.1.key")).toBe("Field 2 key");
+    expect(describeIssue(t, "pipeline.steps.0.config")).toBe("Step 1 config");
+    expect(describeIssue(t, "classification.text.0")).toBe("Text pattern 1");
+    expect(describeIssue(docReaderT(es), "fields.1.key")).toBe("Campo 2 key");
+    expect(describeIssue(t, "a b")).toBeUndefined();
+    expect(describeIssue(t, "pipeline")).toBeUndefined();
+    expect(describeIssue(t, undefined)).toBeUndefined();
   });
 });
 
@@ -198,23 +215,38 @@ describe("forms", () => {
 
 describe("shared bits", () => {
   it("formats money, durations and dates", () => {
-    expect(formatUsd(0)).toBe("US$0.00");
-    expect(formatUsd(0.0105)).toBe("US$0.0105");
-    expect(formatUsd(12.5)).toBe("US$12.50");
-    expect(formatMs(null)).toBe("—");
-    expect(formatMs(120)).toBe("120 ms");
-    expect(formatMs(1500)).toBe("1.5 s");
-    expect(formatWhen(null)).toBe("—");
-    expect(formatWhen("2026-11-13T10:22:33.000Z")).toBe("2026-11-13 10:22 UTC");
+    expect(formatUsd(en, 0)).toBe("$0.00");
+    expect(formatUsd(en, 0.0105)).toBe("$0.0105");
+    expect(formatUsd(en, 12.5)).toBe("$12.50");
+    expect(formatUsd(es, 1234.5)).toBe(
+      new Intl.NumberFormat("es", {
+        style: "currency",
+        currency: "USD",
+        minimumFractionDigits: 2,
+      }).format(1234.5),
+    );
+    expect(formatPercent(en, 0.8)).toBe("80%");
+    expect(formatPercent(en, null)).toBe("—");
+    expect(formatCount(en, 12_345)).toBe("12,345");
+    expect(formatCount(es, 12_345)).toBe("12.345");
+    expect(formatMs(en, null)).toBe("—");
+    expect(formatMs(en, 120)).toBe("120 ms");
+    expect(formatMs(en, 1500)).toMatch(/^1\.5 s/u);
+    expect(formatMs(es, 1500)).toMatch(/^1,5 s/u);
+    expect(formatWhen(en, null)).toBe("—");
+    expect(formatWhen(en, "2026-11-13T10:22:33.000Z")).toBe(
+      en.dateTime("2026-11-13T10:22:33.000Z"),
+    );
+    expect(formatWhen(en, "2026-11-13T10:22:33.000Z")).toContain("2026");
   });
 
   it("colors meters by budget use", () => {
     render(
       <>
-        <Meter ratio={null} label="none" />
-        <Meter ratio={0.5} label="half" />
-        <Meter ratio={0.9} label="warn" />
-        <Meter ratio={1.2} label="over" />
+        <Meter ratio={null} label="none" i18n={en} />
+        <Meter ratio={0.5} label="half" i18n={en} />
+        <Meter ratio={0.9} label="warn" i18n={en} />
+        <Meter ratio={1.2} label="over" i18n={en} />
       </>,
     );
     expect(screen.getByText("No budget")).toBeTruthy();
@@ -232,6 +264,30 @@ describe("shared bits", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("messages", () => {
+  it("has every English key in Spanish", () => {
+    expect(missingMessages(docReaderMessages)).toEqual([]);
+  });
+
+  it("labels states and statuses, and keeps unknown ones as stored", () => {
+    expect(stateLabel(t, "queued")).toBe("queued");
+    expect(stateLabel(docReaderT(es), "queued")).toBe("en cola");
+    expect(stateLabel(t, "custom")).toBe("custom");
+    expect(statusLabel(docReaderT(es), "NO_TEXT")).toBe("SIN TEXTO");
+    expect(statusLabel(t, "WEIRD")).toBe("WEIRD");
+  });
+
+  it("lets overrides win", () => {
+    const custom = createAdminI18n({
+      locale: "es",
+      timeZone: "UTC",
+      overrides: { "doc-reader.meter.noBudget": "Sin tope" },
+    });
+    render(<Meter ratio={null} label="none" i18n={custom} />);
+    expect(screen.getByText("Sin tope")).toBeTruthy();
   });
 });
 

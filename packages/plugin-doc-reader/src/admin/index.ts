@@ -1,18 +1,19 @@
 import { normalizeBasePath } from "./base-path";
+import { docReaderMessages, docReaderT } from "./messages";
 import { createQueuePage } from "./queue-page";
 import { registerDocReaderAdmin } from "./registry";
 import { createTypesPage } from "./types-page";
 import { createUsagePage } from "./usage-page";
 
-import type { AdminExtension } from "@quickben/admin";
+import type { AdminExtension, AdminText } from "@quickben/admin";
 import type { QuickbenConfig } from "@quickben/core";
 
 /** Options of {@link docReaderAdmin}. */
 export interface DocReaderAdminOptions {
   /** Same as `createAdminPage`'s `basePath`. Default `/admin`. */
   basePath?: string;
-  /** Sidebar group of the pages. Default `Documents`. */
-  group?: string;
+  /** Sidebar group of the pages, as given. Default `Documents`, translated. */
+  group?: AdminText;
 }
 
 /**
@@ -31,17 +32,30 @@ export function docReaderAdmin(
 ): AdminExtension {
   const basePath = normalizeBasePath(options.basePath ?? "/admin");
   const key = registerDocReaderAdmin({ config, basePath });
-  const group = options.group ?? "Documents";
+  const group = options.group ?? ((i18n) => docReaderT(i18n)("nav.group"));
   return {
+    catalogs: [docReaderMessages],
     pages: [
       {
         path: "document-types",
-        label: "Document types",
+        label: (i18n) => docReaderT(i18n)("nav.types"),
         group,
         component: createTypesPage(config, key),
       },
-      { path: "document-queue", label: "Readings", group, component: createQueuePage(config, key) },
-      { path: "document-usage", label: "Usage", group, component: createUsagePage(config, key) },
+      {
+        path: "document-queue",
+        label: (i18n) => docReaderT(i18n)("nav.readings"),
+        group,
+        component: createQueuePage(config, key),
+      },
+      {
+        path: "document-usage",
+        label: (i18n) => docReaderT(i18n)("nav.usage"),
+        group,
+        component: createUsagePage(config, key),
+      },
     ],
   };
 }
+
+export { docReaderMessages } from "./messages";

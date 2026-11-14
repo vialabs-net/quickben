@@ -22,7 +22,9 @@ import { newestPublished } from "../store";
 
 import { cancelReadingAction, retryReadingAction, tryReadingAction } from "./actions";
 import { AutoRefresh, FilePreview } from "./client";
+import { docReaderT, stateLabel } from "./messages";
 import {
+  EMPTY,
   Feedback,
   Field,
   first,
@@ -43,8 +45,9 @@ import {
 import type { JobState } from "../collections";
 import type { Reading, ReadingFilters } from "../readings";
 import type { PreviewBox } from "./client";
+import type { DocReaderT } from "./messages";
 import type { SearchParams } from "./shared";
-import type { PageProps } from "@quickben/admin";
+import type { AdminI18n, PageProps } from "@quickben/admin";
 import type { Quickben, QuickbenConfig, RequestContext } from "@quickben/core";
 import type { ReactNode } from "react";
 
@@ -70,26 +73,24 @@ function filtersOf(params: SearchParams): ReadingFilters {
   return filters;
 }
 
-function typeText(reading: Reading): string {
+function typeText(t: DocReaderT, reading: Reading): string {
   if (reading.type) return `${reading.type.key} v${String(reading.type.version)}`;
-  return reading.requestedType === "auto" ? "auto (not recognized)" : reading.requestedType;
+  return reading.requestedType === "auto" ? t("queue.autoUnrecognized") : reading.requestedType;
 }
 
 function TryForm({
   types,
   action,
-}: Readonly<{ types: readonly { key: string; label: string }[]; action: Action }>) {
+  t,
+}: Readonly<{ types: readonly { key: string; label: string }[]; action: Action; t: DocReaderT }>) {
   return (
     <Card className="qb:mt-5">
-      <CardHeader
-        title="Read a document"
-        description="Try a published type on a file. The reading is billed like any other."
-      />
+      <CardHeader title={t("try.title")} description={t("try.description")} />
       <CardBody>
         <form action={action} className="qb:flex qb:flex-wrap qb:items-end qb:gap-4">
-          <Field label="Type" htmlFor="qb-dr-try-type">
+          <Field label={t("try.type")} htmlFor="qb-dr-try-type">
             <Select id="qb-dr-try-type" name="type" defaultValue="auto">
-              <option value="auto">Recognize it (auto)</option>
+              <option value="auto">{t("try.auto")}</option>
               {types.map((type) => (
                 <option key={type.key} value={type.key}>
                   {type.label}
@@ -97,7 +98,7 @@ function TryForm({
               ))}
             </Select>
           </Field>
-          <Field label="File" htmlFor="qb-dr-try-file">
+          <Field label={t("try.file")} htmlFor="qb-dr-try-file">
             <Input
               id="qb-dr-try-file"
               name="file"
@@ -106,7 +107,7 @@ function TryForm({
               accept="application/pdf,image/jpeg,image/png,image/webp"
             />
           </Field>
-          <Button type="submit">Read</Button>
+          <Button type="submit">{t("try.submit")}</Button>
         </form>
       </CardBody>
     </Card>
@@ -117,32 +118,33 @@ function Filters({
   params,
   basePath,
   staff,
-}: Readonly<{ params: SearchParams; basePath: string; staff: boolean }>) {
+  t,
+}: Readonly<{ params: SearchParams; basePath: string; staff: boolean; t: DocReaderT }>) {
   const value = (name: string) => first(params[name]) ?? "";
   return (
     <form method="get" className="qb:mb-6 qb:flex qb:flex-wrap qb:items-end qb:gap-3">
-      <Field label="State" htmlFor="qb-dr-state">
+      <Field label={t("filter.state")} htmlFor="qb-dr-state">
         <Select id="qb-dr-state" name="state" defaultValue={value("state")}>
-          <option value="">All</option>
+          <option value="">{t("filter.all")}</option>
           {JOB_STATES.map((state) => (
             <option key={state} value={state}>
-              {state}
+              {stateLabel(t, state)}
             </option>
           ))}
         </Select>
       </Field>
-      <Field label="Type" htmlFor="qb-dr-type">
+      <Field label={t("filter.type")} htmlFor="qb-dr-type">
         <Input
           id="qb-dr-type"
           name="type"
           defaultValue={value("type")}
-          placeholder="invoice"
+          placeholder={t("filter.typePlaceholder")}
           style={{ width: "9rem" }}
         />
       </Field>
       {staff ? (
         <>
-          <Field label="Tenant" htmlFor="qb-dr-tenant-filter">
+          <Field label={t("filter.tenant")} htmlFor="qb-dr-tenant-filter">
             <Input
               id="qb-dr-tenant-filter"
               name="tenant"
@@ -150,28 +152,28 @@ function Filters({
               style={{ width: "10rem" }}
             />
           </Field>
-          <Field label="Requested by" htmlFor="qb-dr-actor">
+          <Field label={t("filter.actor")} htmlFor="qb-dr-actor">
             <Input
               id="qb-dr-actor"
               name="actor"
               defaultValue={value("actor")}
-              placeholder="Part of an email"
+              placeholder={t("filter.actorPlaceholder")}
               style={{ width: "12rem" }}
             />
           </Field>
         </>
       ) : null}
-      <Field label="From" htmlFor="qb-dr-from">
+      <Field label={t("filter.from")} htmlFor="qb-dr-from">
         <Input id="qb-dr-from" name="from" type="date" defaultValue={value("from")} />
       </Field>
-      <Field label="To" htmlFor="qb-dr-to">
+      <Field label={t("filter.to")} htmlFor="qb-dr-to">
         <Input id="qb-dr-to" name="to" type="date" defaultValue={value("to")} />
       </Field>
       <Button type="submit" variant="secondary">
-        Filter
+        {t("filter.submit")}
       </Button>
       <ButtonLink href={`${basePath}/document-queue`} variant="ghost">
-        Clear
+        {t("filter.clear")}
       </ButtonLink>
     </form>
   );
@@ -194,6 +196,7 @@ async function QueueList({
   basePath,
   staff,
   tryAction,
+  i18n,
 }: Readonly<{
   qb: Quickben;
   ctx: RequestContext;
@@ -201,7 +204,9 @@ async function QueueList({
   basePath: string;
   staff: boolean;
   tryAction: Action;
+  i18n: AdminI18n;
 }>) {
+  const t = docReaderT(i18n);
   const page = Math.max(1, Number(first(params.page)) || 1);
   const [result, types] = await Promise.all([
     listReadings(qb, filtersOf(params), ctx, { limit: PAGE_SIZE, page }),
@@ -213,28 +218,28 @@ async function QueueList({
   return (
     <>
       <Heading
-        title="Document readings"
-        description={staff ? "Every reading, newest first." : "Your readings, newest first."}
+        title={t("queue.title")}
+        description={staff ? t("queue.descriptionStaff") : t("queue.descriptionOwn")}
       />
-      <Filters params={params} basePath={basePath} staff={staff} />
+      <Filters params={params} basePath={basePath} staff={staff} t={t} />
       {active ? <AutoRefresh every={3000} /> : null}
       <Card>
         {result.readings.length === 0 ? (
           <CardBody>
-            <p className="qb:text-sm qb:text-zinc-600">No readings match.</p>
+            <p className="qb:text-sm qb:text-fg-muted">{t("queue.empty")}</p>
           </CardBody>
         ) : (
           <Table>
             <thead>
               <tr>
-                <Th>Document</Th>
-                <Th>Type</Th>
-                <Th>State</Th>
-                <Th>Result</Th>
-                {staff ? <Th>Tenant</Th> : null}
-                {staff ? <Th>Requested by</Th> : null}
-                <Th>Cost</Th>
-                <Th>Created</Th>
+                <Th>{t("col.document")}</Th>
+                <Th>{t("col.type")}</Th>
+                <Th>{t("col.state")}</Th>
+                <Th>{t("col.result")}</Th>
+                {staff ? <Th>{t("col.tenant")}</Th> : null}
+                {staff ? <Th>{t("col.requestedBy")}</Th> : null}
+                <Th>{t("col.cost")}</Th>
+                <Th>{t("col.created")}</Th>
               </tr>
             </thead>
             <tbody>
@@ -242,27 +247,29 @@ async function QueueList({
                 <Tr key={reading.id}>
                   <Td>
                     <Link href={`${basePath}/document-queue/${reading.id}`} className={linkClass}>
-                      {reading.fileName ?? "Document"}
+                      {reading.fileName ?? t("queue.fileFallback")}
                     </Link>
                   </Td>
-                  <Td className="qb:font-mono qb:text-xs">{typeText(reading)}</Td>
+                  <Td className="qb:font-mono qb:text-xs">{typeText(t, reading)}</Td>
                   <Td>
-                    <StateBadge state={reading.state} />
+                    <StateBadge state={reading.state} i18n={i18n} />
                   </Td>
                   <Td>
-                    <StatusBadge status={reading.status} />
+                    <StatusBadge status={reading.status} i18n={i18n} />
                   </Td>
                   {staff ? (
-                    <Td className="qb:text-xs qb:font-mono">{reading.tenant ?? "—"}</Td>
+                    <Td className="qb:text-xs qb:font-mono">{reading.tenant ?? EMPTY}</Td>
                   ) : null}
                   {staff ? (
                     <Td className="qb:text-sm">
-                      {reading.actor.email ?? reading.actor.userId ?? "—"}
+                      {reading.actor.email ?? reading.actor.userId ?? EMPTY}
                     </Td>
                   ) : null}
-                  <Td className="qb:tabular-nums">{formatUsd(reading.costUsd)}</Td>
+                  <Td className="qb:tabular-nums">{formatUsd(i18n, reading.costUsd)}</Td>
                   <Td className="qb:whitespace-nowrap qb:text-sm">
-                    {formatWhen(reading.createdAt)}
+                    <time dateTime={reading.createdAt} title={formatWhen(i18n, reading.createdAt)}>
+                      {i18n.relativeTime(reading.createdAt)}
+                    </time>
                   </Td>
                 </Tr>
               ))}
@@ -271,18 +278,21 @@ async function QueueList({
         )}
       </Card>
       {result.totalPages > 1 ? (
-        <nav aria-label="Pages" className="qb:mt-5 qb:flex qb:items-center qb:gap-3 qb:text-sm">
+        <nav
+          aria-label={t("queue.pagination")}
+          className="qb:mt-5 qb:flex qb:items-center qb:gap-3 qb:text-sm"
+        >
           {page > 1 ? (
             <ButtonLink href={pageHref(basePath, params, page - 1)} variant="secondary" size="sm">
-              Previous
+              {t("queue.previous")}
             </ButtonLink>
           ) : null}
-          <span className="qb:text-zinc-500">
-            Page {page} of {result.totalPages} · {result.totalDocs} readings
+          <span className="qb:text-fg-muted">
+            {t("queue.page", { page, pages: result.totalPages, count: result.totalDocs })}
           </span>
           {page < result.totalPages ? (
             <ButtonLink href={pageHref(basePath, params, page + 1)} variant="secondary" size="sm">
-              Next
+              {t("queue.next")}
             </ButtonLink>
           ) : null}
         </nav>
@@ -291,50 +301,55 @@ async function QueueList({
         <TryForm
           types={types.map((type) => ({ key: type.key, label: type.label }))}
           action={tryAction}
+          t={t}
         />
       ) : null}
     </>
   );
 }
 
-function evidenceText(field: Reading["fields"][string]): string {
+function evidenceText(t: DocReaderT, field: Reading["fields"][string]): string {
   const evidence = field.evidence;
-  if (!evidence) return "—";
-  const page = `Page ${String(evidence.page)}`;
-  return evidence.text ? `${page}: ${evidence.text}` : page;
+  if (!evidence) return EMPTY;
+  return evidence.text
+    ? t("reading.evidenceText", { page: evidence.page, text: evidence.text })
+    : t("reading.evidencePage", { page: evidence.page });
 }
 
-function FieldsCard({ reading }: Readonly<{ reading: Reading }>) {
+function FieldsCard({ reading, i18n }: Readonly<{ reading: Reading; i18n: AdminI18n }>) {
+  const t = docReaderT(i18n);
   const entries = Object.entries(reading.fields);
   return (
     <Card>
       <CardHeader
-        title="Fields read"
+        title={t("reading.fieldsTitle")}
         description={
-          reading.missing.length > 0 ? `Missing: ${reading.missing.join(", ")}` : undefined
+          reading.missing.length > 0
+            ? t("reading.missing", { fields: i18n.list(reading.missing) })
+            : undefined
         }
       />
       {entries.length === 0 ? (
         <CardBody>
-          <p className="qb:text-sm qb:text-zinc-500">Nothing was read.</p>
+          <p className="qb:text-sm qb:text-fg-muted">{t("reading.nothingRead")}</p>
         </CardBody>
       ) : (
         <Table>
           <thead>
             <tr>
-              <Th>Field</Th>
-              <Th>Value</Th>
-              <Th>Confidence</Th>
-              <Th>Evidence</Th>
+              <Th>{t("col.field")}</Th>
+              <Th>{t("col.value")}</Th>
+              <Th>{t("col.confidence")}</Th>
+              <Th>{t("col.evidence")}</Th>
             </tr>
           </thead>
           <tbody>
             {entries.map(([key, field]) => (
               <Tr key={key}>
                 <Td className="qb:font-mono qb:text-xs">{key}</Td>
-                <Td className="qb:font-medium qb:text-zinc-900">{field.value}</Td>
-                <Td className="qb:tabular-nums">{formatPercent(field.confidence)}</Td>
-                <Td className="qb:text-xs qb:text-zinc-500">{evidenceText(field)}</Td>
+                <Td className="qb:font-medium qb:text-fg">{field.value}</Td>
+                <Td className="qb:tabular-nums">{formatPercent(i18n, field.confidence)}</Td>
+                <Td className="qb:text-xs qb:text-fg-muted">{evidenceText(t, field)}</Td>
               </Tr>
             ))}
           </tbody>
@@ -344,28 +359,29 @@ function FieldsCard({ reading }: Readonly<{ reading: Reading }>) {
   );
 }
 
-function AttemptsCard({ reading }: Readonly<{ reading: Reading }>) {
+function AttemptsCard({ reading, i18n }: Readonly<{ reading: Reading; i18n: AdminI18n }>) {
+  const t = docReaderT(i18n);
   return (
     <Card>
       <CardHeader
-        title="Attempts"
-        description="Each step of the type's pipeline that ran, in order."
+        title={t("reading.attemptsTitle")}
+        description={t("reading.attemptsDescription")}
       />
       {reading.attempts.length === 0 ? (
         <CardBody>
-          <p className="qb:text-sm qb:text-zinc-500">No step ran.</p>
+          <p className="qb:text-sm qb:text-fg-muted">{t("reading.noAttempts")}</p>
         </CardBody>
       ) : (
         <Table>
           <thead>
             <tr>
-              <Th>Step</Th>
-              <Th>Status</Th>
-              <Th>Fields</Th>
-              <Th>Time</Th>
-              <Th>Model</Th>
-              <Th>Cost</Th>
-              <Th>Problems</Th>
+              <Th>{t("col.step")}</Th>
+              <Th>{t("col.status")}</Th>
+              <Th>{t("col.fields")}</Th>
+              <Th>{t("col.time")}</Th>
+              <Th>{t("col.model")}</Th>
+              <Th>{t("col.cost")}</Th>
+              <Th>{t("col.problems")}</Th>
             </tr>
           </thead>
           <tbody>
@@ -376,17 +392,24 @@ function AttemptsCard({ reading }: Readonly<{ reading: Reading }>) {
                   <span className="qb:font-mono qb:text-xs">{attempt.extractor}</span>
                 </Td>
                 <Td>
-                  <StatusBadge status={attempt.status} />
-                </Td>
-                <Td className="qb:tabular-nums">{Object.keys(attempt.fields).length}</Td>
-                <Td className="qb:tabular-nums">{formatMs(attempt.durationMs)}</Td>
-                <Td className="qb:text-xs">
-                  {attempt.usage
-                    ? `${attempt.usage.model} · ${String(attempt.usage.pages)} p · ${String(attempt.usage.inputTokens)}/${String(attempt.usage.outputTokens)} tok`
-                    : "—"}
+                  <StatusBadge status={attempt.status} i18n={i18n} />
                 </Td>
                 <Td className="qb:tabular-nums">
-                  {attempt.usage ? formatUsd(attempt.usage.costUsd) : "—"}
+                  {i18n.number(Object.keys(attempt.fields).length)}
+                </Td>
+                <Td className="qb:tabular-nums">{formatMs(i18n, attempt.durationMs)}</Td>
+                <Td className="qb:text-xs">
+                  {attempt.usage
+                    ? t("reading.usage", {
+                        model: attempt.usage.model,
+                        pages: attempt.usage.pages,
+                        input: attempt.usage.inputTokens,
+                        output: attempt.usage.outputTokens,
+                      })
+                    : EMPTY}
+                </Td>
+                <Td className="qb:tabular-nums">
+                  {attempt.usage ? formatUsd(i18n, attempt.usage.costUsd) : EMPTY}
                 </Td>
                 <Td className="qb:font-mono qb:text-xs qb:break-all">
                   {attempt.problems ? JSON.stringify(attempt.problems) : ""}
@@ -400,9 +423,14 @@ function AttemptsCard({ reading }: Readonly<{ reading: Reading }>) {
   );
 }
 
-async function previewOf(qb: Quickben, ctx: RequestContext, reading: Reading): Promise<ReactNode> {
+async function previewOf(
+  qb: Quickben,
+  ctx: RequestContext,
+  reading: Reading,
+  t: DocReaderT,
+): Promise<ReactNode> {
   if ((reading.size ?? 0) > PREVIEW_MAX_BYTES)
-    return <p className="qb:text-sm qb:text-zinc-500">The file is too large to preview.</p>;
+    return <p className="qb:text-sm qb:text-fg-muted">{t("preview.tooLarge")}</p>;
   try {
     const file = await readingFile(qb, reading.id, ctx);
     const boxes: PreviewBox[] = Object.entries(reading.fields).flatMap(([key, field]) =>
@@ -420,7 +448,7 @@ async function previewOf(qb: Quickben, ctx: RequestContext, reading: Reading): P
     );
   } catch (error) {
     if (!(error instanceof NotFoundError)) throw error;
-    return <p className="qb:text-sm qb:text-red-700">The file of this reading is gone.</p>;
+    return <p className="qb:text-sm qb:text-danger-strong">{t("reading.fileGone")}</p>;
   }
 }
 
@@ -432,6 +460,7 @@ async function ReadingDetail({
   staff,
   retry,
   cancel,
+  i18n,
 }: Readonly<{
   qb: Quickben;
   ctx: RequestContext;
@@ -440,7 +469,9 @@ async function ReadingDetail({
   staff: boolean;
   retry: Action;
   cancel: Action;
+  i18n: AdminI18n;
 }>) {
+  const t = docReaderT(i18n);
   let reading: Reading;
   try {
     reading = await getReading(qb, id, ctx);
@@ -448,8 +479,8 @@ async function ReadingDetail({
     if (!(error instanceof NotFoundError)) throw error;
     return (
       <>
-        <Heading title="Reading not found" />
-        <Notice>That reading does not exist or you cannot see it.</Notice>
+        <Heading title={t("reading.notFound")} />
+        <Notice>{t("reading.notFoundBody")}</Notice>
       </>
     );
   }
@@ -459,12 +490,12 @@ async function ReadingDetail({
     <>
       <p className="qb:mb-3 qb:text-sm">
         <Link href={`${basePath}/document-queue`} className={linkClass}>
-          ← Document readings
+          {t("reading.back")}
         </Link>
       </p>
       <Heading
-        title={reading.fileName ?? "Document"}
-        description={typeText(reading)}
+        title={reading.fileName ?? t("queue.fileFallback")}
+        description={typeText(t, reading)}
         actions={
           staff ? (
             <>
@@ -472,14 +503,14 @@ async function ReadingDetail({
                 <form action={cancel}>
                   <input type="hidden" name="id" value={reading.id} />
                   <Button type="submit" variant="danger">
-                    Cancel
+                    {t("reading.cancel")}
                   </Button>
                 </form>
               ) : (
                 <form action={retry}>
                   <input type="hidden" name="id" value={reading.id} />
                   <Button type="submit" variant="secondary">
-                    Retry
+                    {t("reading.retry")}
                   </Button>
                 </form>
               )}
@@ -492,29 +523,32 @@ async function ReadingDetail({
         <Card>
           <CardBody>
             <div className="qb:grid qb:grid-cols-1 qb:gap-4 qb:sm:grid-cols-2 qb:2xl:grid-cols-4">
-              <Stat label="State">
-                <StateBadge state={reading.state} /> <StatusBadge status={reading.status} />
+              <Stat label={t("col.state")}>
+                <StateBadge state={reading.state} i18n={i18n} />{" "}
+                <StatusBadge status={reading.status} i18n={i18n} />
               </Stat>
-              <Stat label="Tenant">{reading.tenant ?? "—"}</Stat>
-              <Stat label="Requested by">{reading.actor.email ?? reading.actor.userId ?? "—"}</Stat>
-              <Stat label="Created">{formatWhen(reading.createdAt)}</Stat>
-              <Stat label="Duration">{formatMs(reading.durationMs)}</Stat>
-              <Stat label="Cost">{formatUsd(reading.costUsd)}</Stat>
-              <Stat label="Runs">{reading.runs}</Stat>
+              <Stat label={t("col.tenant")}>{reading.tenant ?? EMPTY}</Stat>
+              <Stat label={t("col.requestedBy")}>
+                {reading.actor.email ?? reading.actor.userId ?? EMPTY}
+              </Stat>
+              <Stat label={t("col.created")}>{formatWhen(i18n, reading.createdAt)}</Stat>
+              <Stat label={t("reading.duration")}>{formatMs(i18n, reading.durationMs)}</Stat>
+              <Stat label={t("col.cost")}>{formatUsd(i18n, reading.costUsd)}</Stat>
+              <Stat label={t("reading.runs")}>{i18n.number(reading.runs)}</Stat>
             </div>
             {reading.error ? (
-              <p className="qb:mt-5 qb:text-sm qb:text-red-700">{reading.error}</p>
+              <p className="qb:mt-5 qb:text-sm qb:text-danger-strong">{reading.error}</p>
             ) : null}
           </CardBody>
         </Card>
-        <FieldsCard reading={reading} />
-        <AttemptsCard reading={reading} />
+        <FieldsCard reading={reading} i18n={i18n} />
+        <AttemptsCard reading={reading} i18n={i18n} />
         <Card>
           <CardHeader
-            title="Document"
-            description="Values read on the first page of an image are highlighted."
+            title={t("reading.documentTitle")}
+            description={t("reading.documentDescription")}
           />
-          <CardBody>{await previewOf(qb, ctx, reading)}</CardBody>
+          <CardBody>{await previewOf(qb, ctx, reading, t)}</CardBody>
         </Card>
       </div>
     </>
@@ -531,15 +565,17 @@ export function createQueuePage(config: QuickbenConfig, key: string) {
     segments,
     searchParams,
     basePath,
+    i18n,
   }: Readonly<PageProps>) {
+    const t = docReaderT(i18n);
     const qb = await getQuickben(config);
     const ctx = await getRequestContext(config);
     const params = searchParams;
     if (!ctx.user) {
       return (
         <>
-          <Heading title="Document readings" />
-          <Notice>Sign in to see document readings.</Notice>
+          <Heading title={t("queue.title")} />
+          <Notice>{t("queue.signIn")}</Notice>
         </>
       );
     }
@@ -548,9 +584,9 @@ export function createQueuePage(config: QuickbenConfig, key: string) {
     return (
       <>
         {id
-          ? await ReadingDetail({ qb, ctx, id, basePath, staff, retry, cancel })
-          : await QueueList({ qb, ctx, params, basePath, staff, tryAction })}
-        <Feedback searchParams={params} />
+          ? await ReadingDetail({ qb, ctx, id, basePath, staff, retry, cancel, i18n })
+          : await QueueList({ qb, ctx, params, basePath, staff, tryAction, i18n })}
+        <Feedback searchParams={params} i18n={i18n} />
       </>
     );
   };
