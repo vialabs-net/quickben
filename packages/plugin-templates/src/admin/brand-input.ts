@@ -1,4 +1,5 @@
 import { CUSTOM_FONT, sniffImage, toDataUrl } from "../brand";
+import { logoStorage } from "../logo";
 import { getTemplatesPlugin } from "../options";
 
 import type { Quickben } from "@quickben/core";
@@ -23,8 +24,9 @@ async function store(qb: Quickben, file: File, mimeType: string): Promise<string
 }
 
 /**
- * The brand changes of the brand form. Files become `data:` URLs (or asset references); the
- * `brands` collection validates their type and size.
+ * The brand changes of the brand form. With a storage adapter the logo is a file
+ * (`logoFile`); without one it becomes a `data:` URL (or asset reference). Fonts become
+ * `data:` URLs (or asset references). The `brands` collection validates type and size.
  */
 export async function brandInput(
   qb: Quickben,
@@ -40,8 +42,14 @@ export async function brandInput(
   if (font !== null) data.font = font;
 
   const logo = upload(formData, "logo");
-  if (formData.get("removeLogo") === "on") data.logo = null;
-  else if (logo) {
+  if (formData.get("removeLogo") === "on") {
+    data.logo = null;
+    data.logoFile = null;
+  } else if (logo && logoStorage(qb)) {
+    // Core checks the type and size of the file and stores it.
+    data.logoFile = logo;
+    data.logo = null;
+  } else if (logo) {
     const bytes = new Uint8Array(await logo.slice(0, 16).arrayBuffer());
     data.logo = await store(
       qb,

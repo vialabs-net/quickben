@@ -28,6 +28,7 @@ export {
 } from "./content";
 export { checkExpression, evaluate, ExpressionError, parseExpression, test } from "./expression";
 export { brandVariables, defineTemplateKind } from "./kinds";
+export { migrateBrandLogos } from "./logo";
 export { BRANDS, getTemplatesPlugin, TEMPLATE_COLLECTIONS, TEMPLATES, VERSIONS } from "./options";
 export { RendererUnavailableError } from "./pdf";
 export { templates } from "./plugin";
@@ -78,6 +79,7 @@ export type {
   TemplatesAccessRule,
   TemplatesOptions,
 } from "./options";
+export type { MigrateLogosResult } from "./logo";
 export type { PdfInput, PdfRenderer } from "./pdf";
 export type { TemplatesPlugin } from "./plugin";
 export type {

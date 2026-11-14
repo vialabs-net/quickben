@@ -32,6 +32,7 @@ export type ToastCode = (typeof toastCodes)[number];
 const fieldCodes: Readonly<Record<string, FeedbackErrorCode>> = {
   organization: "organization",
   logo: "invalid-logo",
+  logoFile: "invalid-logo",
   customFont: "invalid-font",
   font: "invalid-font",
   primaryColor: "invalid-color",

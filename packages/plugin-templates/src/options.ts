@@ -10,7 +10,7 @@ import type { ResolvedKind, TemplateKindDefinition } from "./kinds";
 import type { PdfRenderer } from "./pdf";
 import type { PageOptions, ResolvedPage } from "./serialize";
 import type { FormatOptions, ResolvedFormat } from "./values";
-import type { AccessArgs, Module, Quickben, QuickbenConfig } from "@quickben/core";
+import type { AccessArgs, Module, Quickben, QuickbenConfig, StorageAdapter } from "@quickben/core";
 
 /** An access rule of the plugin: allowed or not. */
 export type TemplatesAccessRule = (args: AccessArgs) => boolean | Promise<boolean>;
@@ -51,7 +51,12 @@ export interface TemplatesOptions {
   fonts?: readonly FontDefinition[];
   /** Turns rendered HTML into a PDF. See `@quickben/plugin-templates/chromium`. */
   pdf?: PdfRenderer;
-  /** Storage for logos and fonts. Default: inline `data:` URLs. */
+  /** Storage of the brand logo (`logoFile`). Default: the config `storage`. */
+  storage?: StorageAdapter;
+  /**
+   * Storage for fonts, and for logos when no `storage` is configured. Default: inline
+   * `data:` URLs.
+   */
   assets?: AssetStore;
   /** Register a module with the plugin's collections, e.g. for tenancy entitlements. */
   module?: Omit<Module, "collections">;
@@ -68,6 +73,7 @@ export interface ResolvedTemplates {
   readonly fontKeys: readonly string[];
   readonly pdf: PdfRenderer | null;
   readonly assets: AssetStore | null;
+  readonly storage: StorageAdapter | undefined;
 }
 
 export function resolveOptions(options: TemplatesOptions): ResolvedTemplates {
@@ -98,6 +104,7 @@ export function resolveOptions(options: TemplatesOptions): ResolvedTemplates {
     fontKeys,
     pdf: options.pdf ?? null,
     assets: options.assets ?? null,
+    storage: options.storage,
   };
 }
 

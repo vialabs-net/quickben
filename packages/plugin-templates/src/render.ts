@@ -1,4 +1,4 @@
-import { localize, NotFoundError, ValidationError } from "@quickben/core";
+import { isFileRef, localize, NotFoundError, ValidationError } from "@quickben/core";
 
 import {
   cleanText,
@@ -11,6 +11,7 @@ import {
 } from "./brand";
 import { system } from "./collections";
 import { asContent } from "./content";
+import { logoDataUrl } from "./logo";
 import { getTemplatesPlugin } from "./options";
 import { RendererUnavailableError } from "./pdf";
 import { documentHtml, footerHtml, frameHtml, previewHtml, renderBlocks } from "./serialize";
@@ -177,8 +178,14 @@ function brandFieldsOf(doc: DocumentData | null, draft: BrandDraft): BrandFields
     accentColor: isHexColor(merged.accentColor) ? merged.accentColor : defaultBrand.accentColor,
     font: typeof merged.font === "string" ? merged.font : defaultBrand.font,
     customFont: (merged.customFont as CustomFont | null | undefined) ?? null,
+    // A draft logo (a preview) wins over the stored file.
+    logoFile: isFileRef(merged.logoFile) && !Object.hasOwn(draft, "logo") ? merged.logoFile : null,
     logo: typeof merged.logo === "string" ? merged.logo : null,
   };
+}
+
+function logoOf(qb: Quickben, templates: ResolvedTemplates, fields: BrandFields) {
+  return fields.logoFile ? logoDataUrl(qb, fields.logoFile) : assetUrl(templates, fields.logo);
 }
 
 /** Everything a render needs from the brand of the context's organization. */
@@ -190,7 +197,7 @@ export async function loadBrand(
   const templates = getTemplatesPlugin(qb);
   const fields = brandFieldsOf(await getBrand(qb, ctx), draft);
   const [logo, font] = await Promise.all([
-    assetUrl(templates, fields.logo),
+    logoOf(qb, templates, fields),
     fontOf(templates, fields),
   ]);
   const { displayName, legalName, taxId, address, contact, footer, primaryColor, accentColor } =
