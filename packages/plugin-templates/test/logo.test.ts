@@ -94,9 +94,13 @@ describe("brand logo files", () => {
       await brandInput(qb, form({ logo: new File([png], "a.png") })),
       system,
     );
+    const saved = storage.objects.get((brand.logoFile as FileRef).key);
     storage.objects.clear();
     const ref = { ...(brand.logoFile as FileRef), sha256: "f".repeat(64) };
     expect(await logoDataUrl(qb, ref)).toBeNull();
+    // A missing logo is not cached: it shows again once the object is back.
+    if (saved) storage.objects.set(ref.key, saved);
+    expect(await logoDataUrl(qb, ref)).toBe(toDataUrl(png, "image/png"));
   });
 });
 
@@ -127,6 +131,24 @@ describe("migrateBrandLogos", () => {
     await saveBrand(qb, { logoFile: null }, system);
     expect(await migrateBrandLogos(qb)).toEqual({ migrated: 0, skipped: 1 });
     expect(await logoName()).toBeNull();
+  });
+});
+
+describe("migrateBrandLogos while the brand changes", () => {
+  it("keeps a logo saved during the migration", async () => {
+    const during: { load?: () => Promise<unknown> } = {};
+    const load = async () => {
+      await during.load?.();
+      return { bytes: jpeg, mimeType: "image/jpeg" };
+    };
+    const { qb } = await setup({
+      templates: { assets: { load, save: () => Promise.resolve("x") } },
+    });
+    await saveBrand(qb, { logo: "asset-1" }, system);
+    during.load = async () =>
+      saveBrand(qb, { logoFile: { name: "new.png", bytes: png }, logo: null }, system);
+    expect(await migrateBrandLogos(qb)).toEqual({ migrated: 0, skipped: 0 });
+    expect(((await getBrand(qb, system))?.logoFile as FileRef).name).toBe("new.png");
   });
 });
 
