@@ -490,7 +490,7 @@ async function readFile(
   const collection = getCollection(scope.collections, slug);
   const field = Object.hasOwn(collection.fields, name) ? collection.fields[name] : undefined;
   if (field?.type !== "file") {
-    throw new ValidationError([{ path: "field", message: `"${name}" is not a file field` }]);
+    throw new NotFoundError(`"${slug}.${name}" is not a file field`);
   }
   const doc = await findById(scope, slug, id, { select: [name] });
   const ref = doc?.[name];

@@ -336,8 +336,8 @@ describe("file fields", () => {
     );
     storage.objects.clear();
     await expect(qb.readFile("docs", doc.id, "logo", user)).rejects.toThrow(/missing/);
-    await expect(qb.readFile("docs", doc.id, "title" as never, user)).rejects.toBeInstanceOf(
-      ValidationError,
+    await expect(qb.readFile("docs", doc.id, "title" as never, user)).rejects.toThrow(
+      /not a file field/,
     );
     await expect(qb.readFile("docs", doc.id, "logo", { user: null })).rejects.toThrow();
   });
