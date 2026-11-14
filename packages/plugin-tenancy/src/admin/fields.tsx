@@ -6,6 +6,9 @@ import type { FieldInputContext } from "@quickben/admin/forms";
 import type { Quickben, RequestContext } from "@quickben/core";
 import type { CollectionMeta } from "@quickben/next";
 
+/** Hidden input with the time zone of the rendered date inputs. */
+export const TIME_ZONE_FIELD = "qb-time-zone";
+
 /** Fields of `organizations` the settings page renders itself. */
 export const ownOrganizationFields = new Set(["name", "slug", "status", "modules", "metadata"]);
 
@@ -82,6 +85,8 @@ export function AddedFields({
 }>) {
   return (
     <div className="qb:grid qb:grid-cols-1 qb:gap-x-5 qb:gap-y-5 qb:md:grid-cols-6">
+      {/* Dates are read back in the time zone they are shown in. */}
+      <input type="hidden" name={TIME_ZONE_FIELD} value={form.context.i18n.timeZone} />
       {form.collection.fields.map((field) => (
         <FieldInput
           key={field.name}

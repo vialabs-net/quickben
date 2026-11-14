@@ -2,7 +2,8 @@
 
 import { getAdminI18n } from "@quickben/admin";
 import { parseFormData } from "@quickben/admin/forms";
-import { getQuickben, QuickbenError, ValidationError } from "@quickben/core";
+import { createAdminI18n } from "@quickben/admin/i18n";
+import { getQuickben, isTimeZone, QuickbenError, ValidationError } from "@quickben/core";
 import { getRequestContext } from "@quickben/next";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
@@ -20,7 +21,7 @@ import { toGrant } from "../entitlements";
 import { MEMBERSHIPS, ORGANIZATIONS } from "../options";
 
 import { errorCode } from "./feedback";
-import { addedFields, ownMembershipFields, ownOrganizationFields } from "./fields";
+import { addedFields, ownMembershipFields, ownOrganizationFields, TIME_ZONE_FIELD } from "./fields";
 import { getTenancyAdmin } from "./registry";
 
 import type { ModuleEntitlement } from "../entitlements";
@@ -143,7 +144,12 @@ async function addedData(
   own: ReadonlySet<string>,
   formData: FormData,
 ): Promise<Record<string, unknown>> {
-  const i18n = await getAdminI18n(scope.config);
+  const base = await getAdminI18n(scope.config);
+  const zone = text(formData, TIME_ZONE_FIELD);
+  const i18n =
+    zone !== undefined && isTimeZone(zone)
+      ? createAdminI18n({ ...base.data, timeZone: zone })
+      : base;
   const meta = await addedFields(scope.qb, scope.ctx, slug, own, i18n.locale);
   if (!meta) return {};
   const { data, errors } = parseFormData(meta.fields, formData, i18n, "update");

@@ -1,6 +1,6 @@
 import { ForbiddenError, UnauthorizedError } from "@quickben/core";
 
-import { activeModules } from "./entitlements";
+import { activeModules, isExpired, toGrant } from "./entitlements";
 import { accessOf, allCapabilities, capabilitiesOf, MEMBERSHIPS, ORGANIZATIONS } from "./options";
 
 import type { ModuleEntitlement } from "./entitlements";
@@ -289,12 +289,25 @@ function allOrganizations(tenancy: ResolvedTenancy): Tenant {
   };
 }
 
-/** Resolve the tenant of a context, cached per context object. */
-export function tenantOf(
+/** A module of the tenant has expired since it was loaded. */
+function hasExpired(tenant: Tenant): boolean {
+  const entries = tenant.organization?.modules ?? [];
+  return entries.some((entry) => isExpired(entry) && tenant.modules.includes(toGrant(entry).key));
+}
+
+/**
+ * Resolve the tenant of a context, cached per context object. A cached tenant is loaded again
+ * when one of its modules has expired since.
+ */
+export async function tenantOf(
   qb: Quickben,
   tenancy: ResolvedTenancy,
   ctx: RequestContext,
 ): Promise<Tenant> {
   const tag = `${ctx.user?.id ?? ""}|${requestedOrganization(tenancy, ctx) ?? ""}`;
-  return cached(tenantCache, ctx, qb, tag, () => loadTenant(qb, tenancy, ctx));
+  const load = () => loadTenant(qb, tenancy, ctx);
+  const tenant = await cached(tenantCache, ctx, qb, tag, load);
+  if (!hasExpired(tenant)) return tenant;
+  tenantCache.delete(ctx);
+  return cached(tenantCache, ctx, qb, tag, load);
 }

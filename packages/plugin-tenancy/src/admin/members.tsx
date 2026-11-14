@@ -15,7 +15,7 @@ import {
 import { getQuickben } from "@quickben/core";
 import { getRequestContext } from "@quickben/next";
 
-import { activeModules } from "../entitlements";
+import { isExpired, moduleKeys } from "../entitlements";
 import { MEMBERSHIPS, getTenancy } from "../options";
 
 import {
@@ -306,10 +306,19 @@ export function createMembersPage(config: QuickbenConfig, key: string) {
     const tenancy = getTenancy(qb);
     const roles = tenancy.roles.map((role) => role.name);
     const labels = new Map(qb.config.modules.map((module) => [module.key, module.label]));
-    const modules = activeModules(tenant.organization.modules).map((moduleKey) => ({
-      key: moduleKey,
-      label: i18n.text(labels.get(moduleKey) ?? moduleKey),
-    }));
+    // Expired modules stay in the list, so saving a member keeps their grants as they are.
+    const expired = new Set(
+      tenant.organization.modules
+        .filter((entry) => isExpired(entry))
+        .flatMap((e) => moduleKeys([e])),
+    );
+    const modules = moduleKeys(tenant.organization.modules).map((moduleKey) => {
+      const label = i18n.text(labels.get(moduleKey) ?? moduleKey);
+      return {
+        key: moduleKey,
+        label: expired.has(moduleKey) ? `${label} (${t("settings.moduleExpired")})` : label,
+      };
+    });
     const canManage = tenant.capabilities.includes("members:manage");
     const page = await qb.find(
       MEMBERSHIPS,

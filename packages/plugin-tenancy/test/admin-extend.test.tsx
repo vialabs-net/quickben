@@ -52,6 +52,7 @@ const host = definePlugin({
     memberships: {
       title: f.text({ label: "Job title" }),
       seats: f.number({ label: "Seats", integer: true }),
+      since: f.datetime({ label: "Since" }),
     },
   },
 });
@@ -70,6 +71,7 @@ function makeConfig() {
   return defineConfig({
     db: memoryAdapter(),
     collections: [regions, items],
+    modules: [{ key: "sales", label: "Sales", collections: ["items"] }],
     plugins: [tenancy({ scope: ["items"] }), host],
     auth: devAuth(),
   });
@@ -213,6 +215,46 @@ describe("added fields", () => {
     const dialog = document.getElementById(open.getAttribute("commandfor") ?? "")!;
     expect(within(dialog).queryByRole("button", { name: "Save details", hidden: true })).toBeNull();
     expect(within(dialog).getByLabelText<HTMLInputElement>("Job title").disabled).toBe(true);
+  });
+});
+
+describe("review fixes", () => {
+  it("dates of added fields are read in the time zone they were shown in", async () => {
+    actAs(alice);
+    await renderPage("members");
+    expect(document.querySelector<HTMLInputElement>('input[name="qb-time-zone"]')?.value).toBe(
+      "UTC",
+    );
+    const save = (zone: string) =>
+      run(
+        updateMemberDetailsAction,
+        form({ membershipId: ids.carol!, since: "2026-01-15T09:00", "qb-time-zone": zone }),
+      );
+    const qb = await getQuickben(config);
+    await save("America/Santiago");
+    expect((await qb.findById("memberships", ids.carol!, {}, system)).since).toBe(
+      "2026-01-15T12:00:00.000Z",
+    );
+    await save("Not/AZone");
+    expect((await qb.findById("memberships", ids.carol!, {}, system)).since).toBe(
+      "2026-01-15T09:00:00.000Z",
+    );
+  });
+
+  it("expired modules stay ticked in the members table", async () => {
+    const qb = await getQuickben(config);
+    await qb.update(
+      "organizations",
+      ids.acme!,
+      { modules: [{ key: "sales", expiresAt: "2020-01-01T00:00:00Z" }] },
+      system,
+    );
+    await qb.update("memberships", ids.carol!, { modules: ["sales"] }, system);
+    actAs(alice);
+    await renderPage("members");
+    const row = screen.getByRole("row", { name: /carol@example.com/ });
+    const box = within(row).getByRole<HTMLInputElement>("checkbox", { name: "Sales (expired)" });
+    expect(box.checked).toBe(true);
   });
 });
 

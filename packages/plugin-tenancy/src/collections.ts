@@ -1,4 +1,10 @@
-import { ConfigError, defineCollection, fields as f, ValidationError } from "@quickben/core";
+import {
+  ConfigError,
+  defineCollection,
+  fields as f,
+  NotFoundError,
+  ValidationError,
+} from "@quickben/core";
 import { z } from "zod";
 
 import { entitlementList, moduleKeys, storeEntitlements } from "./entitlements";
@@ -123,8 +129,6 @@ async function organizationsWith(
     capability === "read"
       ? statusesWith(tenancy, "full", "limited")
       : statusesWith(tenancy, "full");
-  // Every status is readable: no need to load the organizations.
-  if (capability === "read" && usable.length === tenancy.statuses.length) return ids;
   const active = await rawFind(
     qb,
     ORGANIZATIONS,
@@ -280,8 +284,8 @@ const CASCADE_BATCH = 100;
  */
 async function deleteScoped(tenancy: ResolvedTenancy, qb: Quickben, id: string) {
   const ctx: RequestContext = { ...system, organizationId: id };
-  // Last scoped first: plugins list their collections before the host's.
-  for (const slug of [...tenancy.scope].reverse()) {
+  // Scope order: a parent (for example a template) can delete its children in its own hooks.
+  for (const slug of tenancy.scope) {
     for (;;) {
       const rows = await qb.db.find({
         collection: slug,
@@ -290,8 +294,17 @@ async function deleteScoped(tenancy: ResolvedTenancy, qb: Quickben, id: string) 
         limit: CASCADE_BATCH,
       });
       if (rows.length === 0) break;
-      for (const row of rows) await qb.delete(slug, row.id as string, ctx);
+      for (const row of rows) await deleteIfThere(qb, slug, row.id as string, ctx);
     }
+  }
+}
+
+/** Delete a document unless a hook of an earlier delete already removed it. */
+async function deleteIfThere(qb: Quickben, slug: string, id: string, ctx: RequestContext) {
+  try {
+    await qb.delete(slug, id, ctx);
+  } catch (error) {
+    if (!(error instanceof NotFoundError)) throw error;
   }
 }
 

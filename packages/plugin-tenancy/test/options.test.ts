@@ -6,7 +6,7 @@ import {
   fields as f,
 } from "@quickben/core";
 import { memoryAdapter } from "@quickben/db-memory";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   activeModules,
@@ -292,5 +292,93 @@ describe("deleting an organization", () => {
     await expect(qb.delete("organizations", acme.id, as(alice))).rejects.toThrow("kept");
     expect((await qb.find("guarded", {}, system)).totalDocs).toBe(2);
     expect(await qb.findById("organizations", acme.id, {}, system)).toMatchObject({ id: acme.id });
+  });
+});
+
+describe("review fixes", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("staff with no organization selected do not see organizations closed to staff", async () => {
+    const { qb, acme, globex } = await setup({ statuses: onboarding });
+    await qb.create("posts", { title: "A" }, inOrg(alice, acme.id));
+    await qb.create("posts", { title: "G" }, inOrg(bob, globex.id));
+    await qb.update("organizations", acme.id, { status: "frozen" }, system);
+    const seen = await qb.find("posts", {}, as(staff));
+    expect(seen.docs.map((post) => post.title)).toEqual(["G"]);
+    await expect(qb.find("posts", {}, as(staff))).resolves.toMatchObject({ totalDocs: 1 });
+  });
+
+  it("a stored status that is no longer configured hides the organization", async () => {
+    const { qb, acme } = await setup();
+    await qb.db.update({ collection: "organizations", id: acme.id, data: { status: "retired" } });
+    const found = await qb.find("organizations", {}, as(alice));
+    expect(found.docs.map((org) => org.id)).not.toContain(acme.id);
+  });
+
+  it("a cached tenant drops a module once it expires", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2030-01-01T00:00:00Z"));
+    const { qb, acme } = await setup();
+    await qb.update(
+      "organizations",
+      acme.id,
+      { modules: [{ key: "sales", expiresAt: "2030-01-01T01:00:00Z" }, "reports"] },
+      system,
+    );
+    const ctx = inOrg(alice, acme.id);
+    expect(await canUseModule(qb, ctx, "sales")).toBe(true);
+    vi.setSystemTime(new Date("2030-01-01T02:00:00Z"));
+    expect(await canUseModule(qb, ctx, "sales")).toBe(false);
+    expect(await canUseModule(qb, ctx, "reports")).toBe(true);
+  });
+
+  it("cascade runs in scope order and skips documents a parent hook removed", async () => {
+    const internal = { user: null, overrideAccess: true, internal: true } as const;
+    const children = defineCollection({
+      slug: "children",
+      fields: { name: f.text() },
+      hooks: {
+        beforeDelete: [
+          ({ ctx }) => {
+            if (!(ctx as { internal?: boolean }).internal) throw new Error("delete the parent");
+          },
+        ],
+      },
+    });
+    const parents = defineCollection({
+      slug: "parents",
+      fields: { name: f.text() },
+      hooks: {
+        afterDelete: [
+          async ({ doc, qb }) => {
+            const where = { organization: { eq: doc.organization as string } };
+            for (const child of (await qb.find("children", { where }, system)).docs) {
+              await qb.delete("children", child.id, internal);
+            }
+            // The first parent also removes its sibling.
+            if (doc.name !== "a") return;
+            const [b] = (await qb.find("parents", { where: { name: { eq: "b" } } }, system)).docs;
+            if (b) await qb.delete("parents", b.id, system);
+          },
+        ],
+      },
+    });
+    const qb = await createQuickben(
+      defineConfig({
+        db: memoryAdapter(),
+        collections: [parents, children],
+        plugins: [tenancy({ scope: ["parents", "children"], onOrganizationDelete: "cascade" })],
+      }),
+    );
+    const acme = await qb.create("organizations", { name: "Acme", slug: "acme" }, as(alice));
+    const ctx = inOrg(alice, acme.id);
+    await qb.create("parents", { name: "a" }, ctx);
+    await qb.create("parents", { name: "b" }, ctx);
+    await qb.create("children", { name: "c" }, ctx);
+    await qb.delete("organizations", acme.id, as(alice));
+    expect((await qb.find("parents", {}, system)).totalDocs).toBe(0);
+    expect((await qb.find("children", {}, system)).totalDocs).toBe(0);
   });
 });
