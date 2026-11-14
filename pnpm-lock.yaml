@@ -244,6 +244,15 @@ importers:
       '@quickben/plugin-tenancy':
         specifier: workspace:^
         version: link:../../packages/plugin-tenancy
+      '@quickben/storage-gcs':
+        specifier: workspace:^
+        version: link:../../packages/storage-gcs
+      '@quickben/storage-local':
+        specifier: workspace:^
+        version: link:../../packages/storage-local
+      '@quickben/storage-s3':
+        specifier: workspace:^
+        version: link:../../packages/storage-s3
       '@quickben/tsconfig':
         specifier: workspace:*
         version: link:../../tooling/tsconfig

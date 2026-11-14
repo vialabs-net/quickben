@@ -1,0 +1,34 @@
+---
+title: Local storage
+description: "@quickben/storage-local: files in a local directory, for development, tests and one server."
+---
+
+# Local storage
+
+`@quickben/storage-local` keeps files in a directory. Use it in development, tests, one server or a shared volume.
+
+```sh
+pnpm add @quickben/storage-local
+```
+
+```ts
+import { defineConfig } from "@quickben/core";
+import { memoryAdapter } from "@quickben/db-memory";
+import { localFileStorage } from "@quickben/storage-local";
+
+export default defineConfig({
+  db: memoryAdapter(),
+  storage: localFileStorage({ root: "./uploads" }),
+  collections: [],
+});
+```
+
+| Behavior     | Details                                                                        |
+| ------------ | ------------------------------------------------------------------------------ |
+| `root`       | Created on the first write. Relative paths resolve from the working directory. |
+| Keys         | Checked with `assertStorageKey` and resolved inside `root`.                    |
+| Writes       | To a temporary file, then renamed.                                             |
+| Content type | From the key's extension.                                                      |
+| Signed URLs  | Not supported. Serve files with the route handlers.                            |
+
+Add the directory to `.gitignore`. On serverless hosts the filesystem is not shared or kept: use [GCS](/docs/storage/gcs) or [S3](/docs/storage/s3).

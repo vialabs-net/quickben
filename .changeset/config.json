@@ -19,7 +19,10 @@
       "@quickben/plugin-connections",
       "@quickben/plugin-doc-reader",
       "@quickben/plugin-templates",
-      "@quickben/plugin-tenancy"
+      "@quickben/plugin-tenancy",
+      "@quickben/storage-gcs",
+      "@quickben/storage-local",
+      "@quickben/storage-s3"
     ]
   ],
   "linked": [],

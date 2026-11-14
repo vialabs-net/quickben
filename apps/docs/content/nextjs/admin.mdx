@@ -102,16 +102,17 @@ Relation columns show the title of the related document.
 
 ![Edit form](/screens/admin-edit.webp)
 
-| Field type                 | Input                                                  |
-| -------------------------- | ------------------------------------------------------ |
-| text, email, url           | `<input>` of that type, with length limits             |
-| textarea                   | `<textarea>`                                           |
-| number                     | `<input type="number">`, `step` 1 for integers         |
-| boolean                    | Checkbox                                               |
-| date / datetime            | `date` / `datetime-local` input in the admin time zone |
-| select / select `many`     | `<select>` / checkbox group                            |
-| relation / relation `many` | Search box with keyboard support, chips for many       |
-| json                       | Textarea with live syntax check and Format button      |
+| Field type                 | Input                                                               |
+| -------------------------- | ------------------------------------------------------------------- |
+| text, email, url           | `<input>` of that type, with length limits                          |
+| textarea                   | `<textarea>`                                                        |
+| number                     | `<input type="number">`, `step` 1 for integers                      |
+| boolean                    | Checkbox                                                            |
+| date / datetime            | `date` / `datetime-local` input in the admin time zone              |
+| select / select `many`     | `<select>` / checkbox group                                         |
+| relation / relation `many` | Search box with keyboard support, chips for many                    |
+| json                       | Textarea with live syntax check and Format button                   |
+| file                       | File input with `accept`, size check, preview and a remove checkbox |
 
 | Field option                             | Effect                                                  |
 | ---------------------------------------- | ------------------------------------------------------- |
@@ -125,6 +126,8 @@ Relation columns show the title of the related document.
 | `admin.component`                        | Name of a [custom component](#custom-field-components). |
 
 Validation errors from the local API are shown next to their field. The first invalid field gets focus.
+
+**File fields.** The form shows the stored file (an image, or a PDF in a `<details>` preview) with a download link, and previews a chosen file before saving. Files larger than `maxBytes` block submit. Without a new file the stored one is kept; the "Remove file" checkbox clears a field that is not required. Previews and links use `GET <apiBasePath>/:collection/:id/:field` of the [route handlers](/docs/nextjs/route-handlers#files). Uploads go through the server function, whose body is limited to 1 MB by default: raise `experimental.serverActions.bodySizeLimit` in `next.config` for larger files.
 
 ## Config the admin reads
 
@@ -149,6 +152,7 @@ Validation errors from the local API are shown next to their field. The first in
 | ---------------- | -------- | ------------------------------------------------------------------------- |
 | `serverFunction` | built-in | Server function for saves, deletes and relation searches.                 |
 | `basePath`       | `/admin` | URL path of the admin route.                                              |
+| `apiBasePath`    | `/api`   | URL path of the route handlers, for file previews and downloads.          |
 | `signInHref`     | none     | Link shown to anonymous users who cannot read anything.                   |
 | `components`     | `{}`     | Custom field components by name.                                          |
 | `views`          | `{}`     | Replace the list or edit view of a collection, by slug.                   |

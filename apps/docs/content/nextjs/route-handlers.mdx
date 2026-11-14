@@ -23,17 +23,18 @@ No `next.config` wrapper is needed.
 
 ## Routes
 
-| Route                     | Local API call                              | Success |
-| ------------------------- | ------------------------------------------- | ------- |
-| `GET /_meta`              | [Collections the user can read](#get-_meta) | 200     |
-| `GET /:collection`        | `qb.find`                                   | 200     |
-| `GET /:collection/:id`    | `qb.findById`                               | 200     |
-| `POST /:collection`       | `qb.create`                                 | 201     |
-| `PATCH /:collection/:id`  | `qb.update`                                 | 200     |
-| `DELETE /:collection/:id` | `qb.delete` (returns the deleted document)  | 200     |
+| Route                         | Local API call                              | Success |
+| ----------------------------- | ------------------------------------------- | ------- |
+| `GET /_meta`                  | [Collections the user can read](#get-_meta) | 200     |
+| `GET /:collection`            | `qb.find`                                   | 200     |
+| `GET /:collection/:id`        | `qb.findById`                               | 200     |
+| `POST /:collection`           | `qb.create`                                 | 201     |
+| `PATCH /:collection/:id`      | `qb.update`                                 | 200     |
+| `DELETE /:collection/:id`     | `qb.delete` (returns the deleted document)  | 200     |
+| `GET /:collection/:id/:field` | `qb.readFile`: [streams a file](#files)     | 200     |
 
 - The user comes from `config.auth.getUser(req)` on every request. Access rules and hooks run as in the [local API](/docs/concepts/local-api).
-- Bodies must be JSON objects sent with `Content-Type: application/json`. `id`, `createdAt` and `updatedAt` are removed from bodies.
+- Bodies are JSON objects sent with `Content-Type: application/json`, or [multipart forms](#files) with files. `id`, `createdAt` and `updatedAt` are removed from bodies.
 - Responses have `Cache-Control: private, no-store`.
 
 ## Options
@@ -51,12 +52,39 @@ export const { GET, POST, PATCH, DELETE } = createRouteHandlers(config, {
 });
 ```
 
-| Option         | Default          | Purpose                                                                 |
-| -------------- | ---------------- | ----------------------------------------------------------------------- |
-| `basePath`     | `/api`           | URL path of the catch-all route.                                        |
-| `maxLimit`     | `100`            | Largest `limit` of `GET /:collection`.                                  |
-| `csrf`         | `{}`             | Same-origin check on mutating methods. `{ trustedOrigins }` or `false`. |
-| `maxBodyBytes` | `1048576` (1 MB) | Largest `POST` / `PATCH` body. Larger bodies get `413`.                 |
+| Option           | Default            | Purpose                                                                 |
+| ---------------- | ------------------ | ----------------------------------------------------------------------- |
+| `basePath`       | `/api`             | URL path of the catch-all route.                                        |
+| `maxLimit`       | `100`              | Largest `limit` of `GET /:collection`.                                  |
+| `csrf`           | `{}`               | Same-origin check on mutating methods. `{ trustedOrigins }` or `false`. |
+| `maxBodyBytes`   | `1048576` (1 MB)   | Largest `POST` / `PATCH` body. Larger bodies get `413`.                 |
+| `maxUploadBytes` | `10485760` (10 MB) | Largest multipart body. Larger bodies get `413`.                        |
+
+## Files
+
+**Upload.** `POST /:collection` and `PATCH /:collection/:id` accept `multipart/form-data`. The `_payload` part is a JSON object with the other fields. Every other part is one file, named after its [file field](/docs/storage).
+
+```ts
+const form = new FormData();
+form.append("_payload", JSON.stringify({ title: "Lease" }));
+form.append("signed", new File([new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d])], "lease.pdf"));
+await fetch("/api/contracts", { method: "POST", body: form });
+```
+
+A string part other than `_payload`, or two files for one field, is a `400`.
+
+**Download.** `GET /:collection/:id/:field` streams the file through `qb.readFile`, so it needs read access to the document and the field. Unreadable, missing and non-file fields are `404`.
+
+| Header                    | Value                                                                                  |
+| ------------------------- | -------------------------------------------------------------------------------------- |
+| `Content-Type`            | The type found from the bytes (`text/plain; charset=utf-8` for text).                  |
+| `Content-Disposition`     | `inline` for images, PDFs and text; `attachment` for other types and with `?download`. |
+| `X-Content-Type-Options`  | `nosniff`                                                                              |
+| `Content-Security-Policy` | `default-src 'none'; sandbox` (PDFs: `default-src 'none'; object-src 'self'`)          |
+| `ETag`                    | The SHA-256. `If-None-Match` gets `304`.                                               |
+| `Cache-Control`           | `private, no-cache`                                                                    |
+
+Only `download` is allowed in the query string. The route never redirects.
 
 ## Query string
 

@@ -17,24 +17,27 @@ import config from "@/quickben.config";
 export const { GET, POST, PATCH, DELETE } = createRouteHandlers(config);
 ```
 
-| Route                     | Local API call                             | Success |
-| ------------------------- | ------------------------------------------ | ------- |
-| `GET /_meta`              | see below                                  | 200     |
-| `GET /:collection`        | `qb.find`                                  | 200     |
-| `GET /:collection/:id`    | `qb.findById`                              | 200     |
-| `POST /:collection`       | `qb.create`                                | 201     |
-| `PATCH /:collection/:id`  | `qb.update`                                | 200     |
-| `DELETE /:collection/:id` | `qb.delete` (returns the deleted document) | 200     |
+| Route                         | Local API call                             | Success |
+| ----------------------------- | ------------------------------------------ | ------- |
+| `GET /_meta`                  | see below                                  | 200     |
+| `GET /:collection`            | `qb.find`                                  | 200     |
+| `GET /:collection/:id`        | `qb.findById`                              | 200     |
+| `POST /:collection`           | `qb.create`                                | 201     |
+| `PATCH /:collection/:id`      | `qb.update`                                | 200     |
+| `DELETE /:collection/:id`     | `qb.delete` (returns the deleted document) | 200     |
+| `GET /:collection/:id/:field` | `qb.readFile`: streams a file              | 200     |
 
-| Option         | Default          | Purpose                                                                 |
-| -------------- | ---------------- | ----------------------------------------------------------------------- |
-| `basePath`     | `/api`           | URL path of the catch-all route.                                        |
-| `maxLimit`     | `100`            | Largest `limit` of `GET /:collection`.                                  |
-| `csrf`         | `{}`             | Same-origin check on mutating methods. `{ trustedOrigins }` or `false`. |
-| `maxBodyBytes` | `1048576` (1 MB) | Largest `POST` / `PATCH` body. Larger bodies get `413`.                 |
+| Option           | Default            | Purpose                                                                 |
+| ---------------- | ------------------ | ----------------------------------------------------------------------- |
+| `basePath`       | `/api`             | URL path of the catch-all route.                                        |
+| `maxLimit`       | `100`              | Largest `limit` of `GET /:collection`.                                  |
+| `csrf`           | `{}`               | Same-origin check on mutating methods. `{ trustedOrigins }` or `false`. |
+| `maxBodyBytes`   | `1048576` (1 MB)   | Largest `POST` / `PATCH` body. Larger bodies get `413`.                 |
+| `maxUploadBytes` | `10485760` (10 MB) | Largest multipart body. Larger bodies get `413`.                        |
 
 - The user comes from `config.auth.getUser(req)` on every request.
-- Bodies must be JSON objects sent with `Content-Type: application/json`. `id`, `createdAt` and `updatedAt` are removed from bodies.
+- Bodies are JSON objects (`application/json`), or `multipart/form-data` with a `_payload` JSON part and one file part per file field. `id`, `createdAt` and `updatedAt` are removed from bodies.
+- File downloads set `Content-Type` from the stored type, `Content-Disposition` (`inline` for images, PDFs and text; `attachment` otherwise or with `?download`), `X-Content-Type-Options: nosniff`, a `sandbox` CSP (not for PDFs) and an `ETag`. They never redirect.
 - Responses have `Cache-Control: private, no-store`.
 
 ### Query string

@@ -8,19 +8,20 @@ pnpm add @quickben/core
 
 ## Exports
 
-| Export                                                                                         | Purpose                                                                                                                     |
-| ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `defineCollection`                                                                             | Define a collection. Types are inferred from its fields.                                                                    |
-| `fields`                                                                                       | Field factories: `text`, `textarea`, `email`, `url`, `number`, `boolean`, `date`, `datetime`, `select`, `relation`, `json`. |
-| `defineConfig`                                                                                 | Combine collections, plugins, auth and the adapter.                                                                         |
-| `definePlugin`, `extendCollection`                                                             | Write plugins that add or change collections.                                                                               |
-| `getQuickben`, `createQuickben`                                                                | Get the local API (`find`, `findById`, `count`, `create`, `update`, `delete`, `transaction`).                               |
-| `checkAccess`, `checkFieldAccess`                                                              | Evaluate collection or field access rules without touching data (for UI and HTTP layers).                                   |
-| `formatDateValue`, `zonedTimeToUtc`, `localDateTime`, `dateInTimeZone`                         | Time zone helpers on `Intl`. Core never uses the server time zone.                                                          |
-| `devAuth`                                                                                      | Development-only auth adapter that trusts a header.                                                                         |
-| `QuickbenError` and subclasses                                                                 | Errors with stable `code` and suggested HTTP `status`.                                                                      |
-| `matchesWhere`, `compareValues`, `compareBySort`                                               | Reference query semantics, for adapter authors.                                                                             |
-| `InferDoc`, `InferCreateInput`, `InferUpdateInput`, `InferWhere`, `InferSort`, `InferRegistry` | Type helpers.                                                                                                               |
+| Export                                                                                         | Purpose                                                                                                                             |
+| ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `defineCollection`                                                                             | Define a collection. Types are inferred from its fields.                                                                            |
+| `fields`                                                                                       | Field factories: `text`, `textarea`, `email`, `url`, `number`, `boolean`, `date`, `datetime`, `select`, `relation`, `json`, `file`. |
+| `defineConfig`                                                                                 | Combine collections, plugins, auth and the adapter.                                                                                 |
+| `definePlugin`, `extendCollection`                                                             | Write plugins that add or change collections.                                                                                       |
+| `getQuickben`, `createQuickben`                                                                | Get the local API (`find`, `findById`, `count`, `create`, `update`, `delete`, `transaction`, `readFile`).                           |
+| `checkAccess`, `checkFieldAccess`                                                              | Evaluate collection or field access rules without touching data (for UI and HTTP layers).                                           |
+| `formatDateValue`, `zonedTimeToUtc`, `localDateTime`, `dateInTimeZone`                         | Time zone helpers on `Intl`. Core never uses the server time zone.                                                                  |
+| `StorageAdapter`, `memoryStorage`, `assertStorageKey`, `sniffMime`, `detectMime`               | File storage contract and helpers. See "Files" below.                                                                               |
+| `devAuth`                                                                                      | Development-only auth adapter that trusts a header.                                                                                 |
+| `QuickbenError` and subclasses                                                                 | Errors with stable `code` and suggested HTTP `status`.                                                                              |
+| `matchesWhere`, `compareValues`, `compareBySort`                                               | Reference query semantics, for adapter authors.                                                                                     |
+| `InferDoc`, `InferCreateInput`, `InferUpdateInput`, `InferWhere`, `InferSort`, `InferRegistry` | Type helpers.                                                                                                                       |
 
 ## Example
 
@@ -58,6 +59,16 @@ Every call takes a request context: `qb.find("posts", { limit: 10 }, { user })`.
 | `CONFIG`       | 500    | The config is invalid.                                          |
 
 See [ARCHITECTURE.md](../../ARCHITECTURE.md) for the query model and the adapter contract.
+
+## Files
+
+| Part          | Use                                                                                                                                            |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `storage`     | `defineConfig({ storage })`: default `StorageAdapter` of file fields. Adapters: `memoryStorage()`, `@quickben/storage-local`, `-gcs`, `-s3`.   |
+| `f.file()`    | `{ accept, maxBytes, storage }`. Stores `{ key, name, mime, size, sha256 }`. Input: `Blob`, `{ name, bytes }`, the stored reference or `null`. |
+| Checks        | Size, empty, type from the first bytes, `accept`, `validate`. All uploads are checked before any is stored.                                    |
+| Cleanup       | Replaced and deleted files are removed after the commit; files of a failed write are removed.                                                  |
+| `qb.readFile` | `(slug, id, field, ctx)` → `{ file, body, size }`. Needs read access to the document and the field.                                            |
 
 ## Field access, afterCommit, time zones
 

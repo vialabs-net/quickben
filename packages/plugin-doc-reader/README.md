@@ -8,14 +8,15 @@ pnpm add @quickben/plugin-doc-reader ai
 
 ```ts
 import { defineConfig } from "@quickben/core";
-import { docReader, localFileStore } from "@quickben/plugin-doc-reader";
+import { docReader } from "@quickben/plugin-doc-reader";
+import { localFileStorage } from "@quickben/storage-local";
 
 export default defineConfig({
   db,
   collections: [],
   plugins: [
     docReader({
-      files: localFileStore("./uploads"),
+      files: localFileStorage({ root: "./uploads" }), // default: the config storage
       resolveModel, // see "Models"
       types: [invoice], // optional: types shipped with your code
     }),
@@ -184,11 +185,13 @@ Run `DOC_READER_WORKER=1 node worker.js` next to the web app. Both processes use
 
 ## Files
 
-| Store                 | Use                                 |
-| --------------------- | ----------------------------------- |
-| `memoryFileStore()`   | Default. Tests and demos.           |
-| `localFileStore(dir)` | One server or a shared volume.      |
-| your own `FileStore`  | S3, GCS: `read`, `write`, `delete`. |
+Files are kept in a `StorageAdapter` from `@quickben/core`: `files`, else the config `storage`, else `memoryStorage()` (tests and demos only).
+
+| Deprecated            | Use instead                                                       |
+| --------------------- | ----------------------------------------------------------------- |
+| `FileStore`           | `StorageAdapter`. A `FileStore` still works in `files`.           |
+| `memoryFileStore()`   | `memoryStorage()` from `@quickben/core`.                          |
+| `localFileStore(dir)` | `localFileStorage({ root: dir })` from `@quickben/storage-local`. |
 
 Uploads are checked by their first bytes: PDF, JPEG, PNG or WebP, at most `maxFileBytes` (20 MB).
 
@@ -248,7 +251,7 @@ export default createAdminPage(config, { serverFunction, extensions: [docReaderA
 
 | Option                 | Default               | Purpose                                         |
 | ---------------------- | --------------------- | ----------------------------------------------- |
-| `files`                | `memoryFileStore()`   | Where uploads and samples are kept.             |
+| `files`                | config `storage`      | Where uploads and samples are kept.             |
 | `runner`               | `inProcessRunner()`   | How jobs reach a worker.                        |
 | `resolveModel`         | none                  | Models for `vision-llm` steps.                  |
 | `listModels`           | none                  | Model pickers in the admin.                     |
