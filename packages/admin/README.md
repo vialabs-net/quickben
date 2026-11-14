@@ -216,6 +216,8 @@ Hover and soft shades are mixed from these with `color-mix()`. Defaults use `lig
 
 The component kit is exported from `@quickben/admin/ui`: `Button`, `ButtonLink`, `Input`, `Textarea`, `Select`, `Checkbox`, `Label` (requires `htmlFor`), `Card`, `Badge`, `Table`, `Toast`. Use it in custom components to match the admin.
 
+`@quickben/admin/forms` exports the generic field inputs for your own forms: `FieldInput`, `loadFieldContext`, `parseFormData`, `editableFields`, `formScope`. Custom pages get the admin `serverFunction` in `PageProps`; pass it to `loadFieldContext` for relation searches.
+
 ## Limits
 
 - A document with the id `new` cannot be opened (the path is the create form).

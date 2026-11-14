@@ -38,7 +38,10 @@ describe("@quickben/admin/forms", () => {
     });
     expect(context.relationOptions.author).toEqual([{ id: author.id, label: "Ada" }]);
     expect(context.relationOptions.tags).toEqual([{ id: "missing", label: "missing" }]);
-    expect(Object.keys(context.labels).sort((a, b) => a.localeCompare(b))).toEqual(["authors", "tags"]);
+    expect(Object.keys(context.labels).sort((a, b) => a.localeCompare(b))).toEqual([
+      "authors",
+      "tags",
+    ]);
     expect(context).toMatchObject({ readOnly: false, scope: "posts-p1", components: {} });
   });
 

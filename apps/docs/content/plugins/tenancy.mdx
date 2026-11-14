@@ -49,7 +49,7 @@ List `tenancy()` after the plugins that add scoped collections.
 
 | Addition             | Fields or behavior                                                                                                                   |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `organizations`      | `name`, `slug` (unique), `status` (`active`, `suspended`), `modules`, `metadata`                                                     |
+| `organizations`      | `name`, `slug` (unique), `status` (see [Statuses](#statuses)), `modules`, `metadata`                                                 |
 | `memberships`        | `organization`, `user`, `email`, `role`, `status` (`invited`, `active`, `disabled`), `modules`, `invitedBy`, `invitedAt`, `joinedAt` |
 | `organization` field | On each collection in `scope`: relation, required, indexed                                                                           |
 | `ctx.organizationId` | Optional key of the request context                                                                                                  |
@@ -58,17 +58,21 @@ An invitation is a membership with status `invited`. The creator of an organizat
 
 ## Options
 
-| Option                  | Default                                | Purpose                                                    |
-| ----------------------- | -------------------------------------- | ---------------------------------------------------------- |
-| `scope`                 | required                               | Slugs of tenant-scoped collections.                        |
-| `roles`                 | owner, admin, member, viewer           | Capabilities per role, highest rank first.                 |
-| `ownerRole`             | `owner`                                | Every organization keeps one active member with this role. |
-| `defaultRole`           | `member`                               | Role of new memberships.                                   |
-| `isPlatformAdmin`       | `user.roles` includes `platform-admin` | Platform staff.                                            |
-| `canCreateOrganization` | any signed-in user                     | Who may create organizations.                              |
-| `defaultModules`        | `"all"`                                | Modules of a new organization.                             |
-| `header`                | `x-quickben-organization`              | Header with the active organization id.                    |
-| `cookie`                | `quickben-organization`                | Cookie with the active organization id.                    |
+| Option                  | Default                                      | Purpose                                                                 |
+| ----------------------- | -------------------------------------------- | ----------------------------------------------------------------------- |
+| `scope`                 | required                                     | Slugs of tenant-scoped collections.                                     |
+| `roles`                 | owner, admin, member, viewer                 | Capabilities per role, highest rank first.                              |
+| `ownerRole`             | `owner`                                      | Every organization keeps one active member with this role.              |
+| `defaultRole`           | `member`                                     | Role of new memberships.                                                |
+| `isPlatformAdmin`       | `user.roles` includes a `platformRoles` role | Platform staff.                                                         |
+| `platformRoles`         | `["platform-admin"]`                         | Roles that make a user platform staff.                                  |
+| `statuses`              | `active` (full), `suspended` (limited)       | Organization statuses. See [Statuses](#statuses).                       |
+| `defaultStatus`         | the first status                             | Status of new organizations.                                            |
+| `onOrganizationDelete`  | `"restrict"`                                 | `"restrict"` or `"cascade"`. See [Deleting](#deleting-an-organization). |
+| `canCreateOrganization` | any signed-in user                           | Who may create organizations.                                           |
+| `defaultModules`        | `"all"`                                      | Modules of a new organization.                                          |
+| `header`                | `x-quickben-organization`                    | Header with the active organization id.                                 |
+| `cookie`                | `quickben-organization`                      | Cookie with the active organization id.                                 |
 
 ## Roles
 
@@ -101,7 +105,7 @@ export const plugin = tenancy({
 | 3     | The cookie                        |
 | 4     | The user's only active membership |
 
-The user must be an active member and the organization must be `active`. Otherwise the call throws `OrganizationError` (403) with a `reason`:
+The user must be an active member and the organization's status must give full access. Otherwise the call throws `OrganizationError` (403) with a `reason`:
 
 | `reason`     | When                                                             |
 | ------------ | ---------------------------------------------------------------- |
@@ -109,7 +113,8 @@ The user must be an active member and the organization must be `active`. Otherwi
 | `ambiguous`  | Several memberships and none selected.                           |
 | `not-member` | The selected organization has no active membership for the user. |
 | `unknown`    | The selected organization does not exist.                        |
-| `suspended`  | The organization is suspended.                                   |
+| `suspended`  | The organization's status is `suspended`.                        |
+| `inactive`   | Another status without full access.                              |
 
 Without a user the error is `UnauthorizedError`.
 
@@ -126,7 +131,7 @@ try {
 }
 ```
 
-**Platform staff** (`isPlatformAdmin`) skip the membership and status checks. With nothing selected they see every organization. With an organization selected they act inside it with every capability.
+**Platform staff** (`isPlatformAdmin`) skip the membership check, and the status check unless the status limits staff. With nothing selected they see every organization. With an organization selected they act inside it with every capability.
 
 ## Scoped collections
 
@@ -142,11 +147,50 @@ Anonymous users are denied. If the collection belongs to a module, the user also
 - Relation fields can only point to documents the user can read, so a document cannot link to another organization's documents.
 - Documents of other organizations are `NOT_FOUND`, also for `update` and `delete`.
 - Platform staff move a document by updating `organization` with no organization selected.
-- In a suspended organization, scoped collections throw `OrganizationError` (`suspended`) for members. They can still read the organization and its memberships, but not manage members or edit it.
+- In an organization whose status is not `full`, scoped collections throw `OrganizationError` for members. See [Statuses](#statuses).
+
+## Statuses
+
+Statuses are data. Each one has an access level for members, and optionally for platform staff (default `full`).
+
+| Level     | Scoped data    | The organization and its memberships           |
+| --------- | -------------- | ---------------------------------------------- |
+| `full`    | read and write | read and write, by role                        |
+| `limited` | no access      | read only                                      |
+| `none`    | no access      | hidden; members still see their own membership |
+
+```ts
+import { tenancy } from "@quickben/plugin-tenancy";
+
+export const plugin = tenancy({
+  scope: ["posts"],
+  statuses: {
+    onboarding: { access: { members: "limited", staff: "full" }, label: { en: "Onboarding" } },
+    active: { access: "full" },
+    suspended: { access: "limited" },
+    closed: { access: "none" },
+  },
+});
+```
+
+New organizations get `onboarding` (the first status). Platform staff set it up, then switch it to `active`. Only platform staff change `status`. A stored status that is no longer configured counts as `none` for members.
+
+The admin label is `label`, else the `tenancy.status.<name>` message, else the name.
 
 ## Modules
 
-Organizations enable modules from `config.modules` in `organization.modules`. Only platform staff change that list. A membership grants a subset in `membership.modules`; an empty list grants every module of the organization.
+Organizations enable modules from `config.modules` in `organization.modules`. Only platform staff change that list. An entry is a module key, or `{ key, expiresAt, source }`:
+
+```ts nocheck
+await qb.update(
+  "organizations",
+  orgId,
+  { modules: ["blog", { key: "reports", expiresAt: "2027-01-01T00:00:00Z", source: "pro" }] },
+  { user: null, overrideAccess: true },
+);
+```
+
+From `expiresAt` on, the module counts as disabled in scoped access, `canUseModule` and `moduleAccess`. `source` is free text, for example a plan key. Entries without expiry or source are stored as plain keys, so existing lists stay valid. `activeModules(organization.modules)` returns the keys in use now. A membership grants a subset in `membership.modules`; an empty list grants every module of the organization.
 
 ```ts
 import { defineCollection, fields as f } from "@quickben/core";
@@ -181,6 +225,15 @@ Platform staff and `overrideAccess` skip the role rules. The last-owner rule alw
 
 Invitations by email need a verified address. Set `emailVerified` on the user in your auth adapter: with `emailVerified: false`, `acceptInvitation` throws `ForbiddenError`, and `listMyInvitations` and membership reads ignore the email. Invitations by user id do not check it. When the field is missing, the email is trusted, so return only verified addresses in `email`.
 
+## Deleting an organization
+
+| `onOrganizationDelete` | Effect                                                                                                                                  |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `"restrict"` (default) | The delete throws `TenancyRuleError` `not-empty` while any scoped document of the organization exists.                                  |
+| `"cascade"`            | Scoped documents are deleted through the local API, in the transaction of the delete. Their hooks run. A failure rolls everything back. |
+
+Memberships are always deleted with the organization.
+
 ## Helpers
 
 Each helper takes `(qb, ctx, …)` and calls the local API, so access rules apply.
@@ -197,6 +250,7 @@ Each helper takes `(qb, ctx, …)` and calls the local API, so access rules appl
 | `updateMembership`    | Change role, status or modules.                               |
 | `removeMember`        | Delete a membership.                                          |
 | `switchOrganization`  | Check access and return the cookie to set.                    |
+| `isPlatformStaff`     | `isPlatformAdmin` of the installed plugin, for `(qb, user)`.  |
 
 ```ts
 import { inviteMember, switchOrganization } from "@quickben/plugin-tenancy";
@@ -227,7 +281,62 @@ export default createAdminPage(config, { extensions: [tenancyAdmin(config)] });
 | `/admin/members`      | List members, invite, change role, status and modules, remove.                          |
 | `/admin/organization` | Rename the organization. Platform staff set status and modules. Create an organization. |
 
-`tenancyAdmin(config, { basePath, group })`: pass the same `basePath` as `createAdminPage` when it is not `/admin`. `group` is the sidebar group (default `Organization`).
+`tenancyAdmin(config, { basePath, group, sections })`: pass the same `basePath` as `createAdminPage` when it is not `/admin`. `group` is the sidebar group (default `Organization`).
+
+### Added fields
+
+Fields you add to `organizations` or `memberships` with `addFields` show up in the admin, with the generic admin inputs and [field access](/docs/concepts/access-control):
+
+| Collection      | Where                                            |
+| --------------- | ------------------------------------------------ |
+| `organizations` | Organization settings form                       |
+| `memberships`   | A **Details** dialog per row on the Members page |
+
+```ts
+import { definePlugin, fields as f } from "@quickben/core";
+
+import type { AccessArgs } from "@quickben/core";
+
+const isStaff = ({ user }: AccessArgs) => user?.roles?.includes("platform-admin") === true;
+
+export const hostFields = definePlugin({
+  name: "host-fields",
+  addFields: {
+    organizations: { plan: f.select({ options: ["free", "pro"], access: { update: isStaff } }) },
+    memberships: { jobTitle: f.text() },
+  },
+});
+```
+
+List it after `tenancy()`. Fields with `admin: { hidden: true }` are left out.
+
+### Settings sections
+
+Each section is a tab at `<basePath>/organization/<key>`, in full and embedded mode. The component is a server component and can use its own server actions.
+
+```tsx nocheck
+import type { OrganizationSectionProps } from "@quickben/plugin-tenancy/admin";
+
+function Billing({ organization, tenant }: OrganizationSectionProps) {
+  return (
+    <p>
+      {organization.name}: {tenant.role}
+    </p>
+  );
+}
+
+tenancyAdmin(config, {
+  sections: [{ key: "billing", label: "Billing", component: Billing, visible: (t) => t.platform }],
+});
+```
+
+| Prop                                                         | Value                                       |
+| ------------------------------------------------------------ | ------------------------------------------- |
+| `organization`, `tenant`                                     | The active organization and the user in it. |
+| `segments`                                                   | Path segments after the key.                |
+| `basePath`, `searchParams`, `i18n`, `serverFunction`, `user` | As on admin pages.                          |
+
+Other plugins export a section object; the host passes it in `sections`.
 
 All changes go through the helpers above, so the guard rails apply. Actions redirect with a code (`?toast=member-updated`, `?error=last-owner`). The pages map codes to fixed messages and ignore unknown codes, so the URL never puts text on the page. The playground runs this with `QUICKBEN_TENANCY=1`.
 
