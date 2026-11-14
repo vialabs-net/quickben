@@ -1,8 +1,9 @@
 .page {
-  --gutter: clamp(1rem, 4vw, 2.5rem);
+  /* Same width and side padding as the Nextra navbar, so the hero lines up with the logo. */
+  --gutter: max(env(safe-area-inset-left), 1.5rem);
   color: var(--qb-ink);
   background: var(--qb-paper);
-  max-width: 76rem;
+  max-width: 90rem;
   margin: 0 auto;
   padding: 0 var(--gutter) 5rem;
   overflow-wrap: break-word;
@@ -34,11 +35,11 @@
 .title {
   font-family: var(--qb-font-display), system-ui, sans-serif;
   font-weight: 800;
-  font-size: clamp(2.5rem, 6.2vw, 4.4rem);
-  line-height: 1.02;
-  letter-spacing: -0.035em;
+  font-size: clamp(2.25rem, 5vw, 3.75rem);
+  line-height: 1.08;
+  letter-spacing: -0.03em;
   margin: 0;
-  max-width: 12ch;
+  max-width: 16ch;
   text-wrap: balance;
 }
 
