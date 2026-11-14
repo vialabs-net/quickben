@@ -157,7 +157,7 @@ export default async function LandingPage() {
 
         <figure className={styles.specimen}>
           <figcaption className={styles.fileName}>quickben.config.ts</figcaption>
-          <div className={styles.code}>{highlighted}</div>
+          <div className={`${styles.code} qb-scroll-fade`}>{highlighted}</div>
           <ol className={styles.notes}>
             {notes.map((note) => (
               <li key={note.line}>{note.text}</li>
@@ -181,7 +181,7 @@ export default async function LandingPage() {
               </dt>
               <dd>
                 <p>{feature.text}</p>
-                <pre className={styles.snippet}>
+                <pre className={`${styles.snippet} qb-scroll-fade`}>
                   <code>{feature.code}</code>
                 </pre>
               </dd>
@@ -226,7 +226,7 @@ export default async function LandingPage() {
             <li key={step.title} className={styles.step}>
               <h3 className={styles.stepTitle}>{step.title}</h3>
               <p>{step.text}</p>
-              <pre className={styles.snippet}>
+              <pre className={`${styles.snippet} qb-scroll-fade`}>
                 <code>{step.code}</code>
               </pre>
             </li>

@@ -59,3 +59,56 @@ article h3 {
   font-family: var(--qb-font-display), system-ui, sans-serif;
   letter-spacing: -0.015em;
 }
+
+/*
+ * Scroll hints for code that scrolls sideways: the code fades out at an edge only while there
+ * is more of it beyond that edge. A scroll-driven animation sizes each fade band; when the
+ * code fits, the timeline is inactive and nothing fades. Browsers without scroll-driven
+ * animations show no fade and keep the scrollbar. Bands start 1px in so the 1px border or
+ * ring of the block stays visible.
+ */
+@property --qb-fade-start {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --qb-fade-end {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+.nextra-code > pre,
+.qb-scroll-fade {
+  --qb-fade-size: 3rem;
+  --qb-fade-inset: 1px;
+  mask:
+    linear-gradient(black, black) no-clip subtract,
+    linear-gradient(to right, black, transparent) var(--qb-fade-inset) var(--qb-fade-inset) /
+      var(--qb-fade-start) calc(100% - 2 * var(--qb-fade-inset)) no-repeat no-clip,
+    linear-gradient(to right, transparent, black) calc(100% - var(--qb-fade-inset))
+      var(--qb-fade-inset) / var(--qb-fade-end) calc(100% - 2 * var(--qb-fade-inset)) no-repeat
+      no-clip;
+  animation:
+    qb-reveal-fade-start linear both,
+    qb-hide-fade-end linear both;
+  /* The shorthand resets the duration to 0s, which turns each fade into an on/off switch. */
+  animation-duration: auto;
+  animation-timeline: scroll(self inline);
+  animation-range:
+    0 var(--qb-fade-size),
+    calc(100% - var(--qb-fade-size)) 100%;
+}
+
+@keyframes qb-reveal-fade-start {
+  to {
+    --qb-fade-start: var(--qb-fade-size);
+  }
+}
+
+@keyframes qb-hide-fade-end {
+  from {
+    --qb-fade-end: var(--qb-fade-size);
+  }
+}
