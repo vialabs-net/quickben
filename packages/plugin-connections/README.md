@@ -75,7 +75,7 @@ Generate a key once with `generateMasterKey()` (32 random bytes, base64) and kee
 | `canRead`            | managers and `user.roles` includes `staff` | Who may read (never secrets).                                   |
 | `fetch`              | global `fetch`                             | Used by provider tests.                                         |
 | `testTimeoutMs`      | `20000`                                    | Test timeout.                                                   |
-| `group`              | `Integrations`                             | Admin sidebar group.                                            |
+| `group`              | `Integrations`                             | Admin sidebar group, a string or one per locale.                |
 
 ## Built-in providers
 
@@ -183,6 +183,18 @@ Pass `{ model: "id" }` to choose a model of the connection, and `factories` for 
 | Credential     | Form (secret write-only), Test, connections that use it, delete (refused while in use) |
 
 Test on a credential that no connection uses opens a dialog that asks for the provider and an optional base URL. Users without `canManage` see the pages read-only.
+
+The pages ship in English and Spanish (catalog `connectionsMessages`, namespace `connections`). Provider texts use optional keys; without one, the provider's own text is shown:
+
+| Key                                                   | Text                       |
+| ----------------------------------------------------- | -------------------------- |
+| `connections.provider.<type>.label`                   | Provider name              |
+| `connections.provider.<type>.description`             | Picker description         |
+| `connections.provider.<type>.field.<key>.label`       | Field label                |
+| `connections.provider.<type>.field.<key>.description` | Field hint                 |
+| `connections.category.<slug>`                         | Picker group (`ai-models`) |
+
+Add them in the admin's `messages` overrides to translate a provider of your own.
 
 ## Key rotation
 

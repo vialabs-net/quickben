@@ -35,8 +35,6 @@ function text(formData: FormData, name: string): string | undefined {
   return typeof value === "string" ? value.trim() : undefined;
 }
 
-const fixFields = "Check the highlighted fields.";
-
 /** `metadata.models.0.id` → the form field `metadata.models`, message `0.id: …`. */
 function fieldOf(path: string, message: string): [string, string] {
   const parts = path.split(".");
@@ -53,10 +51,14 @@ function errorState(error: unknown): FormState {
       fieldErrors[field] ??= message;
     }
     const general = error.issues.find((issue) => issue.path === "");
-    return { status: "error", message: general?.message ?? fixFields, fieldErrors };
+    return {
+      status: "error",
+      message: general ? { text: general.message } : { code: "fixFields" },
+      fieldErrors,
+    };
   }
   if (error instanceof QuickbenError)
-    return { status: "error", message: error.message, fieldErrors: {} };
+    return { status: "error", message: { text: error.message }, fieldErrors: {} };
   throw error;
 }
 
@@ -71,7 +73,11 @@ export async function saveConnectionAction(
   const { qb, ctx, basePath } = await scopeFor(key);
   const provider = getConnectionsOptions(qb).providers.get(providerType);
   if (!provider)
-    return { status: "error", message: `Unknown provider type "${providerType}"`, fieldErrors: {} };
+    return {
+      status: "error",
+      message: { code: "unknownProvider", type: providerType },
+      fieldErrors: {},
+    };
   const baseUrl = text(formData, "baseUrl");
   const credential = text(formData, "credential");
   const data = {
@@ -137,26 +143,23 @@ export async function deleteAction(key: string, slug: string, id: string): Promi
   redirect(`${basePath}/${slug}?toast=deleted`);
 }
 
-function view(name: string, outcome: TestOutcome): TestView {
-  const by = outcome.model === undefined ? "Answered" : `${outcome.model} answered`;
-  return outcome.ok
-    ? {
-        status: "done",
-        ok: true,
-        title: `${name} works`,
-        message: `${by} in ${String(outcome.latencyMs)} ms.`,
-      }
-    : {
-        status: "done",
-        ok: false,
-        title: `${name} failed`,
-        message: outcome.error ?? "The provider gave no detail.",
-      };
+function view(subject: "connection" | "credential", outcome: TestOutcome): TestView {
+  return {
+    status: "done",
+    ok: outcome.ok,
+    subject,
+    model: outcome.model ?? null,
+    latencyMs: outcome.latencyMs,
+    error: outcome.ok ? null : (outcome.error ?? null),
+  };
 }
 
-async function runTest(name: string, run: () => Promise<TestOutcome>): Promise<TestView> {
+async function runTest(
+  subject: "connection" | "credential",
+  run: () => Promise<TestOutcome>,
+): Promise<TestView> {
   try {
-    return view(name, await run());
+    return view(subject, await run());
   } catch (error) {
     if (error instanceof ConnectionError && error.reason === "pick-provider") {
       return { status: "pick-provider", message: error.message };
@@ -169,7 +172,7 @@ async function runTest(name: string, run: () => Promise<TestOutcome>): Promise<T
 /** "Test" on a connection. Stores the outcome in `lastTest`. */
 export async function testConnectionAction(key: string, id: string): Promise<TestView> {
   const { qb, ctx } = await scopeFor(key);
-  return runTest("The connection", () => testConnection(qb, id, ctx));
+  return runTest("connection", () => testConnection(qb, id, ctx));
 }
 
 /** "Test" on a credential, against a provider (and URL) or the one of its first connection. */
@@ -181,7 +184,7 @@ export async function testCredentialAction(
   const { qb, ctx } = await scopeFor(key);
   const providerType = input.providerType?.trim();
   const baseUrl = input.baseUrl?.trim();
-  return runTest("The credential", () =>
+  return runTest("credential", () =>
     testCredential(qb, id, ctx, {
       ...(providerType ? { providerType } : {}),
       ...(baseUrl ? { baseUrl } : {}),

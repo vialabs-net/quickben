@@ -1,9 +1,11 @@
 "use client";
 
+import { useAdminI18n } from "@quickben/admin/i18n";
 import { Input, Select, Textarea } from "@quickben/admin/ui";
 import { useState } from "react";
 
 import { ActionForm, FormField } from "./form";
+import { connectionsMessages } from "./messages";
 import { maskedSecret } from "./state";
 
 import type { CredentialKind } from "../provider";
@@ -22,12 +24,6 @@ export interface CredentialFormProps {
   secondary?: ReactNode;
 }
 
-const placeholders: Record<CredentialKind, string> = {
-  api_key: "sk-…",
-  service_account_json: '{ "type": "service_account", … }',
-  basic: "username:password",
-};
-
 /** Create or edit form of a credential. The secret is write-only. */
 export function CredentialForm({
   action,
@@ -38,11 +34,17 @@ export function CredentialForm({
   readOnly,
   secondary,
 }: Readonly<CredentialFormProps>) {
+  const { t } = useAdminI18n().scope(connectionsMessages);
   const scope = "qb-credential";
   const [kind, setKind] = useState<CredentialKind>(values.kind);
   const secretHint = stored
-    ? `${maskedSecret(stored)}. Leave it empty to keep it; it is never shown again.`
-    : "Encrypted when saved and never shown again.";
+    ? t("field.secretKeep", { secret: maskedSecret(stored, t) })
+    : t("field.secretNew");
+  const placeholders: Record<CredentialKind, string> = {
+    api_key: "sk-…",
+    service_account_json: '{ "type": "service_account", … }',
+    basic: t("field.basicPlaceholder"),
+  };
   return (
     <ActionForm
       action={action}
@@ -52,7 +54,7 @@ export function CredentialForm({
       secondary={secondary}
     >
       <div className="qb:grid qb:grid-cols-1 qb:gap-x-5 qb:gap-y-5 qb:md:grid-cols-6">
-        <FormField scope={scope} name="name" label="Name" required>
+        <FormField scope={scope} name="name" label={t("field.name")} required>
           {(control) => (
             <Input
               id={control.id}
@@ -65,7 +67,7 @@ export function CredentialForm({
             />
           )}
         </FormField>
-        <FormField scope={scope} name="kind" label="Kind" required>
+        <FormField scope={scope} name="kind" label={t("field.kind")} required>
           {(control) => (
             <Select
               id={control.id}
@@ -88,7 +90,7 @@ export function CredentialForm({
         <FormField
           scope={scope}
           name="secret"
-          label={stored ? "Replace secret" : "Secret"}
+          label={stored ? t("field.replaceSecret") : t("field.secret")}
           required={!stored}
           hint={secretHint}
           span="full"

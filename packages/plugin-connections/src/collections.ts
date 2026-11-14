@@ -83,7 +83,10 @@ function withoutKeys(data: DocumentData, keys: readonly string[]): DocumentData 
 export function credentialsCollection(state: ResolvedConnections) {
   return defineCollection({
     slug: CREDENTIALS,
-    labels: { singular: "Credential", plural: "Credentials" },
+    labels: {
+      singular: { en: "Credential", es: "Credencial" },
+      plural: { en: "Credentials", es: "Credenciales" },
+    },
     fields: credentialFields(),
     access: rules(state),
     hooks: {
@@ -151,7 +154,10 @@ export function credentialsCollection(state: ResolvedConnections) {
       useAsTitle: "name",
       defaultColumns: ["name", "kind", "last4", "updatedAt"],
       group: state.group,
-      description: "Secrets for connections. Encrypted at rest; never shown again.",
+      description: {
+        en: "Secrets for connections. Encrypted at rest; never shown again.",
+        es: "Secretos para las conexiones. Se guardan cifrados y no se vuelven a mostrar.",
+      },
     },
   });
 }
@@ -231,7 +237,10 @@ async function checkConnection(
 export function connectionsCollection(state: ResolvedConnections) {
   return defineCollection({
     slug: CONNECTIONS,
-    labels: { singular: "Connection", plural: "Connections" },
+    labels: {
+      singular: { en: "Connection", es: "Conexión" },
+      plural: { en: "Connections", es: "Conexiones" },
+    },
     fields: connectionFields(),
     access: rules(state),
     hooks: {
@@ -267,7 +276,10 @@ export function connectionsCollection(state: ResolvedConnections) {
       useAsTitle: "name",
       defaultColumns: ["name", "providerType", "enabled", "updatedAt"],
       group: state.group,
-      description: "External providers and the credential each one uses.",
+      description: {
+        en: "External providers and the credential each one uses.",
+        es: "Proveedores externos y la credencial que usa cada uno.",
+      },
     },
   });
 }

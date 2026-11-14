@@ -2,7 +2,11 @@ import { z } from "zod";
 
 import { CREDENTIAL_KINDS } from "../provider";
 
+import { categoryKey, connectionsMessages, optionalMessage } from "./messages";
+
 import type { AnyProvider, CredentialKind, ProviderLogo } from "../provider";
+import type { ConnectionsT } from "./messages";
+import type { AdminI18n } from "@quickben/admin";
 
 /** A metadata field of the connection form, derived from the provider's Zod schema. */
 export interface FieldView {
@@ -105,13 +109,35 @@ export function describeFields(schema: z.ZodType): FieldView[] {
   });
 }
 
-/** Plain data of a provider for the admin. */
-export function describeProvider(provider: AnyProvider): ProviderView {
+/** A provider's field label and description from the catalog, else its own. */
+function localizeField(t: ConnectionsT, type: string, field: FieldView): FieldView {
+  const prefix = `provider.${type}.field.${field.key}`;
+  return {
+    ...field,
+    label: optionalMessage(t, `${prefix}.label`, field.label),
+    description:
+      field.description === null
+        ? null
+        : optionalMessage(t, `${prefix}.description`, field.description),
+  };
+}
+
+/**
+ * Plain data of a provider for the admin. With `i18n`, texts come from the `connections`
+ * catalog (`provider.<type>.…`, `category.<slug>`) when it has them, else from the provider.
+ */
+export function describeProvider(provider: AnyProvider, i18n?: AdminI18n): ProviderView {
+  const t = i18n?.scope(connectionsMessages).t;
+  const own = (key: string, fallback: string) =>
+    t ? optionalMessage(t, `provider.${provider.type}.${key}`, fallback) : fallback;
+  const fields = describeFields(provider.fields);
   return {
     type: provider.type,
-    label: provider.label,
-    category: provider.category,
-    description: provider.description,
+    label: own("label", provider.label),
+    category: t
+      ? optionalMessage(t, `category.${categoryKey(provider.category)}`, provider.category)
+      : provider.category,
+    description: own("description", provider.description),
     logo: provider.logo ?? null,
     capabilities: [...provider.capabilities],
     baseUrl: {
@@ -120,14 +146,20 @@ export function describeProvider(provider: AnyProvider): ProviderView {
       placeholder: provider.baseUrl.placeholder ?? provider.baseUrl.default ?? null,
     },
     credential: { required: provider.credential.required, kinds: [...provider.credential.kinds] },
-    fields: describeFields(provider.fields),
+    fields: t ? fields.map((field) => localizeField(t, provider.type, field)) : fields,
     testable: provider.test !== undefined,
   };
 }
 
 /** The label of a credential kind. */
-export function kindLabel(kind: string): string {
-  return CREDENTIAL_KINDS.find((k) => k.kind === kind)?.label ?? kind;
+export function kindLabel(kind: string, t: ConnectionsT): string {
+  const known = CREDENTIAL_KINDS.find((k) => k.kind === kind);
+  return known ? t(`kind.${known.kind}`) : kind;
+}
+
+/** The credential kinds with labels for the locale. */
+export function kindOptions(t: ConnectionsT): { kind: CredentialKind; label: string }[] {
+  return CREDENTIAL_KINDS.map(({ kind }) => ({ kind, label: t(`kind.${kind}`) }));
 }
 
 /**

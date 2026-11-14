@@ -6,7 +6,7 @@ import { builtinProviders } from "./providers";
 
 import type { MasterKey, MasterKeyInput } from "./crypto";
 import type { AnyProvider, FetchLike } from "./provider";
-import type { Quickben, QuickbenConfig, QuickbenUser } from "@quickben/core";
+import type { LocalizedText, Quickben, QuickbenConfig, QuickbenUser } from "@quickben/core";
 
 /** Slugs of the collections the plugin adds. */
 export const CREDENTIALS = "credentials";
@@ -37,8 +37,11 @@ export interface ConnectionsOptions {
   fetch?: FetchLike;
   /** Milliseconds before a test gives up. Default 20 000. */
   testTimeoutMs?: number;
-  /** Sidebar group of the two collections in the admin. Default `Integrations`. */
-  group?: string;
+  /**
+   * Sidebar group of the two collections in the admin, one string or one per locale. Default
+   * `Integrations` (`Integraciones` in Spanish).
+   */
+  group?: LocalizedText;
 }
 
 /** Options after defaults are applied. Read them with `getConnectionsOptions(qb)`. */
@@ -50,7 +53,7 @@ export interface ResolvedConnections {
   readonly canRead: (user: QuickbenUser) => boolean;
   readonly fetch: FetchLike;
   readonly testTimeoutMs: number;
-  readonly group: string;
+  readonly group: LocalizedText;
 }
 
 function hasRole(role: string): (user: QuickbenUser) => boolean {
@@ -92,7 +95,7 @@ export function resolveOptions(options: ConnectionsOptions): ResolvedConnections
     canRead: options.canRead ?? ((user) => canManage(user) || staff(user)),
     fetch: options.fetch ?? ((input, init) => globalThis.fetch(input, init)),
     testTimeoutMs: timeout,
-    group: options.group ?? "Integrations",
+    group: options.group ?? { en: "Integrations", es: "Integraciones" },
   };
 }
 
