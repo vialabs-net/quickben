@@ -41,7 +41,25 @@ export const startPurchase = defineEndpoint({
 ```
 
 ```ts filename="quickben.config.ts"
-export default defineConfig({ db, collections, auth, endpoints: [startPurchase] });
+import { defineCollection, defineConfig, devAuth, fields as f } from "@quickben/core";
+import { memoryAdapter } from "@quickben/db-memory";
+
+import { startPurchase } from "./lib/endpoints";
+
+export const purchases = defineCollection({
+  slug: "purchases",
+  fields: {
+    status: f.select({ options: ["draft", "started"], required: true, default: "draft" }),
+    amount: f.number(),
+  },
+});
+
+export default defineConfig({
+  db: memoryAdapter(),
+  collections: [purchases],
+  auth: devAuth(),
+  endpoints: [startPurchase],
+});
 ```
 
 With the [route handlers](/docs/nextjs/route-handlers) this is `POST /api/v1/purchases/:id/start`.
@@ -81,7 +99,7 @@ Types are inferred from the schemas. The handler gets `{ input, qb, ctx, user, r
 ```ts
 import { endpointFactory } from "@quickben/core";
 import type { ConfigRegistry } from "@quickben/core";
-import type { posts, tags } from "../quickben.config";
+import type { posts, tags } from "../collections";
 
 const defineEndpoint = endpointFactory<ConfigRegistry<typeof posts | typeof tags, never>>();
 ```
@@ -128,10 +146,12 @@ Unversioned endpoints are for your own front end. Give external clients versione
 Turn on `bearer` in [`@quickben/auth-firebase`](/docs/auth/firebase). Browsers use the session cookie; the app sends the Firebase ID token.
 
 ```ts filename="lib/auth.ts"
+import { firebaseAuth } from "@quickben/auth-firebase";
+
 export const firebase = firebaseAuth({ bearer: true });
 ```
 
-```ts filename="app (React Native, Swift, Kotlin: any HTTP client)"
+```ts nocheck
 const idToken = await auth.currentUser.getIdToken();
 const res = await fetch("https://example.com/api/v1/purchases/p1/start", {
   method: "POST",
@@ -155,7 +175,7 @@ Bearer requests skip the `Origin` check: a browser cannot send an `Authorization
 
 **Fastify**
 
-```ts filename="server.ts"
+```ts nocheck filename="fastify.ts"
 import { Readable } from "node:stream";
 import Fastify from "fastify";
 import { handleEndpointRequest } from "@quickben/core/http";
@@ -190,7 +210,7 @@ await app.listen({ port: 3000 });
 
 **Plain Node server**
 
-```ts filename="server.ts"
+```ts filename="node-server.ts"
 import { createServer } from "node:http";
 import { Readable } from "node:stream";
 import { handleEndpointRequest } from "@quickben/core/http";
@@ -215,7 +235,7 @@ createServer(async (req, res) => {
     return;
   }
   res.writeHead(response.status, Object.fromEntries(response.headers));
-  if (response.body) Readable.fromWeb(response.body).pipe(res);
+  if (response.body) Readable.fromWeb(response.body as never).pipe(res);
   else res.end();
 }).listen(3000);
 ```
