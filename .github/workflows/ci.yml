@@ -137,6 +137,36 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm turbo run test --filter=@quickben/db-drizzle
 
+  # The playground commits its OpenAPI document. Fail when it is stale or breaks clients.
+  openapi:
+    name: OpenAPI contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      # The CLI imports quickben.config.ts, which needs the built packages.
+      - run: pnpm turbo run build --filter=@quickben/playground^...
+      - name: openapi.json is up to date
+        run: pnpm --filter @quickben/playground openapi:check
+      # A pull request with the "api-breaking" label may break the contract on purpose.
+      - name: No breaking changes against trunk
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'api-breaking') }}
+        run: |
+          git fetch --depth=1 origin trunk
+          if git show origin/trunk:apps/playground/openapi.json > "$RUNNER_TEMP/base.json" 2>/dev/null; then
+            pnpm --filter @quickben/playground exec quickben-openapi diff "$RUNNER_TEMP/base.json" openapi.json
+          else
+            echo "trunk has no apps/playground/openapi.json yet: nothing to compare."
+          fi
+
   scaffold:
     name: create-quickben scaffold
     runs-on: ubuntu-latest
