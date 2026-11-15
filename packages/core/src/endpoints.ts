@@ -181,7 +181,7 @@ function pathSegments(endpoint: { method: string; path: string }): string[] {
       if (!paramSegment.test(segment)) throw invalid(endpoint, `invalid parameter "${segment}"`);
       if (names.has(segment)) throw invalid(endpoint, `parameter "${segment}" is repeated`);
       names.add(segment);
-    } else if (!staticSegment.test(segment)) {
+    } else if (segment === "." || segment === ".." || !staticSegment.test(segment)) {
       throw invalid(endpoint, `invalid segment "${segment}"`);
     }
   }

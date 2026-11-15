@@ -85,3 +85,30 @@ test("authenticated write endpoint publishes and tags a post in one transaction"
   expect(missing.status()).toBe(404);
   expect((await request.put("/api/v1/posts/published")).status()).toBe(405);
 });
+
+test("concurrent publications retain both added tags", async ({ request }) => {
+  const created = await request.post("/api/posts", {
+    headers: editor,
+    data: { title: `Concurrent ${String(Date.now())}` },
+  });
+  expect(created.status()).toBe(201);
+  const post = (await created.json()) as Post;
+  const names = [`first-${post.id}`, `second-${post.id}`];
+  const responses = await Promise.all(
+    names.map((name) =>
+      request.post(`/api/v1/posts/${post.id}/publish`, {
+        headers: editor,
+        data: { tags: [name] },
+      }),
+    ),
+  );
+  for (const response of responses) expect(response.status()).toBe(200);
+  const stored = (await (await request.get(`/api/posts/${post.id}`)).json()) as Post;
+  expect(stored.tags).toHaveLength(2);
+  const tags = await Promise.all(
+    stored.tags.map(
+      async (id) => (await (await request.get(`/api/tags/${id}`)).json()) as { name: string },
+    ),
+  );
+  expect(tags.map((tag) => tag.name)).toEqual(expect.arrayContaining(names));
+});

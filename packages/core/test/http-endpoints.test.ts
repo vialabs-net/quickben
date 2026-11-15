@@ -241,6 +241,46 @@ describe("matching", () => {
     expect(await jsonOf(await call("GET", "/v1/notes/latest"))).toEqual({ latest: true });
   });
 
+  it("returns HEAD errors without a body", async () => {
+    const unauthorized = await call("HEAD", "/echo/a/b");
+    expect(unauthorized?.status).toBe(405);
+    expect(unauthorized?.body).toBeNull();
+    const privateGet = defineEndpoint({ method: "GET", path: "/private", handler: () => 1 });
+    const privateConfig = defineConfig({
+      db: testAdapter(),
+      collections: [],
+      endpoints: [privateGet],
+    });
+    const response = await handleEndpointRequest(
+      privateConfig,
+      new Request(`${BASE}/private`, { method: "HEAD" }),
+    );
+    expect(response?.status).toBe(401);
+    expect(response?.body).toBeNull();
+  });
+
+  it("handles a rejected cancellation of a HEAD response stream", async () => {
+    const cancel = vi.fn().mockRejectedValue(new Error("cancel failed"));
+    const streamed = defineEndpoint({
+      method: "GET",
+      path: "/stream",
+      access: true,
+      handler: () => new Response(new ReadableStream({ cancel })),
+    });
+    const streamConfig = defineConfig({
+      db: testAdapter(),
+      collections: [],
+      endpoints: [streamed],
+    });
+    const response = await handleEndpointRequest(
+      streamConfig,
+      new Request(`${BASE}/stream`, { method: "HEAD" }),
+    );
+    expect(response?.body).toBeNull();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
   it("answers 405 with Allow for a known path and another method", async () => {
     const response = await call("PATCH", "/v1/notes");
     expect(response?.status).toBe(405);
@@ -284,6 +324,38 @@ describe("input", () => {
       query: { x: "1", y: ["2", "3"] },
       body: { n: 1 },
       user: "u1",
+    });
+  });
+
+  it("preserves special parameter names as own properties", async () => {
+    const special = defineEndpoint({
+      method: "GET",
+      path: "/special/:__proto__",
+      access: true,
+      handler: ({ input }) => ({
+        params: input.params,
+        query: input.query,
+        own: Object.hasOwn(input.query, "__proto__"),
+        inherited: "length" in input.query,
+      }),
+    });
+    const specialConfig = defineConfig({
+      db: testAdapter(),
+      collections: [],
+      endpoints: [special],
+    });
+    const response = await handleEndpointRequest(
+      specialConfig,
+      new Request(`${BASE}/special/value?__proto__=a&__proto__=b&constructor=c`),
+    );
+    expect(await jsonOf(response)).toEqual({
+      params: Object.fromEntries([["__proto__", "value"]]),
+      query: Object.fromEntries<string | string[]>([
+        ["__proto__", ["a", "b"]],
+        ["constructor", "c"],
+      ]),
+      own: true,
+      inherited: false,
     });
   });
 

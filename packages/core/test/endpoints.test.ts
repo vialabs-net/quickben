@@ -49,6 +49,8 @@ describe("defineEndpoint", () => {
     ["/a/", "must start"],
     ["/a//b", 'invalid segment ""'],
     ["/a b", "invalid segment"],
+    ["/a/./b", "invalid segment"],
+    ["/a/../b", "invalid segment"],
     ["/a/:1d", "invalid parameter"],
     ["/a/:id/b/:id", "is repeated"],
   ])("refuses the path %s", (path, message) => {

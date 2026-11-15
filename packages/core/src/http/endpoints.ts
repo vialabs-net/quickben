@@ -64,7 +64,7 @@ function requestSegments(url: URL, basePath: string): string[] | null {
 
 function matchPath(endpoint: AnyEndpoint, segments: readonly string[]): Match | null {
   if (endpoint.segments.length !== segments.length) return null;
-  const params: Record<string, string> = {};
+  const params: Record<string, string> = Object.create(null) as Record<string, string>;
   for (const [index, pattern] of endpoint.segments.entries()) {
     const value = segments[index] ?? "";
     if (pattern.startsWith(":")) params[pattern.slice(1)] = value;
@@ -98,7 +98,10 @@ function issuesOf(part: string, error: z.ZodError): ValidationIssue[] {
 }
 
 function queryObject(url: URL): Record<string, string | string[]> {
-  const query: Record<string, string | string[]> = {};
+  const query: Record<string, string | string[]> = Object.create(null) as Record<
+    string,
+    string | string[]
+  >;
   for (const key of new Set(url.searchParams.keys())) {
     const values = url.searchParams.getAll(key);
     query[key] = values.length === 1 ? (values[0] ?? "") : values;
@@ -279,7 +282,7 @@ function withHeaders(response: Response, headers: Record<string, string>): Respo
 }
 
 function withoutBody(response: Response): Response {
-  void response.body?.cancel();
+  void response.body?.cancel().catch(() => undefined);
   return new Response(null, response);
 }
 
@@ -352,17 +355,19 @@ export async function handleEndpointRequest(
   const match = matches.find((candidate) => candidate.endpoint.method === (head ? "GET" : method));
   if (!match) {
     const allow = [...new Set(matches.map((candidate) => candidate.endpoint.method))];
-    return errorResponse(
+    const response = errorResponse(
       new HttpError(405, "METHOD_NOT_ALLOWED", `${method} is not allowed here`, {
         allow: allow.join(", "),
       }),
     );
+    return head ? withoutBody(response) : response;
   }
   const headers = lifecycleHeaders(match.endpoint);
   try {
     const response = withHeaders(await run(config, match, request, url, options), headers);
     return head ? withoutBody(response) : response;
   } catch (error) {
-    return withHeaders(failure(error), headers);
+    const response = withHeaders(failure(error), headers);
+    return head ? withoutBody(response) : response;
   }
 }
