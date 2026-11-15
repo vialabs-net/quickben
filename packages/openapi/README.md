@@ -61,7 +61,7 @@ quickben-openapi diff base.json head.json [--json]
 | `diff`             | `0` no breaking change, `1` breaking changes.            |
 | Bad usage or input | `2`                                                      |
 
-The config module's default export is the config. An `openapi` export holds the generator options; `--title`, `--api-version`, `--server` and `--base-path` override them. TypeScript configs load with `tsx` when the app has it installed, else with Node's type stripping.
+File paths must be inside the working directory. The config module's default export is the config. An `openapi` export holds the generator options; `--title`, `--api-version`, `--server` and `--base-path` override them. TypeScript configs load with `tsx` when the app has it installed, else with Node's type stripping.
 
 ## Breaking changes
 

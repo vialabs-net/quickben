@@ -107,8 +107,8 @@ A GitHub Actions job, after `pnpm install` and the build:
 - run: pnpm quickben-openapi generate --config quickben.config.ts --out openapi.json --check
 - run: |
     git fetch --depth=1 origin main
-    git show origin/main:openapi.json > "$RUNNER_TEMP/base.json"
-    pnpm quickben-openapi diff "$RUNNER_TEMP/base.json" openapi.json
+    git show origin/main:openapi.json > openapi.base.json
+    pnpm quickben-openapi diff openapi.base.json openapi.json
 ```
 
 This repository runs the same check on the playground (`pnpm --filter @quickben/playground openapi:check`), and skips the diff on pull requests labeled `api-breaking`.

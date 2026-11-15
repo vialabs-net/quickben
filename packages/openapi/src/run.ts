@@ -1,5 +1,5 @@
 import { readFile, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { resolve, sep } from "node:path";
 import { parseArgs } from "node:util";
 
 import { diffOpenApi, formatDiff } from "./diff";
@@ -27,6 +27,16 @@ diff      Classify changes as breaking or not. Exits 1 on breaking changes.
 `;
 
 class UsageError extends Error {}
+
+/** Resolve a path argument. Paths outside the working directory are refused. */
+function inside(cwd: string, file: string): string {
+  const base = resolve(cwd);
+  const resolved = resolve(base, file);
+  if (!resolved.startsWith(base + sep)) {
+    throw new UsageError(`${file} is outside the working directory`);
+  }
+  return resolved;
+}
 
 function generatorOptions(values: Record<string, unknown>, base: OpenApiOptions): OpenApiOptions {
   const options: OpenApiOptions = { ...base };
@@ -59,7 +69,7 @@ async function generate(args: string[], io: CliIo): Promise<number> {
   if (values.check === true && values.out === undefined) {
     throw new UsageError("--check needs --out <file>");
   }
-  const file = resolve(io.cwd, values.config);
+  const file = inside(io.cwd, values.config);
   const loaded = configFromModule(await (io.importModule ?? importModule)(file), values.config);
   const text = stringifyOpenApi(
     generateOpenApi(loaded.config, generatorOptions(values, loaded.options)),
@@ -68,7 +78,7 @@ async function generate(args: string[], io: CliIo): Promise<number> {
     io.stdout(text);
     return 0;
   }
-  const out = resolve(io.cwd, values.out);
+  const out = inside(io.cwd, values.out);
   if (values.check === true) {
     const current = await readFile(out, "utf8").catch(() => undefined);
     if (current === text) {
@@ -105,8 +115,8 @@ async function diff(args: string[], io: CliIo): Promise<number> {
     throw new UsageError("diff needs <base.json> <head.json>");
   }
   const result = diffOpenApi(
-    await readJson(resolve(io.cwd, baseFile)),
-    await readJson(resolve(io.cwd, headFile)),
+    await readJson(inside(io.cwd, baseFile)),
+    await readJson(inside(io.cwd, headFile)),
   );
   io.stdout(values.json === true ? `${JSON.stringify(result, null, 2)}\n` : formatDiff(result));
   return result.breaking > 0 ? 1 : 0;

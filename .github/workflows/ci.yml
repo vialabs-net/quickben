@@ -161,8 +161,8 @@ jobs:
         if: ${{ !contains(github.event.pull_request.labels.*.name, 'api-breaking') }}
         run: |
           git fetch --depth=1 origin trunk
-          if git show origin/trunk:apps/playground/openapi.json > "$RUNNER_TEMP/base.json" 2>/dev/null; then
-            pnpm --filter @quickben/playground exec quickben-openapi diff "$RUNNER_TEMP/base.json" openapi.json
+          if git show origin/trunk:apps/playground/openapi.json > apps/playground/openapi.base.json 2>/dev/null; then
+            pnpm --filter @quickben/playground exec quickben-openapi diff openapi.base.json openapi.json
           else
             echo "trunk has no apps/playground/openapi.json yet: nothing to compare."
           fi

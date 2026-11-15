@@ -172,6 +172,9 @@ describe("quickben-openapi diff", () => {
     const io = cli();
     expect(await io.run("diff", "base.json")).toBe(2);
     expect(io.err()).toContain("diff needs <base.json> <head.json>");
+    const outside = cli();
+    expect(await outside.run("diff", "../base.json", "head.json")).toBe(2);
+    expect(outside.err()).toContain("../base.json is outside the working directory");
     const bad = cli();
     expect(await bad.run("diff", "base.json", "bad.json")).toBe(2);
     expect(bad.err()).toContain("bad.json is not valid JSON");
