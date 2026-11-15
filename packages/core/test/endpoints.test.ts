@@ -62,6 +62,8 @@ describe("defineEndpoint", () => {
     expect(() => endpoint({ deprecated: "soon" })).toThrow("deprecated is not a valid date");
     expect(() => endpoint({ sunset: "never" })).toThrow("sunset is not a valid date");
     expect(() => endpoint({ maxBodyBytes: 0 })).toThrow("maxBodyBytes");
+    expect(() => endpoint({ operationId: "list posts" })).toThrow("operationId must be");
+    expect(endpoint({ operationId: "posts.list_v1" }).operationId).toBe("posts.list_v1");
     expect(() => endpoint({ input: { body: z.object({}) } })).toThrow("GET endpoints have no body");
     expect(() =>
       endpoint({ deprecated: new Date("2026-01-01"), sunset: new Date("2027-01-01") }),

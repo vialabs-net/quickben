@@ -92,6 +92,14 @@ describe("defineCollection", () => {
     );
   });
 
+  it("keeps API options, and leaves them out when not given", () => {
+    const listed = defineCollection({ slug: "a", fields: {}, api: { openapi: true } });
+    expect(listed.api).toEqual({ openapi: true });
+    expect("api" in defineCollection({ slug: "b", fields: {} })).toBe(false);
+    const config = defineConfig({ db: testAdapter(), collections: [listed] });
+    expect(config.collections[0]?.api).toEqual({ openapi: true });
+  });
+
   it("rejects invalid slugs and field names", () => {
     expect(() => defineCollection({ slug: "Posts", fields: {} })).toThrow(ConfigError);
     expect(() => defineCollection({ slug: "p", fields: { "bad-name": f.text() } })).toThrow(

@@ -93,6 +93,7 @@ export function defineCollection<const TSlug extends string, F extends Fields>(
     access: config.access ?? {},
     hooks: config.hooks ?? {},
     admin: config.admin ?? {},
+    ...(config.api ? { api: config.api } : {}),
   };
 }
 

@@ -116,6 +116,8 @@ export interface EndpointDefinition<
    * contract: do not give them to external clients.
    */
   version?: number;
+  /** Name of the operation in OpenAPI documents. Default: built from the method and path. */
+  operationId?: string;
   summary?: string;
   description?: string;
   tags?: readonly string[];
@@ -210,6 +212,9 @@ export function sanitizeEndpoint(
     assertDate(definition, "deprecated", definition.deprecated);
   }
   if (definition.sunset !== undefined) assertDate(definition, "sunset", definition.sunset);
+  if (definition.operationId !== undefined && !/^[A-Za-z_][\w.-]*$/.test(definition.operationId)) {
+    throw invalid(definition, "operationId must be letters, digits, _, . and -");
+  }
   const { maxBodyBytes } = definition;
   if (maxBodyBytes !== undefined && (!Number.isInteger(maxBodyBytes) || maxBodyBytes <= 0)) {
     throw invalid(definition, "maxBodyBytes must be a positive integer");

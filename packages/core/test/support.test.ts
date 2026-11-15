@@ -56,6 +56,17 @@ describe("devAuth", () => {
   const request = (headers: Record<string, string> = {}) =>
     new Request("https://example.com", { headers });
 
+  it("describes its header as a security scheme", () => {
+    expect(devAuth({ header: "x-user" }).securitySchemes).toEqual({
+      devUser: {
+        type: "apiKey",
+        in: "header",
+        name: "x-user",
+        description: "Development only: a user id or a JSON user.",
+      },
+    });
+  });
+
   it("reads a user id or JSON user from the header", async () => {
     const auth = devAuth();
     expect(await auth.getUser(request({ "x-quickben-user": "u1" }))).toEqual({ id: "u1" });

@@ -345,6 +345,12 @@ export interface CollectionAdmin<F extends Fields = Fields> {
   description?: LocalizedText;
 }
 
+/** HTTP API options for a collection. */
+export interface CollectionApi {
+  /** List the CRUD routes of the collection in generated OpenAPI documents. Default `false`. */
+  openapi?: boolean;
+}
+
 /** Input of {@link defineCollection}. */
 export interface CollectionConfig<TSlug extends string = string, F extends Fields = Fields> {
   /** Lowercase identifier: letters, digits, `-` and `_`. Used in URLs and table names. */
@@ -355,6 +361,8 @@ export interface CollectionConfig<TSlug extends string = string, F extends Field
   access?: CollectionAccess<F>;
   hooks?: CollectionHooks<F>;
   admin?: CollectionAdmin<F>;
+  /** HTTP API options, such as `{ openapi: true }`. */
+  api?: CollectionApi;
 }
 
 /** A collection returned by `defineCollection`. */
@@ -365,6 +373,8 @@ export interface Collection<TSlug extends string = string, F extends Fields = Fi
   readonly access: CollectionAccess<F>;
   readonly hooks: CollectionHooks<F>;
   readonly admin: CollectionAdmin<F>;
+  /** HTTP API options. Absent when none were given. */
+  readonly api?: CollectionApi;
 }
 
 /** A hook of any stage, with its arguments erased. */
@@ -381,6 +391,7 @@ export interface AnyCollection {
   readonly access: Partial<Readonly<Record<AccessOperation, AccessFn<object>>>>;
   readonly hooks: { readonly [K in keyof CollectionHooks]?: readonly AnyHook[] };
   readonly admin: Simplify<CollectionAdmin>;
+  readonly api?: CollectionApi;
 }
 
 /** A field with its name and label resolved. */
