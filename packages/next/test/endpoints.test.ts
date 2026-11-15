@@ -81,7 +81,7 @@ describe("custom endpoints in createRouteHandlers", () => {
       request("PUT", "/rest/v1/authors/x/name", {
         user: editor,
         body: { name: "x" },
-        headers: { origin: "https://evil.test" },
+        headers: { origin: "https://evil.test", cookie: "session=u1" },
       }),
     );
     expect(cross.status).toBe(403);

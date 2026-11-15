@@ -16,8 +16,9 @@ export interface EndpointRequestOptions {
   /** URL path the API is mounted at. Default `/api`. */
   basePath?: string;
   /**
-   * Same-origin check on unsafe methods of cookie-authenticated requests. Requests with an
-   * `Authorization: Bearer` header skip it. Pass `false` to turn it off.
+   * Same-origin check on unsafe methods of cookie-authenticated requests. Requests using
+   * header-only credentials skip it. Requests carrying cookies keep the check even with
+   * an `Authorization` header. Pass `false` to turn it off.
    */
   csrf?: CsrfOptions | false;
   /** Largest JSON body in bytes. Default `1_048_576` (1 MB). An endpoint's own limit wins. */
@@ -87,10 +88,6 @@ function findMatches(endpoints: readonly AnyEndpoint[], segments: readonly strin
     .map((endpoint) => matchPath(endpoint, segments))
     .filter((match): match is Match => match !== null)
     .sort((a, b) => moreSpecific(a.endpoint, b.endpoint));
-}
-
-function isBearer(req: Request): boolean {
-  return /^bearer\s+\S/i.test(req.headers.get("authorization") ?? "");
 }
 
 function issuesOf(part: string, error: z.ZodError): ValidationIssue[] {
@@ -306,9 +303,11 @@ async function run(
 ): Promise<Response> {
   const { endpoint } = match;
   const csrf = options.csrf ?? {};
-  if (endpoint.method !== "GET" && csrf !== false && !isBearer(req)) assertSameOrigin(req, csrf);
   const qb = await getQuickben(config);
   const user = config.auth ? await config.auth.getUser(req) : null;
+  if (endpoint.method !== "GET" && csrf !== false && user !== null && req.headers.has("cookie")) {
+    assertSameOrigin(req, csrf);
+  }
   const ctx = { user, req };
   await checkEndpointAccess(endpoint, qb, ctx);
   const input = await parseInput(match, req, url, options.maxBodyBytes ?? 1_048_576);

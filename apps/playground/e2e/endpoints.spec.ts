@@ -58,7 +58,7 @@ test("authenticated write endpoint publishes and tags a post in one transaction"
     403,
   );
   const crossSite = await request.post(path, {
-    headers: { ...editor, origin: "https://evil.example" },
+    headers: { ...editor, cookie: "qb-playground-role=editor", origin: "https://evil.example" },
     data: { tags: [name] },
   });
   expect(crossSite.status()).toBe(403);

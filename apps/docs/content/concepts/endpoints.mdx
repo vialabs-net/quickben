@@ -120,8 +120,8 @@ JSON responses have `Cache-Control: private, no-store` unless `headers` sets it.
 Steps run in this order:
 
 1. Match the path. Static segments win over parameters. A known path with another method gets `405` with `Allow`. `HEAD` runs the `GET` endpoint and drops the body.
-2. CSRF check for `POST`, `PUT`, `PATCH`, `DELETE`. Requests with `Authorization: Bearer` skip it.
-3. Resolve the user with `config.auth`.
+2. Resolve the user with `config.auth`.
+3. Check CSRF for authenticated `POST`, `PUT`, `PATCH`, `DELETE` requests carrying cookies. Header-only credentials skip it.
 4. Access rule. `false` is `401` without a user and `403` with one.
 5. Validate `params`, `query` and `body`. Issues have paths such as `body.amount`.
 6. Run the handler.
@@ -160,7 +160,7 @@ const res = await fetch("https://example.com/api/v1/purchases/p1/start", {
 });
 ```
 
-Bearer requests skip the `Origin` check: a browser cannot send an `Authorization` header to another site without a CORS preflight.
+Bearer requests without cookies skip the `Origin` check. Requests carrying cookies keep the check even with an `Authorization` header, because an auth adapter may prefer the session cookie.
 
 ## Other servers
 

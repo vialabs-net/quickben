@@ -379,19 +379,59 @@ describe("CSRF", () => {
   it("blocks cross-site cookie requests on unsafe methods", async () => {
     const cross = await call("POST", "/v1/notes", {
       body,
-      headers: { "x-user": "u1", origin: "https://evil.test" },
+      headers: { "x-user": "u1", cookie: "session=u1", origin: "https://evil.test" },
     });
     expect(cross?.status).toBe(403);
     const site = await call("POST", "/v1/notes", {
       body,
-      headers: { "x-user": "u1", "sec-fetch-site": "cross-site" },
+      headers: { "x-user": "u1", cookie: "session=u1", "sec-fetch-site": "cross-site" },
     });
     expect(site?.status).toBe(403);
     const same = await call("POST", "/v1/notes", {
       body,
-      headers: { "x-user": "u1", origin: "https://app.test" },
+      headers: { "x-user": "u1", cookie: "session=u1", origin: "https://app.test" },
     });
     expect(same?.status).toBe(201);
+  });
+
+  it("allows header authentication without cookies and rejects mixed cookie credentials", async () => {
+    const header = await call("POST", "/v1/notes", {
+      body,
+      headers: { "x-user": "u1", origin: "https://mobile.test" },
+    });
+    expect(header?.status).toBe(201);
+    const mixed = await call("POST", "/v1/notes", {
+      body,
+      headers: {
+        "x-user": "u1",
+        cookie: "session=u1",
+        authorization: "Bearer ignored-by-cookie-adapter",
+        origin: "https://evil.test",
+      },
+    });
+    expect(mixed?.status).toBe(403);
+  });
+
+  it("allows anonymous unsafe endpoints without checking the origin", async () => {
+    const publicWrite = defineEndpoint({
+      method: "POST",
+      path: "/public",
+      access: true,
+      handler: () => 1,
+    });
+    const publicConfig = defineConfig({
+      db: testAdapter(),
+      collections: [],
+      endpoints: [publicWrite],
+    });
+    const response = await handleEndpointRequest(
+      publicConfig,
+      new Request(`${BASE}/public`, {
+        method: "POST",
+        headers: { origin: "https://other.test", cookie: "unrelated=1" },
+      }),
+    );
+    expect(response?.status).toBe(200);
   });
 
   it("lets Bearer requests, trusted origins, GET and csrf: false through", async () => {
@@ -403,14 +443,14 @@ describe("CSRF", () => {
     const trusted = await call(
       "POST",
       "/v1/notes",
-      { body, headers: { "x-user": "u1", origin: "https://admin.test" } },
+      { body, headers: { "x-user": "u1", cookie: "session=u1", origin: "https://admin.test" } },
       { csrf: { trustedOrigins: ["https://admin.test"] } },
     );
     expect(trusted?.status).toBe(201);
     const off = await call(
       "POST",
       "/v1/notes",
-      { body, headers: { "x-user": "u1", origin: "https://evil.test" } },
+      { body, headers: { "x-user": "u1", cookie: "session=u1", origin: "https://evil.test" } },
       { csrf: false },
     );
     expect(off?.status).toBe(201);
