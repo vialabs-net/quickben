@@ -1,5 +1,6 @@
 import { extendCollection, humanize } from "./collection";
 import { ConfigError } from "./errors";
+import { defaultTimeZone, isTimeZone } from "./time";
 
 import type {
   AnyCollection,
@@ -36,7 +37,11 @@ export function defineConfig<
   for (const plugin of input.plugins ?? []) {
     config = plugin(config);
   }
-  const collections = config.collections.map(sanitizeCollection);
+  const timeZone = input.timeZone ?? defaultTimeZone;
+  if (!isTimeZone(timeZone)) throw new ConfigError(`Unknown time zone "${timeZone}"`);
+  const collections = config.collections.map((collection) =>
+    sanitizeCollection(collection, timeZone),
+  );
   assertConfig(collections, config.modules);
   return {
     db: config.db,
@@ -50,16 +55,30 @@ export function defineConfig<
     modules: config.modules,
     onInit: config.onInit,
     plugins: config.plugins,
+    timeZone,
   };
 }
 
-function sanitizeCollection(collection: AnyCollection): SanitizedCollection {
+/**
+ * Resolve names, labels and time zones. `fields` holds the same sanitized objects as
+ * `fieldList`, so code that looks a field up by name sees its resolved time zone.
+ */
+function sanitizeCollection(collection: AnyCollection, timeZone: string): SanitizedCollection {
   const fieldList = Object.entries(collection.fields).map(([name, field]): SanitizedField => ({
     ...field,
+    ...(field.type === "date" || field.type === "datetime"
+      ? { timeZone: field.timeZone ?? timeZone }
+      : {}),
+    // Fields built without `fields.*` (plain objects in plugins and tests) may omit `access`.
+    access: (field as Partial<typeof field>).access ?? {},
     name,
     label: field.label ?? humanize(name),
   }));
-  return { ...collection, fieldList };
+  return {
+    ...collection,
+    fields: Object.fromEntries(fieldList.map((field) => [field.name, field])),
+    fieldList,
+  };
 }
 
 function assertConfig(collections: readonly SanitizedCollection[], modules: readonly Module[]) {

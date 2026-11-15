@@ -50,6 +50,7 @@ export const posts = defineCollection({
 | `afterRead`      | `doc`                                           | new document or nothing   |
 | `beforeDelete`   | `id`, `doc`                                     | nothing. Throw to cancel. |
 | `afterDelete`    | `id`, `doc`                                     | nothing                   |
+| `afterCommit`    | `operation`, `doc`, `original`                  | nothing                   |
 
 Every hook also gets `user`, `req`, `ctx` (the whole request context), `qb` and `collection`. `qb` is bound to the current transaction. `original` is `null` on create.
 
@@ -63,3 +64,29 @@ Every hook also gets `user`, `req`, `ctx` (the whole request context), `qb` and 
 | read      | access filter AND query → adapter → relations → `afterRead` → `select`                                                                                                           |
 
 When a collection has `afterRead` hooks, core loads full documents and applies `select` after the hooks.
+
+## After commit
+
+`afterCommit` runs after the write transaction commits, for create, update and delete. Use it for side effects on other systems: queues, emails, another database or ORM.
+
+```ts
+import { defineCollection, fields as f } from "@quickben/core";
+
+declare function enqueue(job: string, payload: unknown): Promise<void>;
+
+export const orders = defineCollection({
+  slug: "orders",
+  fields: { total: f.number({ required: true }) },
+  hooks: {
+    afterCommit: [({ operation, doc }) => enqueue("order-changed", { operation, id: doc.id })],
+  },
+});
+```
+
+| Rule                    | Behavior                                                                           |
+| ----------------------- | ---------------------------------------------------------------------------------- |
+| `qb`                    | The local API outside any transaction.                                             |
+| `doc`, `original`       | Delete: both are the deleted document. Create: `original` is `null`.               |
+| Errors                  | Logged with `console.error`. The write stays.                                      |
+| Inside `qb.transaction` | Hooks wait for the outermost commit and run in write order. A rollback drops them. |
+| Return of the write     | The call resolves after its `afterCommit` hooks finish.                            |

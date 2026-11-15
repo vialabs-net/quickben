@@ -1,4 +1,4 @@
-import { ConflictError, QuickbenError, ValidationError } from "@quickben/core";
+import { ConflictError, ForbiddenError, QuickbenError, ValidationError } from "@quickben/core";
 
 import type { ErrorCode } from "@quickben/core";
 
@@ -11,7 +11,10 @@ export interface ErrorBody {
   error: {
     code: HttpErrorCode;
     message: string;
-    /** `{ issues }` for `VALIDATION`, `{ field }` for `CONFLICT`, else `null`. */
+    /**
+     * `{ issues }` for `VALIDATION`, `{ field }` for `CONFLICT`, `{ fields }` for `FORBIDDEN`
+     * from field access rules, else `null`.
+     */
     details: Record<string, unknown> | null;
   };
 }
@@ -39,6 +42,7 @@ export class HttpError extends Error {
 function details(error: QuickbenError): Record<string, unknown> | null {
   if (error instanceof ValidationError) return { issues: error.issues };
   if (error instanceof ConflictError) return { field: error.field ?? null };
+  if (error instanceof ForbiddenError && error.fields.length > 0) return { fields: error.fields };
   return null;
 }
 

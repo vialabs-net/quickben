@@ -68,18 +68,18 @@ Relation columns show the title of the related document.
 
 ### Forms
 
-| Field type                 | Input                                             |
-| -------------------------- | ------------------------------------------------- |
-| text, email, url           | `<input>` of that type, with length limits        |
-| textarea                   | `<textarea>`                                      |
-| number                     | `<input type="number">`, `step` 1 for integers    |
-| boolean                    | checkbox                                          |
-| date / datetime            | `date` / `datetime-local` input (UTC)             |
-| select / select `many`     | `<select>` / checkbox group                       |
-| relation / relation `many` | search box with keyboard support, chips for many  |
-| json                       | textarea with live syntax check and Format button |
+| Field type                 | Input                                                  |
+| -------------------------- | ------------------------------------------------------ |
+| text, email, url           | `<input>` of that type, with length limits             |
+| textarea                   | `<textarea>`                                           |
+| number                     | `<input type="number">`, `step` 1 for integers         |
+| boolean                    | checkbox                                               |
+| date / datetime            | `date` / `datetime-local` input in the admin time zone |
+| select / select `many`     | `<select>` / checkbox group                            |
+| relation / relation `many` | search box with keyboard support, chips for many       |
+| json                       | textarea with live syntax check and Format button      |
 
-Field options: `admin.hidden` (not rendered, not sent), `admin.readOnly` (shown disabled, not sent), `admin.width` (`full`, `half`, `third`), `description` (hint text). Validation errors from the local API are shown next to their field; the first invalid field gets focus.
+Field options: `admin.hidden` (not rendered, not sent), `admin.readOnly` (shown disabled, not sent), field `access.read` denied (not in lists, filters or forms), `access.create` / `access.update` denied (shown disabled, not sent), `admin.width` (`full`, `half`, `third`), `description` (hint text). Validation errors from the local API are shown next to their field; the first invalid field gets focus.
 
 ## Extensions
 
@@ -120,16 +120,16 @@ defineConfig({
   admin: {
     locale: "es", // or a function of the request, see below
     messages: { es: { "admin.nav.dashboard": "Inicio" } }, // overrides by locale and key
-    timeZone: "America/Santiago", // dates and times; default UTC
+    timeZone: "America/Santiago", // dates and times; default: the config `timeZone`
   },
 });
 ```
 
-| Setting    | Where                                       | Default |
-| ---------- | ------------------------------------------- | ------- |
-| `locale`   | `admin.locale` or `createAdminPage` options | `en`    |
-| `messages` | same                                        | none    |
-| `timeZone` | same                                        | `UTC`   |
+| Setting    | Where                                       | Default                       |
+| ---------- | ------------------------------------------- | ----------------------------- |
+| `locale`   | `admin.locale` or `createAdminPage` options | `en`                          |
+| `messages` | same                                        | none                          |
+| `timeZone` | same                                        | config `timeZone`, then `UTC` |
 
 - `locale` is a BCP 47 tag or `(req) => tag`. `localeFromRequest({ supported: ["en", "es"], cookie: "locale" })` from `@quickben/core` reads the cookie, then `Accept-Language`.
 - Messages fall back from `es-CL` to `es` to English. Unknown keys show the key.
@@ -219,5 +219,4 @@ The component kit is exported from `@quickben/admin/ui`: `Button`, `ButtonLink`,
 ## Limits
 
 - A document with the id `new` cannot be opened (the path is the create form).
-- Datetimes are edited in UTC. `timeZone` changes how they are shown.
 - Validation messages from `@quickben/core` and from your `validate` functions are not translated.

@@ -1,4 +1,4 @@
-import { checkAccess, localize } from "@quickben/core";
+import { checkAccess, checkFieldAccess, localize } from "@quickben/core";
 
 import type {
   AccessOperation,
@@ -32,9 +32,16 @@ export interface FieldMeta {
   minLength?: number;
   maxLength?: number;
   admin: FieldAdmin;
+  /** Time zone of `date` and `datetime` inputs given with offsets or as `Date`. */
+  timeZone?: string;
+  /** Whether the user may set the field on create and on update (field access rules). */
+  access: { create: boolean; update: boolean };
 }
 
-/** A collection as described by `GET /_meta`. Read access is implied: unreadable ones are left out. */
+/**
+ * A collection as described by `GET /_meta`. Read access is implied: unreadable collections
+ * and fields are left out.
+ */
 export interface CollectionMeta {
   slug: string;
   labels: { singular: string; plural: string };
@@ -76,7 +83,16 @@ export interface MetaOptions {
   locale?: string;
 }
 
-function fieldMeta(field: SanitizedField, locale: string | undefined): FieldMeta {
+interface FieldDenials {
+  create: ReadonlySet<string>;
+  update: ReadonlySet<string>;
+}
+
+function fieldMeta(
+  field: SanitizedField,
+  locale: string | undefined,
+  denied: FieldDenials,
+): FieldMeta {
   return {
     name: field.name,
     type: field.type,
@@ -94,6 +110,10 @@ function fieldMeta(field: SanitizedField, locale: string | undefined): FieldMeta
     ...("minLength" in field ? optional("minLength", field.minLength) : {}),
     ...("maxLength" in field ? optional("maxLength", field.maxLength) : {}),
     admin: field.admin,
+    ...(field.type === "date" || field.type === "datetime"
+      ? optional("timeZone", field.timeZone)
+      : {}),
+    access: { create: !denied.create.has(field.name), update: !denied.update.has(field.name) },
   };
 }
 
@@ -113,21 +133,31 @@ export async function collectionMeta(
 ): Promise<CollectionMeta | null> {
   const { locale } = options;
   if (!(await allowed(collection, "read", ctx))) return null;
-  const [create, update, remove] = await Promise.all([
+  const [create, update, remove, hidden, createDenied, updateDenied] = await Promise.all([
     allowed(collection, "create", ctx),
     allowed(collection, "update", ctx),
     allowed(collection, "delete", ctx),
+    checkFieldAccess(collection, "read", ctx),
+    checkFieldAccess(collection, "create", ctx),
+    checkFieldAccess(collection, "update", ctx),
   ]);
+  const denied = { create: createDenied, update: updateDenied };
+  const readable = (name: string) => !hidden.has(name);
+  const useAsTitle = collection.admin.useAsTitle ?? "id";
   return {
     slug: collection.slug,
     labels: {
       singular: localize(collection.labels.singular, locale),
       plural: localize(collection.labels.plural, locale),
     },
-    fields: collection.fieldList.map((field) => fieldMeta(field, locale)),
+    fields: collection.fieldList
+      .filter((field) => readable(field.name))
+      .map((field) => fieldMeta(field, locale, denied)),
     admin: {
-      useAsTitle: collection.admin.useAsTitle ?? "id",
-      defaultColumns: collection.admin.defaultColumns ? [...collection.admin.defaultColumns] : null,
+      useAsTitle: readable(useAsTitle) ? useAsTitle : "id",
+      defaultColumns: collection.admin.defaultColumns
+        ? collection.admin.defaultColumns.filter(readable)
+        : null,
       group: collection.admin.group === undefined ? null : localize(collection.admin.group, locale),
       hidden: collection.admin.hidden ?? false,
       description:

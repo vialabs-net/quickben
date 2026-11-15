@@ -71,7 +71,7 @@ export const { GET, POST, PATCH, DELETE } = createRouteHandlers(config);
 | ------------------------ | ------ | ---------------------------------------------------------------------------------------------- |
 | `VALIDATION`             | 400    | `{ issues: [{ path, message }] }`                                                              |
 | `UNAUTHORIZED`           | 401    | `null`                                                                                         |
-| `FORBIDDEN`              | 403    | `null` (also CSRF)                                                                             |
+| `FORBIDDEN`              | 403    | `{ fields }` when field rules deny fields in the body, else `null` (also CSRF)                 |
 | `NOT_FOUND`              | 404    | `null` (also unknown routes)                                                                   |
 | `METHOD_NOT_ALLOWED`     | 405    | `null`, `Allow` header                                                                         |
 | `CONFLICT`               | 409    | `{ field }`                                                                                    |
@@ -81,7 +81,7 @@ export const { GET, POST, PATCH, DELETE } = createRouteHandlers(config);
 
 ### `GET /_meta`
 
-`{ title, user, collections, modules }`: collections (fields, labels, admin options, `access: { create, update, delete }`) and modules the user can read. Collections whose read rule returns `false` are left out. A rule that returns a filter counts as allowed. Functions (`validate`, function defaults) are not included.
+`{ title, user, collections, modules }`: collections (fields, labels, admin options, `access: { create, update, delete }`) and modules the user can read. Collections whose read rule returns `false` are left out. A rule that returns a filter counts as allowed. Unreadable fields are left out. Each field has `access: { create, update }` from field rules, and date fields have `timeZone`. Functions (`validate`, function defaults) are not included.
 
 ### CSRF
 

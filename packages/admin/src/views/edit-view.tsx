@@ -78,7 +78,13 @@ export function EditView({
                   key={field.name}
                   field={field}
                   value={doc ? doc[field.name] : initialValue(field)}
-                  context={{ ...context, serverFunction, readOnly, scope, i18n }}
+                  context={{
+                    ...context,
+                    serverFunction,
+                    readOnly: readOnly || !field.access[creating ? "create" : "update"],
+                    scope,
+                    i18n,
+                  }}
                 />
               ))}
             </div>

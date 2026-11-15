@@ -167,6 +167,7 @@ describe("form helpers", () => {
 
   it("format stored values for inputs", () => {
     expect(toDatetimeLocal("2026-01-02T10:30:00.000Z")).toBe("2026-01-02T10:30");
+    expect(toDatetimeLocal("2026-07-02T10:30:00.000Z", "Europe/Madrid")).toBe("2026-07-02T12:30");
     expect(toDatetimeLocal(null)).toBe("");
     expect(toJsonText({ a: 1 })).toBe('{\n  "a": 1\n}');
     expect(toJsonText(null)).toBe("");

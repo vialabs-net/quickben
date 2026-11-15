@@ -40,11 +40,21 @@ export class UnauthorizedError extends QuickbenError {
   }
 }
 
+/** Options of {@link ForbiddenError}. */
+export interface ForbiddenErrorOptions extends ErrorOptions {
+  /** Paths of the fields the user may not write, for field access rules. */
+  fields?: readonly string[];
+}
+
 /** Access was denied for the current user. */
 export class ForbiddenError extends QuickbenError {
-  constructor(message = "Access denied", options?: ErrorOptions) {
+  /** Paths of the fields a field access rule denied. Empty for collection rules. */
+  readonly fields: readonly string[];
+
+  constructor(message = "Access denied", options?: ForbiddenErrorOptions) {
     super("FORBIDDEN", message, options);
     this.name = "ForbiddenError";
+    this.fields = options?.fields ?? [];
   }
 }
 

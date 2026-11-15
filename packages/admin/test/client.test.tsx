@@ -30,6 +30,7 @@ const titleField: FieldMeta = {
   many: false,
   unique: false,
   admin: {},
+  access: { create: true, update: true },
 };
 
 function renderForm(fn: AdminServerFunction, id: string | null = null) {

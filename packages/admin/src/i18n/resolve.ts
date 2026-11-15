@@ -14,7 +14,7 @@ export interface AdminI18nOptions {
   locale?: AdminLocale;
   /** Message overrides by locale and full key, merged over `admin.messages` in the config. */
   messages?: AdminMessageOverrides;
-  /** IANA time zone for dates and times. Default: `admin.timeZone`, then `UTC`. */
+  /** IANA time zone for dates and times. Default: `admin.timeZone`, then the config `timeZone`. */
   timeZone?: string;
 }
 
@@ -73,7 +73,7 @@ export async function resolveAdminI18nData(
   const locale = await resolveAdminLocale(config, options, req);
   return {
     locale,
-    timeZone: validTimeZone(options.timeZone ?? config.admin.timeZone),
+    timeZone: validTimeZone(options.timeZone ?? config.admin.timeZone ?? config.timeZone),
     overrides: flattenOverrides(locale, [config.admin.messages, options.messages]),
   };
 }

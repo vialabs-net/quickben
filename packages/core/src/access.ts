@@ -2,6 +2,7 @@ import { ForbiddenError, UnauthorizedError } from "./errors";
 import { normalizeWhere } from "./where";
 
 import type { WhereNode } from "./adapter";
+import type { FieldAccessOperation } from "./fields";
 import type {
   AccessArgs,
   AccessOperation,
@@ -45,6 +46,36 @@ export async function checkAccess(
   });
   if (result === true || result === false) return result;
   return normalizeWhere(collection, result);
+}
+
+/**
+ * Names of the fields whose `operation` rule denies the user, without touching data.
+ * `overrideAccess` and fields without a rule allow everything. The local API calls this for
+ * you; UI and HTTP layers call it to hide fields (`read`) or show them read-only.
+ */
+export async function checkFieldAccess(
+  collection: SanitizedCollection,
+  operation: FieldAccessOperation,
+  ctx: RequestContext,
+  details: { id?: string; data?: Readonly<Record<string, unknown>>; qb?: Quickben } = {},
+): Promise<ReadonlySet<string>> {
+  const denied = new Set<string>();
+  if (ctx.overrideAccess === true) return denied;
+  const args = {
+    user: ctx.user,
+    req: ctx.req,
+    ctx,
+    qb: details.qb,
+    operation,
+    id: details.id,
+    data: details.data,
+  };
+  const checks = collection.fieldList.map(async (field) => {
+    const rule = field.access[operation];
+    if (rule && !(await rule(args))) denied.add(field.name);
+  });
+  await Promise.all(checks);
+  return denied;
 }
 
 /** Error for a denied operation: `UnauthorizedError` without a user, else `ForbiddenError`. */

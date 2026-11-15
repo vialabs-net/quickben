@@ -1,3 +1,5 @@
+import { formatDateValue } from "@quickben/core";
+
 import type { CatalogVariable } from "./kinds";
 
 /** Printed for a missing value. */
@@ -57,15 +59,17 @@ export const isMissing = (value: unknown): boolean =>
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
 function formatDate(value: unknown, format: ResolvedFormat): string | null {
-  let date: Date | null = null;
-  let timeZone = format.timeZone;
-  if (value instanceof Date) date = value;
-  else if (typeof value === "string") {
-    if (datePattern.test(value)) timeZone = "UTC";
-    date = new Date(datePattern.test(value) ? `${value}T00:00:00Z` : value);
-  } else if (typeof value === "number") date = new Date(value);
-  if (!date || Number.isNaN(date.getTime())) return null;
-  return new Intl.DateTimeFormat(format.locale, { dateStyle: "long", timeZone }).format(date);
+  if (!(value instanceof Date) && typeof value !== "string" && typeof value !== "number") {
+    return null;
+  }
+  const date = typeof value === "string" && datePattern.test(value) ? `${value}T00:00:00Z` : value;
+  if (Number.isNaN(new Date(date).getTime())) return null;
+  return formatDateValue(value, {
+    type: "date",
+    dateStyle: "long",
+    locale: format.locale,
+    timeZone: format.timeZone,
+  });
 }
 
 function scalarText(value: unknown): string | null {

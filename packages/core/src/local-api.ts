@@ -1,20 +1,21 @@
-import { accessDenied, checkAccess } from "./access";
+import { accessDenied, checkAccess, checkFieldAccess } from "./access";
 import {
   fetchSelect,
   fillMissing,
   finishRead,
+  hiddenFields,
   normalizeDoc,
   parseSelect,
   relationIds,
 } from "./documents";
-import { NotFoundError, ValidationError } from "./errors";
+import { ForbiddenError, NotFoundError, ValidationError } from "./errors";
 import { uuidv7 } from "./id";
 import { cursorWhere, encodeCursor, parsePaging, parseSort } from "./query";
 import { validateData } from "./validation";
 import { andWhere, matchesWhere, normalizeWhere } from "./where";
 
 import type { DatabaseAdapter, DatabaseSchema, DocumentData, WhereNode } from "./adapter";
-import type { OperationScope } from "./documents";
+import type { CommitQueue, OperationScope } from "./documents";
 import type {
   FindResult,
   HookArgs,
@@ -95,17 +96,16 @@ function hookArgs(scope: OperationScope, collection: SanitizedCollection): HookA
 
 async function find(scope: OperationScope, slug: string, query: FindQueryInput) {
   const collection = getCollection(scope.collections, slug);
-  const sort = parseSort(collection, query.sort);
+  const access = await readFilter(scope, collection);
+  const hidden = await hiddenFields(scope, collection);
+  const sort = parseSort(collection, query.sort, hidden);
   const { limit, page } = parsePaging(query.limit, query.page);
-  const select = parseSelect(collection, query.select);
+  const select = parseSelect(collection, query.select, hidden);
   const depth = parseDepth(query.depth);
   if (query.cursor !== undefined && query.page !== undefined) {
     throw new ValidationError([{ path: "cursor", message: "Use either page or cursor, not both" }]);
   }
-  const where = andWhere(
-    normalizeWhere(collection, query.where),
-    await readFilter(scope, collection),
-  );
+  const where = andWhere(normalizeWhere(collection, query.where, hidden), access);
   const loadSelect = fetchSelect(
     collection,
     select,
@@ -140,7 +140,11 @@ async function find(scope: OperationScope, slug: string, query: FindQueryInput) 
   const hasNextPage = rows.length > limit;
   const pageRows = rows.slice(0, limit);
   const last = pageRows.at(-1);
-  const docs = await finishRead(scope, collection, pageRows, { depth, ...selectArg(select) });
+  const docs = await finishRead(scope, collection, pageRows, {
+    depth,
+    hidden,
+    ...selectArg(select),
+  });
   const result: FindResult<DocumentData> = {
     docs,
     limit,
@@ -165,28 +169,30 @@ async function findById(
 ) {
   const collection = getCollection(scope.collections, slug);
   const docId = assertId(id);
-  const select = parseSelect(collection, query.select);
+  const access = await readFilter(scope, collection, docId);
+  const hidden = await hiddenFields(scope, collection);
+  const select = parseSelect(collection, query.select, hidden);
   const depth = parseDepth(query.depth);
-  const where = andWhere(
-    { field: "id", op: "eq", value: docId },
-    await readFilter(scope, collection, docId),
-  );
+  const where = andWhere({ field: "id", op: "eq", value: docId }, access);
   const row = await scope.db.findOne({
     collection: slug,
     where,
     ...selectArg(fetchSelect(collection, select)),
   });
   if (!row) throw new NotFoundError(`Document "${docId}" not found in "${slug}"`);
-  const [doc] = await finishRead(scope, collection, [row], { depth, ...selectArg(select) });
+  const [doc] = await finishRead(scope, collection, [row], {
+    depth,
+    hidden,
+    ...selectArg(select),
+  });
   return doc;
 }
 
 async function count(scope: OperationScope, slug: string, query: { where?: unknown }) {
   const collection = getCollection(scope.collections, slug);
-  const where = andWhere(
-    normalizeWhere(collection, query.where),
-    await readFilter(scope, collection),
-  );
+  const access = await readFilter(scope, collection);
+  const hidden = await hiddenFields(scope, collection);
+  const where = andWhere(normalizeWhere(collection, query.where, hidden), access);
   return scope.db.count({ collection: slug, where });
 }
 
@@ -264,6 +270,73 @@ async function runVoidHooks(
 }
 
 /**
+ * Reject input that sets a field the user may not write. Checked on the input as given, so
+ * defaults and hooks may still set the field.
+ */
+async function assertWritableFields(
+  scope: OperationScope,
+  collection: SanitizedCollection,
+  operation: "create" | "update",
+  data: Record<string, unknown>,
+  id?: string,
+) {
+  const denied = await checkFieldAccess(collection, operation, scope.ctx, {
+    qb: scope.api,
+    data,
+    ...(id === undefined ? {} : { id }),
+  });
+  const fields = Object.keys(data).filter((key) => data[key] !== undefined && denied.has(key));
+  if (fields.length > 0) {
+    const names = fields.map((name) => JSON.stringify(name)).join(", ");
+    throw new ForbiddenError(`Not allowed to ${operation} ${names} in "${collection.slug}"`, {
+      fields,
+    });
+  }
+}
+
+/**
+ * Queue the `afterCommit` hooks of a write. They run after the outermost transaction
+ * commits, with the local API outside the transaction, and their errors are only logged.
+ */
+function queueAfterCommit(
+  scope: OperationScope,
+  collection: SanitizedCollection,
+  args: {
+    operation: "create" | "update" | "delete";
+    doc: DocumentData;
+    original: DocumentData | null;
+  },
+) {
+  const hooks = collection.hooks.afterCommit ?? [];
+  const queue = scope.commit;
+  if (hooks.length === 0 || !queue) return;
+  const hookArgs = {
+    user: scope.ctx.user,
+    req: scope.ctx.req,
+    ctx: scope.ctx,
+    qb: queue.root,
+    collection,
+    ...args,
+  };
+  for (const hook of hooks) {
+    queue.tasks.push(async () => {
+      await (hook as (args: unknown) => unknown)(hookArgs);
+    });
+  }
+}
+
+/** Run queued `afterCommit` work in order. A failing hook is logged; the rest still run. */
+async function runCommitTasks(queue: CommitQueue) {
+  for (const task of queue.tasks) {
+    try {
+      await task();
+    } catch (error) {
+      console.error("[quickben] afterCommit hook failed", error);
+    }
+  }
+}
+
+/**
  * Load the document an update or delete targets. Writes need read access: a document the user
  * cannot read is `NOT_FOUND`, as in `findById`, so writes do not reveal which ids exist
  * elsewhere. Without any read access the write is denied before the lookup.
@@ -309,6 +382,7 @@ async function create(scope: OperationScope, slug: string, input: unknown) {
   const data = assertObject(input);
   const access = await checkAccess(collection, "create", scope.ctx, { data, qb: scope.api });
   if (access === false) throw accessDenied(scope.ctx, "create", slug);
+  await assertWritableFields(scope, collection, "create", data);
   const base = { ...hookArgs(scope, collection), operation: "create", original: null };
   const prepared = await runDataHooks(collection.hooks.beforeValidate, {
     ...base,
@@ -337,6 +411,7 @@ async function create(scope: OperationScope, slug: string, input: unknown) {
     throw accessDenied(scope.ctx, "create", slug);
   const doc = normalizeDoc(collection, await scope.db.create({ collection: slug, data: record }));
   await runVoidHooks(collection.hooks.afterChange, { ...base, doc });
+  queueAfterCommit(scope, collection, { operation: "create", doc, original: null });
   const [result] = await finishRead(scope, collection, [doc], { depth: 0 });
   return result;
 }
@@ -347,6 +422,7 @@ async function update(scope: OperationScope, slug: string, id: unknown, input: u
   const data = assertObject(input);
   const original = await loadOriginal(scope, "update", collection, docId);
   const access = await assertWriteAccess(scope, collection, "update", original, data);
+  await assertWritableFields(scope, collection, "update", data, docId);
   const base = { ...hookArgs(scope, collection), operation: "update", original };
   const prepared = await runDataHooks(collection.hooks.beforeValidate, {
     ...base,
@@ -376,6 +452,7 @@ async function update(scope: OperationScope, slug: string, id: unknown, input: u
   if (!stored) throw new NotFoundError(`Document "${docId}" not found in "${slug}"`);
   const doc = normalizeDoc(collection, stored);
   await runVoidHooks(collection.hooks.afterChange, { ...base, doc });
+  queueAfterCommit(scope, collection, { operation: "update", doc, original });
   const [result] = await finishRead(scope, collection, [doc], { depth: 0 });
   return result;
 }
@@ -391,23 +468,45 @@ async function remove(scope: OperationScope, slug: string, id: unknown) {
     throw new NotFoundError(`Document "${docId}" not found in "${slug}"`);
   }
   await runVoidHooks(collection.hooks.afterDelete, args);
+  queueAfterCommit(scope, collection, { operation: "delete", doc: original, original });
   const [result] = await finishRead(scope, collection, [original], { depth: 0 });
   return result;
 }
 
-function buildApi(config: QuickbenConfig, collections: Collections, db: DatabaseAdapter): Quickben {
-  const scope = (ctx: RequestContext, adapter: DatabaseAdapter = db): OperationScope => {
-    const context = assertContext(ctx);
-    return {
-      collections,
-      db: adapter,
-      api: adapter === db ? qb : buildApi(config, collections, adapter),
-      ctx: context,
-    };
+/**
+ * Build the local API over `db`. `commit` is set when `db` is bound to a transaction: writes
+ * join it and queue their `afterCommit` hooks there. Without it, each write (or
+ * `transaction` call) is the outermost transaction and runs the queue after its commit.
+ */
+function buildApi(
+  config: QuickbenConfig,
+  collections: Collections,
+  db: DatabaseAdapter,
+  commit?: CommitQueue,
+): Quickben {
+  const scope = (ctx: RequestContext): OperationScope => ({
+    collections,
+    db,
+    api: qb,
+    ctx: assertContext(ctx),
+    commit,
+  });
+  const inTransaction = async <T>(fn: (tx: Quickben, queue: CommitQueue) => Promise<T>) => {
+    if (commit) {
+      return db.transaction((tx) => fn(buildApi(config, collections, tx, commit), commit));
+    }
+    const queue: CommitQueue = { root: qb, tasks: [] };
+    const result = await db.transaction((tx) =>
+      fn(buildApi(config, collections, tx, queue), queue),
+    );
+    await runCommitTasks(queue);
+    return result;
   };
   const write = async <T>(ctx: RequestContext, fn: (scope: OperationScope) => Promise<T>) => {
-    assertContext(ctx);
-    return db.transaction((tx) => fn(scope(ctx, tx)));
+    const context = assertContext(ctx);
+    return inTransaction((tx, queue) =>
+      fn({ collections, db: tx.db, api: tx, ctx: context, commit: queue }),
+    );
   };
   const api = {
     config,
@@ -429,8 +528,7 @@ function buildApi(config: QuickbenConfig, collections: Collections, db: Database
       write(ctx, (s) => update(s, slug, id, data)),
     delete: (slug: string, id: string, ctx: RequestContext) =>
       write(ctx, (s) => remove(s, slug, id)),
-    transaction: <T>(fn: (qb: Quickben) => Promise<T>) =>
-      db.transaction((tx) => fn(buildApi(config, collections, tx))),
+    transaction: <T>(fn: (qb: Quickben) => Promise<T>) => inTransaction((tx) => fn(tx)),
   };
   const qb = api as unknown as Quickben;
   return qb;

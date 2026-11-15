@@ -1,21 +1,30 @@
 import { z } from "zod";
 
 import { ValidationError } from "./errors";
+import { defaultTimeZone, toDatetimeValue, toDateValue } from "./time";
 
 import type { QuickbenUser } from "./auth";
 import type { ValidationIssue } from "./errors";
 import type { AnyField, FieldValidator } from "./fields";
 import type { SanitizedCollection } from "./types";
 
-const dateInput = z.union([z.date(), z.iso.date(), z.iso.datetime({ offset: true })]);
-const datetimeInput = z.union([z.date(), z.iso.datetime({ offset: true }), z.iso.date()]);
+/** `Date`, `YYYY-MM-DD`, or an ISO datetime with or without an offset. */
+const dateInput = z.union([z.date(), z.iso.date(), z.iso.datetime({ offset: true, local: true })]);
 
-function toDate(value: string | Date): Date {
-  return value instanceof Date ? value : new Date(value);
-}
-
-function validDate(date: Date): boolean {
-  return !Number.isNaN(date.getTime());
+/** Turn a date input into its stored string, or report an issue. */
+function dateSchema(
+  input: typeof dateInput,
+  convert: (value: string | Date, timeZone: string) => string | null,
+  timeZone: string,
+) {
+  return input.transform((value, ctx) => {
+    const stored = convert(value, timeZone);
+    if (stored === null) {
+      ctx.addIssue({ code: "custom", message: "Invalid date" });
+      return z.NEVER;
+    }
+    return stored;
+  });
 }
 
 /** Zod schema of one field value, without the null/optional wrapper. */
@@ -37,15 +46,9 @@ export function fieldValueSchema(field: AnyField): z.ZodType {
     case "boolean":
       return z.boolean();
     case "date":
-      return dateInput
-        .transform(toDate)
-        .refine(validDate, "Invalid date")
-        .transform((date) => date.toISOString().slice(0, 10));
+      return dateSchema(dateInput, toDateValue, field.timeZone ?? defaultTimeZone);
     case "datetime":
-      return datetimeInput
-        .transform(toDate)
-        .refine(validDate, "Invalid date")
-        .transform((date) => date.toISOString());
+      return dateSchema(dateInput, toDatetimeValue, field.timeZone ?? defaultTimeZone);
     case "select": {
       const option = z.enum(field.options as [string, ...string[]]);
       return field.many ? uniqueArray(option, field.required) : option;

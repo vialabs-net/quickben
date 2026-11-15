@@ -102,25 +102,27 @@ Relation columns show the title of the related document.
 
 ![Edit form](/screens/admin-edit.webp)
 
-| Field type                 | Input                                             |
-| -------------------------- | ------------------------------------------------- |
-| text, email, url           | `<input>` of that type, with length limits        |
-| textarea                   | `<textarea>`                                      |
-| number                     | `<input type="number">`, `step` 1 for integers    |
-| boolean                    | Checkbox                                          |
-| date / datetime            | `date` / `datetime-local` input (UTC)             |
-| select / select `many`     | `<select>` / checkbox group                       |
-| relation / relation `many` | Search box with keyboard support, chips for many  |
-| json                       | Textarea with live syntax check and Format button |
+| Field type                 | Input                                                  |
+| -------------------------- | ------------------------------------------------------ |
+| text, email, url           | `<input>` of that type, with length limits             |
+| textarea                   | `<textarea>`                                           |
+| number                     | `<input type="number">`, `step` 1 for integers         |
+| boolean                    | Checkbox                                               |
+| date / datetime            | `date` / `datetime-local` input in the admin time zone |
+| select / select `many`     | `<select>` / checkbox group                            |
+| relation / relation `many` | Search box with keyboard support, chips for many       |
+| json                       | Textarea with live syntax check and Format button      |
 
-| Field option      | Effect                                                  |
-| ----------------- | ------------------------------------------------------- |
-| `label`           | Label text.                                             |
-| `description`     | Hint text under the input.                              |
-| `admin.hidden`    | Not rendered, not sent.                                 |
-| `admin.readOnly`  | Shown disabled, not sent.                               |
-| `admin.width`     | `full`, `half` or `third` of the row.                   |
-| `admin.component` | Name of a [custom component](#custom-field-components). |
+| Field option                             | Effect                                                  |
+| ---------------------------------------- | ------------------------------------------------------- |
+| `label`                                  | Label text.                                             |
+| `description`                            | Hint text under the input.                              |
+| `admin.hidden`                           | Not rendered, not sent.                                 |
+| `admin.readOnly`                         | Shown disabled, not sent.                               |
+| `access.read` denies                     | Not in lists, filters or forms.                         |
+| `access.create` / `access.update` denies | Shown disabled, not sent.                               |
+| `admin.width`                            | `full`, `half` or `third` of the row.                   |
+| `admin.component`                        | Name of a [custom component](#custom-field-components). |
 
 Validation errors from the local API are shown next to their field. The first invalid field gets focus.
 
@@ -276,16 +278,16 @@ defineConfig({
   admin: {
     locale: "es", // or a function of the request, see below
     messages: { es: { "admin.nav.dashboard": "Inicio" } }, // overrides by locale and key
-    timeZone: "America/Santiago", // dates and times; default UTC
+    timeZone: "America/Santiago", // dates and times; default: the config `timeZone`
   },
 });
 ```
 
-| Setting    | Where                                       | Default |
-| ---------- | ------------------------------------------- | ------- |
-| `locale`   | `admin.locale` or `createAdminPage` options | `en`    |
-| `messages` | same                                        | none    |
-| `timeZone` | same                                        | `UTC`   |
+| Setting    | Where                                       | Default                       |
+| ---------- | ------------------------------------------- | ----------------------------- |
+| `locale`   | `admin.locale` or `createAdminPage` options | `en`                          |
+| `messages` | same                                        | none                          |
+| `timeZone` | same                                        | config `timeZone`, then `UTC` |
 
 - `locale` is a BCP 47 tag or `(req) => tag`. `localeFromRequest({ supported: ["en", "es"], cookie: "locale" })` from `@quickben/core` reads the cookie, then `Accept-Language`.
 - Messages fall back from `es-CL` to `es` to English. Unknown keys show the key.

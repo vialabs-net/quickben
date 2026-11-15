@@ -1,4 +1,4 @@
-import { checkAccess } from "./access";
+import { checkAccess, checkFieldAccess } from "./access";
 import { ValidationError } from "./errors";
 import { andWhere } from "./where";
 
@@ -12,14 +12,27 @@ export interface OperationScope {
   /** Local API bound to `db`, passed to hooks. */
   api: Quickben;
   ctx: RequestContext;
+  /** `afterCommit` work of the outermost transaction. `undefined` outside a transaction. */
+  commit: CommitQueue | undefined;
+}
+
+/** Work that runs after the outermost transaction commits. */
+export interface CommitQueue {
+  /** The local API without a transaction, for `afterCommit` hooks. */
+  root: Quickben;
+  tasks: (() => Promise<void>)[];
 }
 
 const systemFields = ["id", "createdAt", "updatedAt"] as const;
 
-/** Validate a `select` list. Returns `undefined` for "all fields". */
+/**
+ * Validate a `select` list. Returns `undefined` for "all fields". Fields in `hidden`
+ * (unreadable) are dropped, as they are dropped from documents.
+ */
 export function parseSelect(
   collection: SanitizedCollection,
   select: unknown,
+  hidden: ReadonlySet<string> = new Set(),
 ): string[] | undefined {
   if (select === undefined) return undefined;
   if (!Array.isArray(select)) {
@@ -36,7 +49,7 @@ export function parseSelect(
         { path: `select.${index}`, message: `Unknown field "${String(name)}"` },
       ]);
     }
-    names.add(name);
+    if (!hidden.has(name)) names.add(name);
   }
   return [...names];
 }
@@ -76,11 +89,21 @@ export interface FinishReadOptions {
   depth: number;
   /** Fields to keep after hooks, from {@link parseSelect}. */
   select?: readonly string[];
+  /** Fields the user cannot read. Computed when left out. */
+  hidden?: ReadonlySet<string>;
+}
+
+/** Names of the fields the user of `scope` cannot read in `collection`. */
+export function hiddenFields(
+  scope: OperationScope,
+  collection: SanitizedCollection,
+): Promise<ReadonlySet<string>> {
+  return checkFieldAccess(collection, "read", scope.ctx, { qb: scope.api });
 }
 
 /**
  * Turn stored documents into results: normalize, load relations, run `afterRead` hooks,
- * then apply `select`.
+ * remove unreadable fields, then apply `select`.
  */
 export async function finishRead(
   scope: OperationScope,
@@ -88,10 +111,11 @@ export async function finishRead(
   rows: readonly DocumentData[],
   options: FinishReadOptions,
 ): Promise<DocumentData[]> {
+  const hidden = options.hidden ?? (await hiddenFields(scope, collection));
   const docs = rows.map((row) =>
     normalizeDoc(collection, row, fetchSelect(collection, options.select)),
   );
-  if (options.depth > 0) await populate(scope, collection, docs, options.depth);
+  if (options.depth > 0) await populate(scope, collection, docs, options.depth, hidden);
   const hooks = collection.hooks.afterRead ?? [];
   const results: DocumentData[] = [];
   for (let doc of docs) {
@@ -107,6 +131,7 @@ export async function finishRead(
       const next = await hook(args as never);
       if (next) doc = next as DocumentData;
     }
+    if (hidden.size > 0) doc = omit(doc, hidden);
     results.push(options.select ? pick(doc, options.select) : doc);
   }
   return results;
@@ -125,6 +150,10 @@ export function fetchSelect(
   return [...new Set([...select, ...extra])];
 }
 
+function omit(doc: DocumentData, keys: ReadonlySet<string>): DocumentData {
+  return Object.fromEntries(Object.entries(doc).filter(([key]) => !keys.has(key)));
+}
+
 function pick(doc: DocumentData, keys: readonly string[]): DocumentData {
   const result: DocumentData = {};
   for (const key of keys) if (key in doc) result[key] = doc[key];
@@ -137,9 +166,10 @@ async function populate(
   collection: SanitizedCollection,
   docs: DocumentData[],
   depth: number,
+  hidden: ReadonlySet<string>,
 ): Promise<void> {
   const relations = collection.fieldList.flatMap((field) =>
-    field.type === "relation" && docs.some((doc) => field.name in doc)
+    field.type === "relation" && !hidden.has(field.name) && docs.some((doc) => field.name in doc)
       ? [{ name: field.name, to: field.to }]
       : [],
   );

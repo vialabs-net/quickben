@@ -36,6 +36,7 @@ export default defineConfig({
 | `auth`        | `AuthAdapter`       | no       | Resolves the user of a request. See [Auth adapters](/docs/concepts/auth-adapters).                                                 |
 | `admin`       | `{ title?, meta? }` | no       | Admin UI options. `title` defaults to `Quickben`. `meta: { title?, description? }` is the page metadata (`generateAdminMetadata`). |
 | `modules`     | `Module[]`          | no       | Feature areas that group collections.                                                                                              |
+| `timeZone`    | `string` (IANA)     | no       | Time zone of `date` and `datetime` inputs. Default `UTC`. See [Fields](/docs/concepts/fields#dates-and-time-zones).                |
 
 ## What `defineConfig` checks
 
@@ -48,6 +49,7 @@ It throws `ConfigError` when:
 | Two modules share a key                   | `Duplicate module key "sales"`                               |
 | A module lists a missing collection       | `Module "sales" lists unknown collection "deals"`            |
 | A plugin is applied twice                 | `Plugin "audit" is applied twice`                            |
+| An unknown time zone                      | `Unknown time zone "Mars/Olympus"`                           |
 
 ## Types from the config
 

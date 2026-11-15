@@ -1,4 +1,5 @@
 import { ValidationError } from "./errors";
+import { defaultTimeZone, toDatetimeValue, toDateValue } from "./time";
 
 import type { DocumentData, SortSpec, WhereNode, WhereOperator } from "./adapter";
 import type { AnyField } from "./fields";
@@ -44,6 +45,8 @@ interface FieldRule {
   kind: keyof typeof allowedByKind;
   value: ValueKind;
   options?: readonly string[];
+  /** Time zone of date and datetime operands. */
+  timeZone?: string;
 }
 
 const systemRules: Record<string, FieldRule> = {
@@ -58,9 +61,10 @@ function ruleFor(field: AnyField): FieldRule {
   if (field.many) return { kind: "array", value, ...(options ? { options } : {}) };
   switch (field.type) {
     case "number":
+      return { kind: "range", value };
     case "date":
     case "datetime":
-      return { kind: "range", value };
+      return { kind: "range", value, timeZone: field.timeZone ?? defaultTimeZone };
     case "boolean":
     case "relation":
       return { kind: "equality", value };
@@ -90,15 +94,27 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+const noFields: ReadonlySet<string> = new Set();
+
 /**
  * Validate a user `where` against a collection and convert it to a {@link WhereNode}.
  * Dates become ISO strings. Throws `ValidationError` on unknown fields, operators or values.
+ * Fields in `hidden` (unreadable for the user) are treated as unknown.
  */
-export function normalizeWhere(collection: SanitizedCollection, where: unknown): WhereNode {
-  return normalizeGroup(collection, where, "where");
+export function normalizeWhere(
+  collection: SanitizedCollection,
+  where: unknown,
+  hidden: ReadonlySet<string> = noFields,
+): WhereNode {
+  return normalizeGroup({ collection, hidden }, where, "where");
 }
 
-function normalizeGroup(collection: SanitizedCollection, where: unknown, path: string): WhereNode {
+interface WhereScope {
+  collection: SanitizedCollection;
+  hidden: ReadonlySet<string>;
+}
+
+function normalizeGroup(scope: WhereScope, where: unknown, path: string): WhereNode {
   if (where === undefined || where === null) return { and: [] };
   if (!isPlainObject(where)) throw invalid(path, "Expected an object");
   const nodes: WhereNode[] = [];
@@ -107,12 +123,12 @@ function normalizeGroup(collection: SanitizedCollection, where: unknown, path: s
     if (key === "and" || key === "or") {
       if (!Array.isArray(condition)) throw invalid(`${path}.${key}`, "Expected an array");
       const children = condition.map((child: unknown, index) =>
-        normalizeGroup(collection, child, `${path}.${key}.${index}`),
+        normalizeGroup(scope, child, `${path}.${key}.${index}`),
       );
       nodes.push(key === "and" ? { and: children } : { or: children });
       continue;
     }
-    nodes.push(...normalizeCondition(collection, key, condition, `${path}.${key}`));
+    nodes.push(...normalizeCondition(scope, key, condition, `${path}.${key}`));
   }
   return nodes.length === 1 && nodes[0] ? nodes[0] : { and: nodes };
 }
@@ -126,12 +142,12 @@ function fieldRule(collection: SanitizedCollection, field: string): FieldRule | 
 }
 
 function normalizeCondition(
-  collection: SanitizedCollection,
+  { collection, hidden }: WhereScope,
   field: string,
   condition: unknown,
   path: string,
 ): WhereNode[] {
-  const rule = fieldRule(collection, field);
+  const rule = hidden.has(field) ? undefined : fieldRule(collection, field);
   if (!rule) throw invalid(path, `Unknown field "${field}" in collection "${collection.slug}"`);
   if (!isPlainObject(condition)) throw invalid(path, "Expected an object of operators");
   const allowed = allowedByKind[rule.kind];
@@ -179,7 +195,7 @@ function normalizeScalar(rule: FieldRule, raw: unknown, path: string): unknown {
       return raw;
     case "date":
     case "datetime":
-      return normalizeDateOperand(rule.value, raw, path);
+      return normalizeDateOperand(rule.value, raw, path, rule.timeZone ?? defaultTimeZone);
     default:
       if (typeof raw !== "string") throw invalid(path, "Expected a string");
       if (rule.options && !rule.options.includes(raw)) {
@@ -189,12 +205,17 @@ function normalizeScalar(rule: FieldRule, raw: unknown, path: string): unknown {
   }
 }
 
-function normalizeDateOperand(kind: "date" | "datetime", raw: unknown, path: string): string {
+/** Date operands resolve like inputs: see `toDateValue` and `toDatetimeValue`. */
+function normalizeDateOperand(
+  kind: "date" | "datetime",
+  raw: unknown,
+  path: string,
+  timeZone: string,
+): string {
   if (!(raw instanceof Date) && typeof raw !== "string") throw invalid(path, "Expected a date");
-  const date = new Date(raw);
-  if (Number.isNaN(date.getTime())) throw invalid(path, "Expected a date");
-  const iso = date.toISOString();
-  return kind === "date" ? iso.slice(0, 10) : iso;
+  const value = kind === "date" ? toDateValue(raw, timeZone) : toDatetimeValue(raw, timeZone);
+  if (value === null) throw invalid(path, "Expected a date");
+  return value;
 }
 
 function invalid(path: string, message: string): ValidationError {
