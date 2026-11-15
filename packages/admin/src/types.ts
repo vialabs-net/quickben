@@ -59,6 +59,8 @@ export interface PageProps {
   segments: string[];
   searchParams: SearchParams;
   i18n: AdminI18n;
+  /** Server function of the admin, for field inputs (`FieldInput` relation searches). */
+  serverFunction: AdminServerFunction;
 }
 
 /** Props of a sidebar component. */

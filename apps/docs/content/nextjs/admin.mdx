@@ -193,7 +193,7 @@ export default createAdminPage(config, {
 | ------------ | -------------------------------------------------------------------------------------------- |
 | `components` | `FieldComponentProps`: `field`, `name`, `id`, `value`, `required`, `disabled`, `describedBy` |
 | `views`      | `ViewProps`: `collection`, `user`, `basePath`, `searchParams`, `id?`                         |
-| `pages`      | `PageProps`: `user`, `basePath`, `segments`, `searchParams`                                  |
+| `pages`      | `PageProps`: `user`, `basePath`, `segments`, `searchParams`, `i18n`, `serverFunction`        |
 
 Props are plain data, so components can be server or client components.
 
@@ -254,6 +254,19 @@ export function Reports({ user, segments }: PageProps) {
   );
 }
 ```
+
+### Collection fields in your own forms
+
+`@quickben/admin/forms` exports the generic field inputs for custom pages that save with their own server actions.
+
+| Export             | Purpose                                                                      |
+| ------------------ | ---------------------------------------------------------------------------- |
+| `FieldInput`       | Label, input, hint of one `FieldMeta` (from `collectionMeta`).               |
+| `loadFieldContext` | What `FieldInput` needs: relation labels, ids, i18n, `serverFunction`.       |
+| `parseFormData`    | Read submitted values like the edit form; skips fields the user may not set. |
+| `formScope`        | Unique control ids per form.                                                 |
+
+Pass `PageProps.serverFunction` to `loadFieldContext` so relation inputs can search.
 
 `pages[].path` is the first URL segment: lowercase letters, digits and `-`. It must not be a collection slug.
 

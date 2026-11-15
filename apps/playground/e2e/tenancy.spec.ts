@@ -7,8 +7,15 @@ test.skip(process.env.QUICKBEN_TENANCY !== "1", "needs QUICKBEN_TENANCY=1");
 
 async function actAs(page: Page, role: string) {
   await page.goto("/admin");
-  await page.getByLabel("Acting as").selectOption(role);
-  await expect(page.getByLabel("Acting as")).toHaveValue(role);
+  const picker = page.getByLabel("Acting as");
+  if ((await picker.inputValue()) !== role) {
+    // Wait for the role change itself, so a later wait does not catch this POST.
+    await Promise.all([
+      page.waitForResponse((response) => response.request().method() === "POST"),
+      picker.selectOption(role),
+    ]);
+  }
+  await expect(picker).toHaveValue(role);
 }
 
 async function switchTo(page: Page, name: RegExp | string) {
@@ -73,4 +80,66 @@ test("platform staff see every organization", async ({ page }) => {
   await switchTo(page, "Acme");
   await page.goto("/admin/organization");
   await expect(page.getByRole("combobox", { name: "Status" })).toHaveValue("active");
+});
+
+test("fields added by the host respect field access in the settings page", async ({ page }) => {
+  await actAs(page, "admin");
+  await switchTo(page, "Acme");
+  await page.goto("/admin/organization");
+  const plan = page.getByRole("combobox", { name: "Plan" });
+  await plan.selectOption("pro");
+  await page.getByRole("button", { name: "Save settings" }).click();
+  await expect(page.getByRole("status")).toContainText("Organization saved");
+  await expect(page.getByRole("combobox", { name: "Plan" })).toHaveValue("pro");
+
+  // An owner sees the plan but cannot change it: only platform staff can.
+  await actAs(page, "editor");
+  await switchTo(page, "Acme (owner)");
+  await page.goto("/admin/organization");
+  await expect(page.getByRole("combobox", { name: "Plan" })).toHaveValue("pro");
+  await expect(page.getByRole("combobox", { name: "Plan" })).toBeDisabled();
+});
+
+test("owners edit a member's added fields in the details dialog", async ({ page }) => {
+  await actAs(page, "editor");
+  await switchTo(page, "Acme (owner)");
+  await page.goto("/admin/members");
+  await page.getByRole("button", { name: "Details of viewer@example.com" }).click();
+  const dialog = page.getByRole("dialog", { name: "Details of viewer@example.com" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("textbox", { name: "Job title" }).fill("Reviewer");
+  await dialog.getByRole("button", { name: "Save details" }).click();
+  await expect(page.getByRole("status")).toContainText("Member updated");
+  await page.getByRole("button", { name: "Details of viewer@example.com" }).click();
+  await expect(dialog.getByRole("textbox", { name: "Job title" })).toHaveValue("Reviewer");
+  await dialog.getByRole("button", { name: "Close" }).click();
+  await expect(dialog).toBeHidden();
+});
+
+test("a custom settings section with its own server action, full and embedded", async ({
+  page,
+}) => {
+  await actAs(page, "editor");
+  await switchTo(page, "Acme (owner)");
+  await page.goto("/admin/organization");
+  const tabs = page.getByRole("navigation", { name: "Settings sections" });
+  await tabs.getByRole("link", { name: "Contact" }).click();
+  await expect(tabs.getByRole("link", { name: "Contact" })).toHaveAttribute("aria-current", "page");
+  await page.getByRole("textbox", { name: "Contact email" }).fill("billing@acme.test");
+  await page.getByRole("button", { name: "Save contact" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Contact saved" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Contact email" })).toHaveValue(
+    "billing@acme.test",
+  );
+
+  // The same section inside the host layout (chrome: "none").
+  await page.goto("/embedded/organization/contact");
+  await expect(page.getByText("Host app", { exact: true })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Contact email" })).toHaveValue(
+    "billing@acme.test",
+  );
+  await page.getByRole("textbox", { name: "Contact email" }).fill("ops@acme.test");
+  await page.getByRole("button", { name: "Save contact" }).click();
+  await expect(page).toHaveURL(/\/embedded\/organization\/contact\?saved=1/);
+  await expect(page.getByRole("textbox", { name: "Contact email" })).toHaveValue("ops@acme.test");
 });

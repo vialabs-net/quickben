@@ -3,7 +3,15 @@ import { describe, expectTypeOf, test } from "vitest";
 
 import { listMyOrganizations, resolveTenant, switchOrganization } from "../src";
 
-import type { MyOrganization, SwitchResult, Tenant } from "../src";
+import type {
+  ModuleEntitlement,
+  MyOrganization,
+  OrganizationStatus,
+  SwitchResult,
+  TenancyOptions,
+  Tenant,
+} from "../src";
+import type { OrganizationSection, OrganizationSectionProps } from "../src/admin";
 import type { makeConfig } from "./setup";
 import type {
   InferCreateInput,
@@ -25,13 +33,17 @@ describe("tenancy types", () => {
     >();
     type Org = InferDoc<R["organizations"]>;
     expectTypeOf<Org["slug"]>().toEqualTypeOf<string>();
-    expectTypeOf<Org["status"]>().toEqualTypeOf<"active" | "suspended">();
-    expectTypeOf<Org["modules"]>().toEqualTypeOf<string[]>();
+    // Statuses are configurable (`tenancy({ statuses })`), so the type is a string.
+    expectTypeOf<Org["status"]>().toEqualTypeOf<string>();
+    expectTypeOf<Org["modules"]>().toEqualTypeOf<ModuleEntitlement[]>();
     type Membership = InferDoc<R["memberships"]>;
     expectTypeOf<Membership["status"]>().toEqualTypeOf<"invited" | "active" | "disabled">();
     expectTypeOf<Membership["user"]>().toEqualTypeOf<string | null>();
     expectTypeOf<InferCreateInput<R["organizations"]>["modules"]>().toEqualTypeOf<
-      string[] | undefined
+      ModuleEntitlement[] | undefined
+    >();
+    expectTypeOf<["sales", { key: "reports"; expiresAt: "2030-01-01T00:00:00Z" }]>().toExtend<
+      ModuleEntitlement[]
     >();
   });
 
@@ -58,6 +70,23 @@ describe("tenancy types", () => {
     expectTypeOf(await resolveTenant(qb, ctx)).toEqualTypeOf<Tenant>();
     expectTypeOf(await listMyOrganizations(qb, ctx)).toEqualTypeOf<MyOrganization[]>();
     expectTypeOf(await switchOrganization(qb, ctx, "o1")).toEqualTypeOf<SwitchResult>();
+  });
+
+  test("statuses, delete mode and platform roles are options", () => {
+    expectTypeOf<{ access: "full" }>().toExtend<OrganizationStatus>();
+    expectTypeOf<{
+      access: { members: "limited"; staff: "full" };
+    }>().toExtend<OrganizationStatus>();
+    expectTypeOf<{ access: "partial" }>().not.toExtend<OrganizationStatus>();
+    expectTypeOf<TenancyOptions["onOrganizationDelete"]>().toEqualTypeOf<
+      "restrict" | "cascade" | undefined
+    >();
+    expectTypeOf<TenancyOptions["platformRoles"]>().toEqualTypeOf<readonly string[] | undefined>();
+  });
+
+  test("settings sections get the organization and the tenant", () => {
+    expectTypeOf<OrganizationSectionProps["tenant"]>().toEqualTypeOf<Tenant>();
+    expectTypeOf<OrganizationSection["key"]>().toEqualTypeOf<string>();
   });
 
   test("RequestContext gains organizationId", () => {

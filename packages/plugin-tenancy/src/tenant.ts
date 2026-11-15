@@ -1,7 +1,9 @@
 import { ForbiddenError, UnauthorizedError } from "@quickben/core";
 
-import { allCapabilities, capabilitiesOf, MEMBERSHIPS, ORGANIZATIONS } from "./options";
+import { activeModules, isExpired, toGrant } from "./entitlements";
+import { accessOf, allCapabilities, capabilitiesOf, MEMBERSHIPS, ORGANIZATIONS } from "./options";
 
+import type { ModuleEntitlement } from "./entitlements";
 import type { Capability, ResolvedTenancy } from "./options";
 import type {
   DocumentData,
@@ -21,8 +23,12 @@ declare module "@quickben/core" {
   }
 }
 
-/** Why there is no usable active organization. */
-export type OrganizationErrorReason = "none" | "ambiguous" | "not-member" | "unknown" | "suspended";
+/**
+ * Why there is no usable active organization. `suspended`: its status is `suspended`.
+ * `inactive`: another status that does not give full access (see `tenancy({ statuses })`).
+ */
+export type OrganizationErrorReason =
+  "none" | "ambiguous" | "not-member" | "unknown" | "suspended" | "inactive";
 
 /** The active organization cannot be used. `reason` tells the UI what to do next. */
 export class OrganizationError extends ForbiddenError {
@@ -38,7 +44,13 @@ export class OrganizationError extends ForbiddenError {
 
 /** Which tenancy rule a {@link TenancyRuleError} broke. */
 export type TenancyRule =
-  "last-owner" | "own-role" | "own-membership" | "higher-role" | "platform-only";
+  | "last-owner"
+  | "own-role"
+  | "own-membership"
+  | "higher-role"
+  | "platform-only"
+  /** An organization with scoped documents was deleted with `onOrganizationDelete: "restrict"`. */
+  | "not-empty";
 
 /** A membership or organization change broke a tenancy rule. `rule` says which one. */
 export class TenancyRuleError extends ForbiddenError {
@@ -56,8 +68,10 @@ export interface OrganizationRecord {
   id: string;
   name: string;
   slug: string;
-  status: "active" | "suspended";
-  modules: string[];
+  /** One of the configured statuses. Default ones: `active`, `suspended`. */
+  status: string;
+  /** Enabled modules: keys, or entitlements with an expiry. See `activeModules`. */
+  modules: ModuleEntitlement[];
   [key: string]: unknown;
 }
 
@@ -83,7 +97,10 @@ export interface Tenant {
   /** Role in the organization. `null` for platform staff without a membership. */
   role: string | null;
   capabilities: readonly Capability[];
-  /** Modules the user may use here: enabled for the organization and granted to the membership. */
+  /**
+   * Modules the user may use here: enabled for the organization, not expired, and granted to
+   * the membership.
+   */
   modules: readonly string[];
   /** The user is platform staff (`isPlatformAdmin`). */
   platform: boolean;
@@ -197,7 +214,7 @@ export function requestedOrganization(
 }
 
 function grantedModules(org: OrganizationRecord, membership: MembershipRecord | null): string[] {
-  const enabled = org.modules;
+  const enabled = activeModules(org.modules);
   if (!membership || membership.modules.length === 0) return [...enabled];
   return enabled.filter((key) => membership.modules.includes(key));
 }
@@ -239,8 +256,14 @@ async function loadTenant(
   if (!organization) {
     throw new OrganizationError("unknown", `Organization "${organizationId}" does not exist`);
   }
-  if (organization.status !== "active" && !platform) {
-    throw new OrganizationError("suspended", `Organization "${organization.name}" is suspended`);
+  if (accessOf(tenancy, organization.status, platform) !== "full") {
+    if (organization.status === "suspended") {
+      throw new OrganizationError("suspended", `Organization "${organization.name}" is suspended`);
+    }
+    throw new OrganizationError(
+      "inactive",
+      `Organization "${organization.name}" is not open right now (status "${organization.status}")`,
+    );
   }
   const role = membership?.role ?? null;
   return {
@@ -266,12 +289,25 @@ function allOrganizations(tenancy: ResolvedTenancy): Tenant {
   };
 }
 
-/** Resolve the tenant of a context, cached per context object. */
-export function tenantOf(
+/** A module of the tenant has expired since it was loaded. */
+function hasExpired(tenant: Tenant): boolean {
+  const entries = tenant.organization?.modules ?? [];
+  return entries.some((entry) => isExpired(entry) && tenant.modules.includes(toGrant(entry).key));
+}
+
+/**
+ * Resolve the tenant of a context, cached per context object. A cached tenant is loaded again
+ * when one of its modules has expired since.
+ */
+export async function tenantOf(
   qb: Quickben,
   tenancy: ResolvedTenancy,
   ctx: RequestContext,
 ): Promise<Tenant> {
   const tag = `${ctx.user?.id ?? ""}|${requestedOrganization(tenancy, ctx) ?? ""}`;
-  return cached(tenantCache, ctx, qb, tag, () => loadTenant(qb, tenancy, ctx));
+  const load = () => loadTenant(qb, tenancy, ctx);
+  const tenant = await cached(tenantCache, ctx, qb, tag, load);
+  if (!hasExpired(tenant)) return tenant;
+  tenantCache.delete(ctx);
+  return cached(tenantCache, ctx, qb, tag, load);
 }

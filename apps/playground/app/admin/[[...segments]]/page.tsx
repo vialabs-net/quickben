@@ -9,6 +9,7 @@ import { connectionsEnabled } from "@/lib/connections";
 import { docReaderEnabled } from "@/lib/doc-reader";
 import { templatesEnabled } from "@/lib/templates";
 import { tenancyEnabled } from "@/lib/tenancy";
+import { organizationSections } from "@/lib/tenancy-sections";
 import config from "@/quickben.config";
 
 import type { AdminRequest } from "@quickben/admin";
@@ -23,7 +24,7 @@ async function serverFunction(request: AdminRequest) {
 export default createAdminPage(config, {
   serverFunction,
   extensions: [
-    ...(tenancyEnabled ? [tenancyAdmin(config)] : []),
+    ...(tenancyEnabled ? [tenancyAdmin(config, { sections: organizationSections })] : []),
     ...(connectionsEnabled ? [connectionsAdmin(config)] : []),
     ...(templatesEnabled ? [templatesAdmin(config)] : []),
     ...(docReaderEnabled ? [docReaderAdmin(config)] : []),

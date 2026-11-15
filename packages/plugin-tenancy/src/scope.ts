@@ -1,8 +1,8 @@
 import { ConfigError, ForbiddenError } from "@quickben/core";
 
 import { apiOf } from "./collections";
-import { getTenancy } from "./options";
-import { OrganizationError, tenantOf } from "./tenant";
+import { getTenancy, ORGANIZATIONS } from "./options";
+import { OrganizationError, rawFind, tenantOf } from "./tenant";
 
 import type { TenancyState } from "./collections";
 import type { Tenant } from "./tenant";
@@ -49,16 +49,41 @@ function scopedRule(
       if (args.qb === undefined && error instanceof OrganizationError) return false;
       throw error;
     }
-    if (!tenant.platform) {
-      const needed = operation === "read" ? "read" : "write";
-      if (!tenant.capabilities.includes(needed)) return false;
-      const keys = modulesOf(qb, collection.slug);
-      if (keys.length > 0 && !keys.some((key) => tenant.modules.includes(key))) return false;
-    }
-    if (tenant.organizationId === null) return result;
-    const filter = { organization: { eq: tenant.organizationId } };
+    if (!tenant.platform && !mayUse(qb, tenant, collection.slug, operation)) return false;
+    const filter = await organizationFilter(state, qb, tenant);
+    if (filter === null) return result;
     return result === true ? filter : { and: [result, filter] };
   };
+}
+
+/** A member's role and modules allow the operation on the collection. */
+function mayUse(qb: Quickben, tenant: Tenant, slug: string, operation: AccessOperation): boolean {
+  const needed = operation === "read" ? "read" : "write";
+  if (!tenant.capabilities.includes(needed)) return false;
+  const keys = modulesOf(qb, slug);
+  return keys.length === 0 || keys.some((key) => tenant.modules.includes(key));
+}
+
+/** The active organization, or for staff with none selected the organizations open to staff. */
+async function organizationFilter(
+  state: TenancyState,
+  qb: Quickben,
+  tenant: Tenant,
+): Promise<object | null> {
+  if (tenant.organizationId !== null) return { organization: { eq: tenant.organizationId } };
+  const blocked = await staffBlocked(state, qb);
+  return blocked.length === 0 ? null : { organization: { notIn: blocked } };
+}
+
+/**
+ * Ids of the organizations whose status does not give platform staff full access. Staff with
+ * no organization selected do not see their documents.
+ */
+async function staffBlocked(state: TenancyState, qb: Quickben): Promise<string[]> {
+  const statuses = state.tenancy.statuses.filter((s) => s.staff !== "full").map((s) => s.name);
+  if (statuses.length === 0) return [];
+  const rows = await rawFind(qb, ORGANIZATIONS, { field: "status", op: "in", value: statuses });
+  return rows.map((row) => row.id as string);
 }
 
 /** Wrap the access rules and hooks of a collection that has an `organization` field. */

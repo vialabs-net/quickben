@@ -79,7 +79,10 @@ async function renderPage(
   const page = extension.pages?.find((p) => p.path === path);
   if (!page) throw new Error(`no page ${path}`);
   const Page = page.component as unknown as (props: PageProps) => Promise<ReactElement>;
-  return render(await Page({ user: null, basePath: "/admin", segments, searchParams, i18n }));
+  const serverFunction = () => Promise.resolve({ status: "options" as const, options: [] });
+  return render(
+    await Page({ user: null, basePath: "/admin", segments, searchParams, i18n, serverFunction }),
+  );
 }
 
 const spanish = createAdminI18n({ locale: "es", timeZone: "UTC", overrides: {} });

@@ -1,7 +1,14 @@
-import { ConfigError, defineCollection, fields as f, ValidationError } from "@quickben/core";
+import {
+  ConfigError,
+  defineCollection,
+  fields as f,
+  NotFoundError,
+  ValidationError,
+} from "@quickben/core";
 import { z } from "zod";
 
-import { capabilitiesOf, MEMBERSHIPS, ORGANIZATIONS, rankOf } from "./options";
+import { entitlementList, moduleKeys, storeEntitlements } from "./entitlements";
+import { capabilitiesOf, MEMBERSHIPS, ORGANIZATIONS, rankOf, statusesWith } from "./options";
 import {
   eq,
   invalidateTenants,
@@ -12,6 +19,7 @@ import {
   trustedEmail,
 } from "./tenant";
 
+import type { ModuleEntitlement } from "./entitlements";
 import type { Capability, ResolvedTenancy } from "./options";
 import type { MembershipRecord } from "./tenant";
 import type {
@@ -44,11 +52,12 @@ export function apiOf(state: TenancyState, qb: Quickben | undefined): Quickben {
 const slugPattern = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 const moduleList = z.array(z.string().min(1));
 
-/** A JSON list of module keys that a hook fills when the input leaves it out. */
-type FilledModules = JsonField<string[], true, true>;
+/** A JSON list of module entitlements that a hook fills when the input leaves it out. */
+type FilledModules = JsonField<ModuleEntitlement[], true, true>;
 
 /** Fields of the `organizations` collection. */
-export function organizationFields() {
+export function organizationFields(tenancy: ResolvedTenancy) {
+  const statuses = tenancy.statuses.map((status) => status.name) as [string, ...string[]];
   return {
     name: f.text({ required: true, maxLength: 200 }),
     slug: f.text({
@@ -58,9 +67,9 @@ export function organizationFields() {
       validate: (value) =>
         slugPattern.test(value) || "Use lowercase letters, digits and -, e.g. acme-inc",
     }),
-    status: f.select({ options: ["active", "suspended"], required: true, default: "active" }),
-    /** Enabled module keys. Filled from `defaultModules` on create. */
-    modules: f.json({ schema: moduleList, required: true }) as unknown as FilledModules,
+    status: f.select({ options: statuses, required: true, default: tenancy.defaultStatus }),
+    /** Enabled modules: keys or `{ key, expiresAt, source }`. Filled from `defaultModules`. */
+    modules: f.json({ schema: entitlementList, required: true }) as unknown as FilledModules,
     metadata: f.json(),
   };
 }
@@ -101,8 +110,8 @@ function isTrusted(tenancy: ResolvedTenancy, ctx: RequestContext): boolean {
 }
 
 /**
- * Ids of the organizations where the user's role has `capability`. Every capability except
- * `read` also needs an active organization: a suspended one is read-only for its members.
+ * Ids of the organizations where the user's role has `capability`. `read` needs a status with
+ * `limited` or `full` access; every other capability needs `full` access.
  */
 async function organizationsWith(
   state: TenancyState,
@@ -114,23 +123,34 @@ async function organizationsWith(
   const ids = memberships
     .filter((m) => capabilitiesOf(state.tenancy, m.role).includes(capability))
     .map((m) => m.organization);
-  if (capability === "read" || ids.length === 0) return ids;
+  if (ids.length === 0) return ids;
+  const tenancy = state.tenancy;
+  const usable =
+    capability === "read"
+      ? statusesWith(tenancy, "full", "limited")
+      : statusesWith(tenancy, "full");
   const active = await rawFind(
     qb,
     ORGANIZATIONS,
     { field: "id", op: "in", value: ids },
-    eq("status", "active"),
+    { field: "status", op: "in", value: usable },
   );
   const activeIds = new Set(active.map((org) => org.id));
   return ids.filter((id) => activeIds.has(id));
 }
 
 function knownModules(qb: Quickben, keys: readonly string[]): void {
+  const seen = new Set<string>();
   const known = new Set(qb.config.modules.map((module) => module.key));
   const issues = keys
     .map((key, index) => ({ key, index }))
-    .filter(({ key }) => !known.has(key))
-    .map(({ key, index }) => ({ path: `modules.${index}`, message: `Unknown module "${key}"` }));
+    .flatMap(({ key, index }) => {
+      const path = `modules.${String(index)}`;
+      if (!known.has(key)) return [{ path, message: `Unknown module "${key}"` }];
+      if (seen.has(key)) return [{ path, message: `Module "${key}" is listed twice` }];
+      seen.add(key);
+      return [];
+    });
   if (issues.length > 0) throw new ValidationError(issues);
 }
 
@@ -144,7 +164,7 @@ export function organizationsCollection(state: TenancyState) {
   return defineCollection({
     slug: ORGANIZATIONS,
     labels: { singular: "Organization", plural: "Organizations" },
-    fields: organizationFields(),
+    fields: organizationFields(tenancy),
     access: {
       read: async (args) => {
         if (!args.user) return false;
@@ -169,7 +189,7 @@ export function organizationsCollection(state: TenancyState) {
         ({ operation, data, original, ctx, qb }) => {
           const trusted = isTrusted(tenancy, ctx);
           if (operation === "create") {
-            if (!trusted && (data.modules !== undefined || data.status !== "active")) {
+            if (!trusted && (data.modules !== undefined || data.status !== tenancy.defaultStatus)) {
               throw new TenancyRuleError(
                 "platform-only",
                 "Only platform staff can set modules or status",
@@ -194,7 +214,9 @@ export function organizationsCollection(state: TenancyState) {
       ],
       beforeChange: [
         ({ data, qb }) => {
-          if (data.modules !== undefined) knownModules(qb, data.modules);
+          if (data.modules === undefined) return data;
+          knownModules(qb, moduleKeys(data.modules));
+          return { ...data, modules: storeEntitlements(data.modules) };
         },
       ],
       afterChange: [
@@ -215,6 +237,12 @@ export function organizationsCollection(state: TenancyState) {
           );
         },
       ],
+      beforeDelete: [
+        async ({ id, qb }) => {
+          if (tenancy.onOrganizationDelete === "cascade") await deleteScoped(tenancy, qb, id);
+          else await assertNoScoped(tenancy, qb, id);
+        },
+      ],
       afterDelete: [
         async ({ id, qb }) => {
           // Straight to the adapter: the last-owner rule does not apply to a deleted organization.
@@ -233,6 +261,53 @@ export function organizationsCollection(state: TenancyState) {
   });
 }
 
+/** Throw `not-empty` while the organization has scoped documents. */
+async function assertNoScoped(tenancy: ResolvedTenancy, qb: Quickben, id: string) {
+  const counts: string[] = [];
+  for (const slug of tenancy.scope) {
+    const count = await qb.db.count({ collection: slug, where: eq("organization", id) });
+    if (count > 0) counts.push(`${String(count)} in ${slug}`);
+  }
+  if (counts.length > 0) {
+    throw new TenancyRuleError(
+      "not-empty",
+      `The organization still has documents (${counts.join(", ")}). Delete them first.`,
+    );
+  }
+}
+
+const CASCADE_BATCH = 100;
+
+/**
+ * Delete every scoped document of an organization through the local API, so the hooks of
+ * the scoped collections run. `qb` is bound to the transaction of the organization delete.
+ */
+async function deleteScoped(tenancy: ResolvedTenancy, qb: Quickben, id: string) {
+  const ctx: RequestContext = { ...system, organizationId: id };
+  // Scope order: a parent (for example a template) can delete its children in its own hooks.
+  for (const slug of tenancy.scope) {
+    for (;;) {
+      const rows = await qb.db.find({
+        collection: slug,
+        where: eq("organization", id),
+        select: ["id"],
+        limit: CASCADE_BATCH,
+      });
+      if (rows.length === 0) break;
+      for (const row of rows) await deleteIfThere(qb, slug, row.id as string, ctx);
+    }
+  }
+}
+
+/** Delete a document unless a hook of an earlier delete already removed it. */
+async function deleteIfThere(qb: Quickben, slug: string, id: string, ctx: RequestContext) {
+  try {
+    await qb.delete(slug, id, ctx);
+  } catch (error) {
+    if (!(error instanceof NotFoundError)) throw error;
+  }
+}
+
 function memberKey(data: DocumentData): string | null {
   const org = data.organization as string;
   if (typeof data.user === "string" && data.user !== "") return `${org}:user:${data.user}`;
@@ -243,12 +318,12 @@ function memberKey(data: DocumentData): string | null {
 async function assertModulesGranted(qb: Quickben, orgId: string, modules: unknown) {
   if (!Array.isArray(modules) || modules.length === 0) return;
   const org = await rawOrganization(qb, orgId);
-  const enabled = new Set(org?.modules ?? []);
+  const enabled = new Set(moduleKeys(org?.modules));
   const issues = (modules as string[])
     .map((key, index) => ({ key, index }))
     .filter(({ key }) => !enabled.has(key))
     .map(({ key, index }) => ({
-      path: `modules.${index}`,
+      path: `modules.${String(index)}`,
       message: `Module "${key}" is not enabled for the organization`,
     }));
   if (issues.length > 0) throw new ValidationError(issues);
