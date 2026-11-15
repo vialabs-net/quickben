@@ -50,7 +50,6 @@ export type PathParams<P extends string> = P extends `${string}:${infer Name}/${
     : never;
 
 type SchemaOutput<S> = S extends z.ZodType ? z.output<S> : never;
-type SchemaInput<S> = S extends z.ZodType ? z.input<S> : never;
 
 /** Validated input of a handler, inferred from the schemas and the path. */
 export interface EndpointInputOf<P extends string, I extends EndpointInputSchemas> {
@@ -59,12 +58,16 @@ export interface EndpointInputOf<P extends string, I extends EndpointInputSchema
   body: I extends { body: infer S } ? SchemaOutput<S> : undefined;
 }
 
-/** What a handler may return for an output schema. A `Response` is always allowed. */
+/**
+ * What a handler may return for an output schema: the schema's output type. Output schemas
+ * check the result and never change it, so transforms and defaults do not apply. A `Response`
+ * is always allowed.
+ */
 export type EndpointResultOf<O> = O extends z.ZodType
-  ? SchemaInput<O> | EndpointReply<number, SchemaInput<O>>
+  ? SchemaOutput<O> | EndpointReply<number, SchemaOutput<O>>
   : O extends Readonly<Record<number, z.ZodType>>
-    ? | { [K in keyof O & number]: EndpointReply<K, SchemaInput<O[K]>> }[keyof O & number]
-      | (200 extends keyof O ? SchemaInput<O[200]> : never)
+    ? | { [K in keyof O & number]: EndpointReply<K, SchemaOutput<O[K]>> }[keyof O & number]
+      | (200 extends keyof O ? SchemaOutput<O[200]> : never)
     : unknown;
 
 /** Arguments of an endpoint handler. */

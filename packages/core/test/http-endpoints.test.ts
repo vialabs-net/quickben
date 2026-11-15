@@ -525,6 +525,78 @@ describe("transactions", () => {
     const qb = await getQuickben(config);
     expect((await qb.find("notes", {}, system)).docs).toHaveLength(0);
   });
+
+  it("rolls back when the output does not match", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const badWrite = defineEndpoint({
+      method: "POST",
+      path: "/bad-write",
+      access: true,
+      transactional: true,
+      output: z.object({ id: z.number() }),
+      handler: async ({ qb }) => {
+        const doc = await qb.create("notes", { text: "x" }, system);
+        return { id: doc.id } as never;
+      },
+    });
+    const withBad = defineConfig({
+      db: testAdapter(),
+      collections: [notes],
+      endpoints: [badWrite],
+    });
+    const response = await handleEndpointRequest(
+      withBad,
+      new Request(`${BASE}/bad-write`, { method: "POST" }),
+    );
+    expect(response?.status).toBe(500);
+    expect(events).toEqual([]);
+    const qb = await getQuickben(withBad);
+    expect((await qb.find("notes", {}, system)).docs).toHaveLength(0);
+  });
+});
+
+describe("HEAD, root base path and transforms", () => {
+  it("serves HEAD with the GET endpoint and no body", async () => {
+    const response = await call("HEAD", "/health");
+    expect(response?.status).toBe(200);
+    expect(response?.headers.get("content-type")).toContain("application/json");
+    expect(await response?.text()).toBe("");
+    expect((await call("HEAD", "/v1/notes"))?.status).toBe(405);
+  });
+
+  it("mounts at the root with basePath /", async () => {
+    const response = await handleEndpointRequest(config, new Request("https://app.test/health"), {
+      basePath: "/",
+    });
+    expect(await jsonOf(response)).toEqual({ ok: true });
+  });
+
+  it("sends the result unchanged: output schemas do not transform", async () => {
+    const transformed = defineEndpoint({
+      method: "GET",
+      path: "/n",
+      access: true,
+      output: z.object({ n: z.string().transform(Number), extra: z.string().default("d") }),
+      handler: () => ({ n: 42, extra: "e" }) as never,
+    });
+    const typed = defineEndpoint({
+      method: "GET",
+      path: "/m",
+      access: true,
+      output: z.object({ n: z.number(), extra: z.string() }),
+      handler: () => ({ n: 42, extra: "e" }),
+    });
+    const both = defineConfig({
+      db: testAdapter(),
+      collections: [],
+      endpoints: [transformed, typed],
+    });
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const bad = await handleEndpointRequest(both, new Request(`${BASE}/n`));
+    expect(bad?.status).toBe(500);
+    const good = await handleEndpointRequest(both, new Request(`${BASE}/m`));
+    expect(await jsonOf(good)).toEqual({ n: 42, extra: "e" });
+  });
 });
 
 describe("readBytes", () => {

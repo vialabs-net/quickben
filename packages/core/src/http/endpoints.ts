@@ -39,9 +39,10 @@ function trimSlashes(path: string): string {
   return path.slice(0, end);
 }
 
-/** `/api/` → `/api`, `api` → `/api`. */
+/** `/api/` → `/api`, `api` → `/api`, `/` → `""` (the root). */
 export function normalizeBasePath(basePath: string): string {
   const trimmed = trimSlashes(basePath);
+  if (trimmed === "") return "";
   return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
 }
 
@@ -205,9 +206,10 @@ class OutputError extends Error {
   }
 }
 
-async function validateBody(endpoint: AnyEndpoint, status: number, body: unknown) {
+/** Check a result against the output schema. The result is sent unchanged. */
+async function validateBody(endpoint: AnyEndpoint, status: number, body: unknown): Promise<void> {
   const schema = outputSchema(endpoint, status);
-  if (!schema) return body;
+  if (!schema) return;
   const result = await schema.safeParseAsync(body);
   if (!result.success) {
     throw new OutputError(
@@ -219,7 +221,6 @@ async function validateBody(endpoint: AnyEndpoint, status: number, body: unknown
       })),
     );
   }
-  return result.data;
 }
 
 function shouldValidateOutput(endpoint: AnyEndpoint, option: boolean | undefined): boolean {
@@ -238,7 +239,8 @@ async function toResponse(
   const reply = isReply(result)
     ? result
     : { status: result === undefined ? 204 : 200, body: result, headers: {} };
-  const body = validate ? await validateBody(endpoint, reply.status, reply.body) : reply.body;
+  if (validate) await validateBody(endpoint, reply.status, reply.body);
+  const { body } = reply;
   if (reply.status === 204 || reply.status === 304 || body === undefined) {
     return new Response(null, {
       status: reply.status,
@@ -279,6 +281,11 @@ function withHeaders(response: Response, headers: Record<string, string>): Respo
   }
 }
 
+function withoutBody(response: Response): Response {
+  void response.body?.cancel();
+  return new Response(null, response);
+}
+
 function failure(error: unknown): Response {
   if (error instanceof OutputError) {
     console.error(error.message, error.issues);
@@ -305,10 +312,15 @@ async function run(
   const ctx = { user, req };
   await checkEndpointAccess(endpoint, qb, ctx);
   const input = await parseInput(match, req, url, options.maxBodyBytes ?? 1_048_576);
-  const call = (api: Quickben) =>
-    Promise.resolve(endpoint.handler({ input: input as never, qb: api, ctx, user, req }));
-  const result = endpoint.transactional === true ? await qb.transaction(call) : await call(qb);
-  return toResponse(endpoint, result, shouldValidateOutput(endpoint, options.validateOutput));
+  const validate = shouldValidateOutput(endpoint, options.validateOutput);
+  // The response is built inside the transaction, so an invalid output rolls it back.
+  const call = async (api: Quickben) =>
+    toResponse(
+      endpoint,
+      await endpoint.handler({ input: input as never, qb: api, ctx, user, req }),
+      validate,
+    );
+  return endpoint.transactional === true ? qb.transaction(call) : call(qb);
 }
 
 /**
@@ -336,7 +348,9 @@ export async function handleEndpointRequest(
   const matches = findMatches(endpoints, segments);
   if (matches.length === 0) return null;
   const method = request.method.toUpperCase();
-  const match = matches.find((candidate) => candidate.endpoint.method === method);
+  // HEAD is served by the GET endpoint, without a body.
+  const head = method === "HEAD";
+  const match = matches.find((candidate) => candidate.endpoint.method === (head ? "GET" : method));
   if (!match) {
     const allow = [...new Set(matches.map((candidate) => candidate.endpoint.method))];
     return errorResponse(
@@ -347,7 +361,8 @@ export async function handleEndpointRequest(
   }
   const headers = lifecycleHeaders(match.endpoint);
   try {
-    return withHeaders(await run(config, match, request, url, options), headers);
+    const response = withHeaders(await run(config, match, request, url, options), headers);
+    return head ? withoutBody(response) : response;
   } catch (error) {
     return withHeaders(failure(error), headers);
   }

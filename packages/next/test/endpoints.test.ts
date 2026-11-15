@@ -86,4 +86,13 @@ describe("custom endpoints in createRouteHandlers", () => {
     );
     expect(cross.status).toBe(403);
   });
+
+  it("serves HEAD through the GET handler and mounts at the root", async () => {
+    const { api } = handlers({ basePath: "/" });
+    const head = await api.GET(request("HEAD", "/v1/posts-count"));
+    expect(head.status).toBe(200);
+    expect(await head.text()).toBe("");
+    const crud = await api.GET(request("GET", "/posts"));
+    expect(crud.status).toBe(200);
+  });
 });

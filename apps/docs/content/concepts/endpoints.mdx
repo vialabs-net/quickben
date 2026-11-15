@@ -92,7 +92,7 @@ Types are inferred from the schemas. The handler gets `{ input, qb, ctx, user, r
 | `input.params` | Output of `params`, or `{ id: string }` from the `:id` names of the path. |
 | `input.query`  | Output of `query`, or `Record<string, string \| string[]>`.               |
 | `input.body`   | Output of `body`, or `undefined` (the body is not read).                  |
-| Return value   | The input type of `output`, a reply, or a `Response`.                     |
+| Return value   | The output type of `output`, a reply, or a `Response`.                    |
 
 `qb` is untyped by default. `endpointFactory<Registry>()` returns a `defineEndpoint` with a typed `qb`:
 
@@ -119,13 +119,13 @@ JSON responses have `Cache-Control: private, no-store` unless `headers` sets it.
 
 Steps run in this order:
 
-1. Match the path. Static segments win over parameters. A known path with another method gets `405` with `Allow`.
+1. Match the path. Static segments win over parameters. A known path with another method gets `405` with `Allow`. `HEAD` runs the `GET` endpoint and drops the body.
 2. CSRF check for `POST`, `PUT`, `PATCH`, `DELETE`. Requests with `Authorization: Bearer` skip it.
 3. Resolve the user with `config.auth`.
 4. Access rule. `false` is `401` without a user and `403` with one.
 5. Validate `params`, `query` and `body`. Issues have paths such as `body.amount`.
 6. Run the handler.
-7. Validate the result against `output` (not in production unless `validateOutput: true`). A mismatch is logged and returns `500 INTERNAL`.
+7. Validate the result against `output` (not in production unless `validateOutput: true`). A mismatch is logged and returns `500 INTERNAL`. With `transactional`, it also rolls back. The result is sent unchanged: Zod transforms and defaults in `output` do not apply.
 
 Errors have the [route handler shape](/docs/nextjs/route-handlers#errors): `{ error: { code, message, details } }`. Thrown `QuickbenError`s and `HttpError`s keep their status. Other errors are `500 INTERNAL`.
 
@@ -168,7 +168,7 @@ Bearer requests skip the `Origin` check: a browser cannot send an `Authorization
 
 | Option           | Default           | Purpose                                                 |
 | ---------------- | ----------------- | ------------------------------------------------------- |
-| `basePath`       | `/api`            | URL path the API is mounted at.                         |
+| `basePath`       | `/api`            | URL path the API is mounted at. `/` for the root.       |
 | `csrf`           | `{}`              | `{ trustedOrigins }`, or `false` to turn the check off. |
 | `maxBodyBytes`   | `1048576` (1 MB)  | Largest JSON body.                                      |
 | `validateOutput` | not in production | Validate results.                                       |
