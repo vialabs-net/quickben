@@ -219,7 +219,7 @@ describe("samples", () => {
     await expect(addSample(qb, admin, "nope", { file: { bytes: PNG } })).rejects.toThrow(
       NotFoundError,
     );
-    files.files.clear();
+    files.objects.clear();
     await expect(sampleFile(qb, admin, sample.id)).rejects.toThrow(NotFoundError);
     await removeSample(qb, admin, sample.id);
     expect(await listSamples(qb, admin, "invoice")).toEqual([]);
@@ -291,18 +291,18 @@ describe("test runs", () => {
     const { qb, runner, files } = await setup({ log });
     const kept = await addSample(qb, admin, "invoice", { file: { bytes: PNG, name: "kept.png" } });
     await addSample(qb, admin, "invoice", { file: { bytes: PNG, name: "lost.png" } });
-    for (const [ref] of [...files.files.entries()].slice(1)) files.files.delete(ref);
+    for (const [ref] of [...files.objects.entries()].slice(1)) files.objects.delete(ref);
     const [run] = await startTestRun(qb, admin, "invoice", 1, { sampleIds: [kept.id, "other"] });
     await runner.idle();
     expect((await getTestRun(qb, admin, run!.id)).results).toHaveLength(1);
     const broken = await addSample(qb, admin, "invoice", {
       file: { bytes: PNG, name: "broken.png" },
     });
-    const read = files.read.bind(files);
-    vi.spyOn(files, "read").mockImplementation(async (ref) => {
+    const read = files.getBytes.bind(files);
+    vi.spyOn(files, "getBytes").mockImplementation(async (ref) => {
       const samples = await listSamples(qb, admin, "invoice");
       const target = samples.find((sample) => sample.id === broken.id);
-      if (target && ref.endsWith(".png") && ref === [...files.files.keys()].at(-1))
+      if (target && ref.endsWith(".png") && ref === [...files.objects.keys()].at(-1))
         throw new Error("disk error");
       return read(ref);
     });

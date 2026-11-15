@@ -1,9 +1,9 @@
-import { ConfigError } from "@quickben/core";
+import { ConfigError, memoryStorage } from "@quickben/core";
 
 import { parseDocumentType } from "./definition";
 import { createTextLayerExtractor } from "./extractors/text-layer";
 import { createVisionLlmExtractor } from "./extractors/vision-llm";
-import { memoryFileStore } from "./files";
+import { fromFileStore, isStorageAdapter } from "./files";
 import { inProcessRunner } from "./runner";
 
 import type { DocumentType, DocumentTypeInput } from "./definition";
@@ -15,12 +15,21 @@ import type { Reading } from "./readings";
 import type { JobRunner } from "./runner";
 import type { ExtractionTemplate } from "./templates";
 import type { TextReader } from "./text-readers";
-import type { CollectionAccess, Quickben, QuickbenConfig, QuickbenUser } from "@quickben/core";
+import type {
+  CollectionAccess,
+  Quickben,
+  QuickbenConfig,
+  QuickbenUser,
+  StorageAdapter,
+} from "@quickben/core";
 
 /** Options of `docReader()`. */
 export interface DocReaderOptions {
-  /** Where documents and samples are stored. Default: in memory (tests and demos only). */
-  files?: FileStore;
+  /**
+   * Where documents and samples are stored. Default: the config `storage`, else in memory
+   * (tests and demos only). A `FileStore` of earlier versions still works.
+   */
+  files?: StorageAdapter | FileStore;
   /** How jobs reach a worker. Default `inProcessRunner()`. */
   runner?: JobRunner;
   /**
@@ -61,7 +70,10 @@ export interface DocReaderOptions {
 
 /** Options after defaults, plus the instance the plugin started with. */
 export interface DocReaderState {
-  readonly files: FileStore;
+  /** Set from the config `storage` at start when `files` is not given. */
+  files: StorageAdapter;
+  /** `files` came from the options. */
+  readonly ownFiles: boolean;
   readonly runner: JobRunner;
   readonly extractors: Readonly<Record<string, Extractor>>;
   /** Keys of the registered templates and readers, for the admin's pickers. */
@@ -80,6 +92,11 @@ export interface DocReaderState {
 
 export const defaultIsStaff = (user: QuickbenUser) =>
   user.roles?.includes("platform-admin") === true;
+
+function toStorage(files: StorageAdapter | FileStore | undefined): StorageAdapter {
+  if (!files) return memoryStorage();
+  return isStorageAdapter(files) ? files : fromFileStore(files);
+}
 
 export function resolveOptions(options: DocReaderOptions): DocReaderState {
   // `rootQb` is set when Quickben starts, before any reading runs.
@@ -123,7 +140,8 @@ export function resolveOptions(options: DocReaderOptions): DocReaderState {
     keys.add(id);
   }
   return {
-    files: options.files ?? memoryFileStore(),
+    files: toStorage(options.files),
+    ownFiles: options.files !== undefined,
     runner: options.runner ?? inProcessRunner(),
     extractors,
     templateKeys: Object.keys(options.templates ?? {}),

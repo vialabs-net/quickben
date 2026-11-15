@@ -1,0 +1,42 @@
+---
+title: Amazon S3
+description: "@quickben/storage-s3: files in Amazon S3 or an S3-compatible store with the AWS SDK v3."
+---
+
+# Amazon S3
+
+Works with Amazon S3 and S3-compatible stores such as Cloudflare R2 and MinIO.
+
+```sh
+pnpm add @quickben/storage-s3 @aws-sdk/client-s3 @aws-sdk/s3-request-presigner
+```
+
+```ts
+import { defineConfig } from "@quickben/core";
+import { memoryAdapter } from "@quickben/db-memory";
+import { s3Storage } from "@quickben/storage-s3";
+
+export default defineConfig({
+  db: memoryAdapter(),
+  storage: s3Storage({ bucket: "my-app-files", clientConfig: { region: "us-east-1" } }),
+  collections: [],
+});
+```
+
+| Option         | Default                      | Purpose                           |
+| -------------- | ---------------------------- | --------------------------------- |
+| `bucket`       | required                     | Bucket name.                      |
+| `client`       | `new S3Client(clientConfig)` | Your own client.                  |
+| `clientConfig` | `{}`                         | Region, endpoint and credentials. |
+| `prefix`       | none                         | Folder for every key.             |
+
+| Method      | SDK command                                               |
+| ----------- | --------------------------------------------------------- |
+| `put`       | `PutObjectCommand` with `ContentLength` and `ContentType` |
+| `get`       | `GetObjectCommand`; the body as a web stream              |
+| `getBytes`  | `GetObjectCommand`                                        |
+| `head`      | `HeadObjectCommand`                                       |
+| `delete`    | `DeleteObjectCommand`                                     |
+| `signedUrl` | `getSignedUrl` from `@aws-sdk/s3-request-presigner`       |
+
+Both SDK packages are optional peer dependencies, loaded on first use. `@aws-sdk/s3-request-presigner` is needed for `signedUrl` only. For R2 or MinIO set `clientConfig.endpoint` (and `forcePathStyle: true` for MinIO).

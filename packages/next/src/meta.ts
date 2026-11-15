@@ -34,6 +34,10 @@ export interface FieldMeta {
   admin: FieldAdmin;
   /** Time zone of `date` and `datetime` inputs given with offsets or as `Date`. */
   timeZone?: string;
+  /** Accepted types of `file` fields. Absent when every type is accepted. */
+  accept?: readonly string[];
+  /** Largest file of `file` fields, in bytes. */
+  maxBytes?: number;
   /** Whether the user may set the field on create and on update (field access rules). */
   access: { create: boolean; update: boolean };
 }
@@ -112,6 +116,9 @@ function fieldMeta(
     admin: field.admin,
     ...(field.type === "date" || field.type === "datetime"
       ? optional("timeZone", field.timeZone)
+      : {}),
+    ...(field.type === "file"
+      ? { ...optional("accept", field.accept), maxBytes: field.maxBytes }
       : {}),
     access: { create: !denied.create.has(field.name), update: !denied.update.has(field.name) },
   };

@@ -1,7 +1,16 @@
 import { defineCollection, fields as f, ValidationError } from "@quickben/core";
 import { z } from "zod";
 
-import { brandLimits, checkFont, checkLogo, CUSTOM_FONT, defaultBrand, isHexColor } from "./brand";
+import {
+  brandLimits,
+  checkFont,
+  checkLogo,
+  CUSTOM_FONT,
+  defaultBrand,
+  isHexColor,
+  LOGO_MAX_BYTES,
+  LOGO_TYPES,
+} from "./brand";
 import { asContent, contentHash } from "./content";
 import { BRANDS, TEMPLATES, VERSIONS } from "./options";
 
@@ -87,7 +96,14 @@ export function brandFields(templates: ResolvedTemplates) {
         return true;
       },
     }),
-    logo: f.text({ validate: checkLogo }),
+    logoFile: f.file({
+      accept: LOGO_TYPES,
+      maxBytes: LOGO_MAX_BYTES,
+      label: "Logo",
+      ...(templates.storage ? { storage: templates.storage } : {}),
+    }),
+    /** The logo of earlier versions (`data:` URL or asset reference). See `migrateBrandLogos`. */
+    logo: f.text({ validate: checkLogo, admin: { hidden: true } }),
     /** `<organization or "global">`. Keeps one brand per organization. */
     key: f.text({ unique: true, admin: { hidden: true, readOnly: true } }),
   };

@@ -457,7 +457,7 @@ export async function addSample(
   await listVersions(qb, ctx, typeKey);
   const upload = await readUpload(state, input.file);
   const fileRef = storageRef(`samples/${typeKey}`, upload.mime);
-  await state.files.write(fileRef, upload.bytes, upload.mime);
+  await state.files.put(fileRef, upload.bytes, { contentType: upload.mime });
   const record = await qb.create(
     DOC_SAMPLES,
     {
@@ -494,7 +494,7 @@ export async function updateSample(
 export async function removeSample(qb: Quickben, ctx: RequestContext, id: string): Promise<void> {
   const record = (await qb.delete(DOC_SAMPLES, id, ctx)) as unknown as SampleRecord;
   await getDocReader(qb)
-    .files.delete?.(record.fileRef)
+    .files.delete(record.fileRef)
     .catch(() => undefined);
 }
 
@@ -505,7 +505,7 @@ export async function sampleFile(
   id: string,
 ): Promise<{ bytes: Uint8Array; mime: string; fileName: string }> {
   const record = (await qb.findById(DOC_SAMPLES, id, {}, ctx)) as unknown as SampleRecord;
-  const bytes = await getDocReader(qb).files.read(record.fileRef);
+  const bytes = await getDocReader(qb).files.getBytes(record.fileRef);
   if (!bytes) throw new NotFoundError("The file of this sample is gone");
   return { bytes, mime: record.mime, fileName: record.fileName };
 }
@@ -650,7 +650,7 @@ async function readSample(
   const state = getDocReader(qb);
   const started = Date.now();
   const base = { sampleId: sample.id, fileName: sample.fileName };
-  const bytes = await state.files.read(sample.fileRef);
+  const bytes = await state.files.getBytes(sample.fileRef);
   if (!bytes) {
     return {
       ...base,

@@ -278,7 +278,7 @@ describe("access and listing", () => {
     });
     const { qb, files, runner } = await setup({ log, onReadingDone });
     const reading = await readDocument(qb, { type: "invoice", file: await pdfFile() }, as(alice));
-    files.files.clear();
+    files.objects.clear();
     await runner.idle();
     expect(await getReading(qb, reading.id, as(alice))).toMatchObject({
       state: "failed",

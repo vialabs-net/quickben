@@ -61,26 +61,27 @@ const { pdf } = await renderPdf(qb, { kind: "invoice", data, reference: "INV-004
 
 ## What it adds
 
-| Collection                   | Fields                                                                                                                                      |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `brands`                     | `displayName`, `legalName`, `taxId`, `address`, `contact`, `footer`, `primaryColor`, `accentColor`, `font`, `customFont`, `logo`            |
-| `document-templates`         | `kind`. One per kind.                                                                                                                       |
-| `document-template-versions` | `template`, `kind`, `number`, `status` (`draft`, `published`, `archived`), `content`, `contentHash`, `publishedAt`, `publishedBy`, and more |
+| Collection                   | Fields                                                                                                                                       |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `brands`                     | `displayName`, `legalName`, `taxId`, `address`, `contact`, `footer`, `primaryColor`, `accentColor`, `font`, `customFont`, `logoFile`, `logo` |
+| `document-templates`         | `kind`. One per kind.                                                                                                                        |
+| `document-template-versions` | `template`, `kind`, `number`, `status` (`draft`, `published`, `archived`), `content`, `contentHash`, `publishedAt`, `publishedBy`, and more  |
 
 All three are hidden from the generated admin views. The admin extension below has pages for them.
 
 ## Options
 
-| Option   | Default                | Purpose                                                                                                             |
-| -------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `kinds`  | required               | Kinds from `defineTemplateKind`.                                                                                    |
-| `access` | signed-in users        | `{ read, manage }` rules. `manage` covers create, update and delete. Return a boolean.                              |
-| `format` | `en-US`, `UTC`, yes/no | `{ locale, timeZone, booleanLabels }` for printed numbers, dates and booleans.                                      |
-| `page`   | `letter`, no reserve   | `{ size: "letter" \| "a4", reserveBottom }`. `reserveBottom` (points) keeps space free, e.g. for a signature stamp. |
-| `fonts`  | none                   | Extra fonts: `{ key, label, generic, faces() }`. `faces` returns woff2 `data:` URLs.                                |
-| `pdf`    | none                   | A `PdfRenderer`. Needed by `renderPdf` and the admin's PDF download.                                                |
-| `assets` | inline `data:` URLs    | `{ save, load }` to keep logos and fonts in your own storage. The brand stores the reference.                       |
-| `module` | none                   | `{ key, label }`: registers a module with the three collections.                                                    |
+| Option    | Default                | Purpose                                                                                                                |
+| --------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `kinds`   | required               | Kinds from `defineTemplateKind`.                                                                                       |
+| `access`  | signed-in users        | `{ read, manage }` rules. `manage` covers create, update and delete. Return a boolean.                                 |
+| `format`  | `en-US`, `UTC`, yes/no | `{ locale, timeZone, booleanLabels }` for printed numbers, dates and booleans.                                         |
+| `page`    | `letter`, no reserve   | `{ size: "letter" \| "a4", reserveBottom }`. `reserveBottom` (points) keeps space free, e.g. for a signature stamp.    |
+| `fonts`   | none                   | Extra fonts: `{ key, label, generic, faces() }`. `faces` returns woff2 `data:` URLs.                                   |
+| `pdf`     | none                   | A `PdfRenderer`. Needed by `renderPdf` and the admin's PDF download.                                                   |
+| `storage` | config `storage`       | Storage adapter of the brand logo (`logoFile`).                                                                        |
+| `assets`  | inline `data:` URLs    | `{ save, load }` to keep fonts, and logos when there is no storage, in your own store. The brand stores the reference. |
+| `module`  | none                   | `{ key, label }`: registers a module with the three collections.                                                       |
 
 ## Kinds and variables
 
@@ -190,6 +191,20 @@ import "@quickben/plugin-templates/styles.css";
 The editor (TipTap) loads only on the editor page. Install `@tiptap/core`, `@tiptap/pm`, `@tiptap/react`, `@tiptap/starter-kit`, `@tiptap/extension-table` and `@tiptap/extension-text-align`.
 
 Logos and fonts are limited to 512 KB, because server actions accept 1 MB bodies by default.
+
+## Logo
+
+With a storage adapter (the plugin's `storage` or the config `storage`), the logo is the `logoFile` [file field](/docs/storage): PNG, JPEG or WebP, checked by its bytes. Renders read it as a `data:` URL, so the PDF renderer fetches nothing. Without storage, the brand form keeps the logo in the old `logo` field as a `data:` URL (or an `assets` reference).
+
+Move old logos once after you configure storage:
+
+```ts
+import { migrateBrandLogos } from "@quickben/plugin-templates";
+
+const { migrated, skipped } = await migrateBrandLogos(qb);
+```
+
+It copies each `logo` into `logoFile` and clears `logo`. Brands that already have a `logoFile` are skipped; `skipped` counts old logos that could not be read. Brands gain a `logoFile` column: run your migration tool if you do not use `push`.
 
 ## With tenancy
 

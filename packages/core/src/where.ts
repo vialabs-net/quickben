@@ -71,6 +71,7 @@ function ruleFor(field: AnyField): FieldRule {
     case "select":
       return { kind: "equality", value, ...(options ? { options } : {}) };
     case "json":
+    case "file":
       return { kind: "json", value };
     default:
       return { kind: "text", value };

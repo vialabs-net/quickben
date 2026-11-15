@@ -1,3 +1,5 @@
+import type { FileRef } from "@quickben/core";
+
 /**
  * The look of generated documents: colors, font, logo, letterhead and footer. A render inlines
  * every asset as a `data:` URL, so the PDF renderer never fetches anything.
@@ -21,7 +23,13 @@ export interface BrandFields {
   font: string;
   /** Uploaded woff2 files, used when `font` is `custom`. */
   customFont: CustomFont | null;
-  /** The logo: a `data:` URL, or a reference that `assets.load` resolves. */
+  /** The logo file, in the configured storage. */
+  logoFile: FileRef | null;
+  /**
+   * The logo of earlier versions: a `data:` URL, or a reference that `assets.load` resolves.
+   * Used when there is no `logoFile`, and when no storage is configured. Move it with
+   * `migrateBrandLogos`.
+   */
   logo: string | null;
 }
 
@@ -51,7 +59,7 @@ export interface FontDefinition {
 }
 
 /** Everything a render needs from the brand. */
-export interface BrandRender extends Omit<BrandFields, "logo" | "customFont"> {
+export interface BrandRender extends Omit<BrandFields, "logo" | "logoFile" | "customFont"> {
   /** The logo as a `data:` URL. */
   logo: string | null;
   faces: readonly FontFaceSource[];
@@ -71,6 +79,7 @@ export const defaultBrand: BrandFields = {
   accentColor: "#1d4ed8",
   font: "sans",
   customFont: null,
+  logoFile: null,
   logo: null,
 };
 

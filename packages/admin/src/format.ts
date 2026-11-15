@@ -55,6 +55,11 @@ function isEmpty(value: unknown): boolean {
   );
 }
 
+function fileName(value: unknown): string {
+  const name = (value as { name?: unknown } | null)?.name;
+  return typeof name === "string" ? name : "";
+}
+
 function fieldCell(
   field: FieldMeta,
   value: unknown,
@@ -80,6 +85,8 @@ function fieldCell(
       return { kind: "text", text: i18n.date(String(value)) };
     case "json":
       return { kind: "text", text: truncate(JSON.stringify(value), 60), mono: true };
+    case "file":
+      return { kind: "text", text: truncate(fileName(value), 80) };
     case "number":
       return { kind: "text", text: typeof value === "number" ? i18n.number(value) : String(value) };
     default:

@@ -2,6 +2,7 @@ import { extendCollection, humanize } from "./collection";
 import { ConfigError } from "./errors";
 import { defaultTimeZone, isTimeZone } from "./time";
 
+import type { FileField } from "./fields";
 import type {
   AnyCollection,
   AnyPlugin,
@@ -27,6 +28,7 @@ export function defineConfig<
 >(input: ConfigInput<C, P>): QuickbenConfig<ConfigRegistry<C[number], P[number]>> {
   let config: PluginConfig = {
     db: input.db,
+    storage: input.storage,
     collections: [...input.collections],
     auth: input.auth,
     admin: input.admin ?? {},
@@ -45,6 +47,7 @@ export function defineConfig<
   assertConfig(collections, config.modules);
   return {
     db: config.db,
+    storage: config.storage,
     collections,
     auth: config.auth,
     admin: {
@@ -89,17 +92,31 @@ function assertConfig(collections: readonly SanitizedCollection[], modules: read
     }
     slugs.add(collection.slug);
   }
-  for (const collection of collections) assertRelations(collection, slugs);
+  for (const collection of collections) assertFields(collection, slugs);
   assertModules(modules, slugs);
 }
 
-function assertRelations(collection: SanitizedCollection, slugs: ReadonlySet<string>) {
+/** Check relation targets and file field options. */
+function assertFields(collection: SanitizedCollection, slugs: ReadonlySet<string>) {
   for (const field of collection.fieldList) {
+    if (field.type === "file") assertFileField(collection.slug, field);
     if (field.type === "relation" && !slugs.has(field.to)) {
       throw new ConfigError(
         `Field "${collection.slug}.${field.name}" relates to unknown collection "${field.to}"`,
       );
     }
+  }
+}
+
+function assertFileField(slug: string, field: FileField & { name: string }) {
+  const name = `${slug}.${field.name}`;
+  if (!Number.isInteger(field.maxBytes) || field.maxBytes <= 0) {
+    throw new ConfigError(`Field "${name}": maxBytes must be a positive integer`);
+  }
+  if (field.accept?.some((type) => !/^[\w.+-]+\/([\w.+-]+|\*)$/.test(type))) {
+    throw new ConfigError(
+      `Field "${name}": accept lists MIME types such as "image/png" or "image/*"`,
+    );
   }
 }
 

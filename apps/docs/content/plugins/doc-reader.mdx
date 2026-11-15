@@ -16,7 +16,8 @@ pnpm add @quickben/plugin-doc-reader ai
 ```ts filename="quickben.config.ts"
 import { defineConfig, devAuth } from "@quickben/core";
 import { memoryAdapter } from "@quickben/db-memory";
-import { docReader, memoryFileStore } from "@quickben/plugin-doc-reader";
+import { memoryStorage } from "@quickben/core";
+import { docReader } from "@quickben/plugin-doc-reader";
 
 import type { DocumentTypeInput } from "@quickben/plugin-doc-reader";
 
@@ -36,7 +37,7 @@ export default defineConfig({
   collections: [],
   plugins: [
     docReader({
-      files: memoryFileStore(),
+      files: memoryStorage(),
       types: [invoice],
       templates: {
         invoice: {
@@ -222,13 +223,17 @@ Run `DOC_READER_WORKER=1 node worker.js` next to the web app. Both processes use
 
 ## Files
 
-| Store                 | Use                                 |
-| --------------------- | ----------------------------------- |
-| `memoryFileStore()`   | Default. Tests and demos.           |
-| `localFileStore(dir)` | One server or a shared volume.      |
-| your own `FileStore`  | S3, GCS: `read`, `write`, `delete`. |
+Uploads and samples are kept in a [storage adapter](/docs/storage): `files`, else the config `storage`, else `memoryStorage()` (tests and demos only). Keys start with `readings/` and `samples/<type>/`.
 
-Uploads are checked by their first bytes: PDF, JPEG, PNG or WebP, at most `maxFileBytes` (20 MB).
+| Deprecated            | Use instead                                                       |
+| --------------------- | ----------------------------------------------------------------- |
+| `FileStore`           | `StorageAdapter`. A `FileStore` still works in `files`.           |
+| `memoryFileStore()`   | `memoryStorage()` from `@quickben/core`.                          |
+| `localFileStore(dir)` | `localFileStorage({ root: dir })` from `@quickben/storage-local`. |
+
+`fromFileStore(store)` wraps an old store as a `StorageAdapter`.
+
+Uploads are checked by their first bytes (the core `sniffMime`): PDF, JPEG, PNG or WebP, at most `maxFileBytes` (20 MB).
 
 ## Studio
 
@@ -286,7 +291,7 @@ export default createAdminPage(config, { serverFunction, extensions: [docReaderA
 
 | Option                 | Default               | Purpose                                         |
 | ---------------------- | --------------------- | ----------------------------------------------- |
-| `files`                | `memoryFileStore()`   | Where uploads and samples are kept.             |
+| `files`                | config `storage`      | Where uploads and samples are kept.             |
 | `runner`               | `inProcessRunner()`   | How jobs reach a worker.                        |
 | `resolveModel`         | none                  | Models for `vision-llm` steps.                  |
 | `listModels`           | none                  | Model pickers in the admin.                     |

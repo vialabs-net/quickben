@@ -1,0 +1,39 @@
+---
+title: Google Cloud Storage
+description: "@quickben/storage-gcs: files in a Google Cloud Storage bucket with the official SDK."
+---
+
+# Google Cloud Storage
+
+```sh
+pnpm add @quickben/storage-gcs @google-cloud/storage
+```
+
+```ts
+import { defineConfig } from "@quickben/core";
+import { memoryAdapter } from "@quickben/db-memory";
+import { gcsStorage } from "@quickben/storage-gcs";
+
+export default defineConfig({
+  db: memoryAdapter(),
+  storage: gcsStorage({ bucket: "my-app-files", prefix: "uploads/" }),
+  collections: [],
+});
+```
+
+| Option    | Default         | Purpose                                                         |
+| --------- | --------------- | --------------------------------------------------------------- |
+| `bucket`  | required        | Bucket name, or a `Bucket` from your own `Storage` client.      |
+| `storage` | `new Storage()` | Client for a bucket name. Uses Application Default Credentials. |
+| `prefix`  | none            | Folder for every key.                                           |
+
+| Method      | SDK call                                               |
+| ----------- | ------------------------------------------------------ |
+| `put`       | `file.save(bytes, { resumable: false, contentType })`  |
+| `get`       | `file.getMetadata()`, then `file.createReadStream()`   |
+| `getBytes`  | `file.download()`                                      |
+| `head`      | `file.getMetadata()`                                   |
+| `delete`    | `file.delete({ ignoreNotFound: true })`                |
+| `signedUrl` | `file.getSignedUrl({ version: "v4", action: "read" })` |
+
+`@google-cloud/storage` (7 or later) is an optional peer dependency, loaded on first use. The service account needs `storage.objects.create`, `get` and `delete` on the bucket; signed URLs also need `iam.serviceAccounts.signBlob`.

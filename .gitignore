@@ -20,4 +20,5 @@ playwright-report/
 .pglite/
 .pglite-tenancy/
 .doc-reader-files/
+.uploads/
 .better-auth.sqlite

@@ -3,6 +3,7 @@ import { ValidationError } from "./errors";
 import { andWhere } from "./where";
 
 import type { DatabaseAdapter, DocumentData } from "./adapter";
+import type { StorageAdapter } from "./storage";
 import type { Quickben, RequestContext, SanitizedCollection } from "./types";
 
 /** Everything an operation needs. */
@@ -14,6 +15,8 @@ export interface OperationScope {
   ctx: RequestContext;
   /** `afterCommit` work of the outermost transaction. `undefined` outside a transaction. */
   commit: CommitQueue | undefined;
+  /** Default storage of `file` fields. */
+  storage: StorageAdapter | undefined;
 }
 
 /** Work that runs after the outermost transaction commits. */
@@ -21,6 +24,12 @@ export interface CommitQueue {
   /** The local API without a transaction, for `afterCommit` hooks. */
   root: Quickben;
   tasks: (() => Promise<void>)[];
+  /**
+   * Removes objects stored by writes of the transaction when the outermost transaction rolls
+   * back. A failed write inside a transaction that still commits keeps its objects: its row
+   * may have been written.
+   */
+  rollback: (() => Promise<void>)[];
 }
 
 const systemFields = ["id", "createdAt", "updatedAt"] as const;

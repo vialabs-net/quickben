@@ -9,6 +9,7 @@ import {
   relationIds,
 } from "./documents";
 import { ForbiddenError, NotFoundError, ValidationError } from "./errors";
+import { isFileRef, queueFileCleanup, storageOf, storeUploads } from "./files";
 import { uuidv7 } from "./id";
 import { cursorWhere, encodeCursor, parsePaging, parseSort } from "./query";
 import { validateData } from "./validation";
@@ -24,6 +25,7 @@ import type {
   Registry,
   RequestContext,
   SanitizedCollection,
+  StoredFile,
 } from "./types";
 
 const MAX_DEPTH = 3;
@@ -325,16 +327,18 @@ function queueAfterCommit(
   }
 }
 
-/** Run queued `afterCommit` work in order. A failing hook is logged; the rest still run. */
-async function runCommitTasks(queue: CommitQueue) {
-  for (const task of queue.tasks) {
+/** Run queued work in order. A failing task is logged; the rest still run. */
+async function runTasks(tasks: readonly (() => Promise<void>)[], message: string) {
+  for (const task of tasks) {
     try {
       await task();
     } catch (error) {
-      console.error("[quickben] afterCommit hook failed", error);
+      console.error(`[quickben] ${message}`, error);
     }
   }
 }
+
+const runCommitTasks = (queue: CommitQueue) => runTasks(queue.tasks, "afterCommit hook failed");
 
 /**
  * Load the document an update or delete targets. Writes need read access: a document the user
@@ -396,9 +400,10 @@ async function create(scope: OperationScope, slug: string, input: unknown) {
     user: scope.ctx.user,
   });
   await assertRelations(scope, collection, parsed);
+  const stored = await storeUploads(scope, collection, "create", parsed, null);
   const changed = await runDataHooks(collection.hooks.beforeChange, {
     ...base,
-    data: fillMissing(collection, parsed),
+    data: fillMissing(collection, stored),
   });
   const now = new Date().toISOString();
   const record: DocumentData = {
@@ -436,7 +441,8 @@ async function update(scope: OperationScope, slug: string, id: unknown, input: u
     user: scope.ctx.user,
   });
   await assertRelations(scope, collection, parsed, original);
-  const changed = await runDataHooks(collection.hooks.beforeChange, { ...base, data: parsed });
+  const withFiles = await storeUploads(scope, collection, "update", parsed, original);
+  const changed = await runDataHooks(collection.hooks.beforeChange, { ...base, data: withFiles });
   const fieldData = { ...changed };
   delete fieldData.id;
   delete fieldData.createdAt;
@@ -453,6 +459,7 @@ async function update(scope: OperationScope, slug: string, id: unknown, input: u
   const doc = normalizeDoc(collection, stored);
   await runVoidHooks(collection.hooks.afterChange, { ...base, doc });
   queueAfterCommit(scope, collection, { operation: "update", doc, original });
+  queueFileCleanup(scope, collection, doc, original);
   const [result] = await finishRead(scope, collection, [doc], { depth: 0 });
   return result;
 }
@@ -469,8 +476,28 @@ async function remove(scope: OperationScope, slug: string, id: unknown) {
   }
   await runVoidHooks(collection.hooks.afterDelete, args);
   queueAfterCommit(scope, collection, { operation: "delete", doc: original, original });
+  queueFileCleanup(scope, collection, null, original);
   const [result] = await finishRead(scope, collection, [original], { depth: 0 });
   return result;
+}
+
+async function readFile(
+  scope: OperationScope,
+  slug: string,
+  id: string,
+  name: string,
+): Promise<StoredFile> {
+  const collection = getCollection(scope.collections, slug);
+  const field = Object.hasOwn(collection.fields, name) ? collection.fields[name] : undefined;
+  if (field?.type !== "file") {
+    throw new NotFoundError(`"${slug}.${name}" is not a file field`);
+  }
+  const doc = await findById(scope, slug, id, { select: [name] });
+  const ref = doc?.[name];
+  if (!isFileRef(ref)) throw new NotFoundError(`No file in "${slug}.${name}" of "${id}"`);
+  const object = await storageOf(scope, collection, field, name).get(ref.key);
+  if (!object) throw new NotFoundError(`The file of "${slug}.${name}" of "${id}" is missing`);
+  return { file: ref, body: object.body, size: object.size };
 }
 
 /**
@@ -484,28 +511,34 @@ function buildApi(
   db: DatabaseAdapter,
   commit?: CommitQueue,
 ): Quickben {
+  const storage = config.storage;
   const scope = (ctx: RequestContext): OperationScope => ({
     collections,
     db,
     api: qb,
     ctx: assertContext(ctx),
     commit,
+    storage,
   });
   const inTransaction = async <T>(fn: (tx: Quickben, queue: CommitQueue) => Promise<T>) => {
     if (commit) {
       return db.transaction((tx) => fn(buildApi(config, collections, tx, commit), commit));
     }
-    const queue: CommitQueue = { root: qb, tasks: [] };
-    const result = await db.transaction((tx) =>
-      fn(buildApi(config, collections, tx, queue), queue),
-    );
+    const queue: CommitQueue = { root: qb, tasks: [], rollback: [] };
+    let result: T;
+    try {
+      result = await db.transaction((tx) => fn(buildApi(config, collections, tx, queue), queue));
+    } catch (error) {
+      await runTasks(queue.rollback, "Removing a stored file failed");
+      throw error;
+    }
     await runCommitTasks(queue);
     return result;
   };
   const write = async <T>(ctx: RequestContext, fn: (scope: OperationScope) => Promise<T>) => {
     const context = assertContext(ctx);
     return inTransaction((tx, queue) =>
-      fn({ collections, db: tx.db, api: tx, ctx: context, commit: queue }),
+      fn({ collections, db: tx.db, api: tx, ctx: context, commit: queue, storage }),
     );
   };
   const api = {
@@ -529,6 +562,8 @@ function buildApi(
     delete: (slug: string, id: string, ctx: RequestContext) =>
       write(ctx, (s) => remove(s, slug, id)),
     transaction: <T>(fn: (qb: Quickben) => Promise<T>) => inTransaction((tx) => fn(tx)),
+    readFile: async (slug: string, id: string, field: string, ctx: RequestContext) =>
+      readFile(scope(ctx), slug, id, field),
   };
   const qb = api as unknown as Quickben;
   return qb;

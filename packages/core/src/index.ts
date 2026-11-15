@@ -11,7 +11,8 @@ export {
   UnauthorizedError,
   ValidationError,
 } from "./errors";
-export { fields } from "./fields";
+export { DEFAULT_FILE_MAX_BYTES, fields } from "./fields";
+export { cleanFileName, isFileRef } from "./files";
 export { createQuickben, getQuickben } from "./local-api";
 export {
   defaultLocale,
@@ -31,6 +32,18 @@ export {
   toDateValue,
   zonedTimeToUtc,
 } from "./time";
+export {
+  assertStorageKey,
+  bytesToStream,
+  detectMime,
+  fileExtensions,
+  memoryStorage,
+  mimeMatches,
+  sha256Hex,
+  sniffMime,
+  streamToBytes,
+} from "./storage";
+export { isFileUpload } from "./validation";
 export { compareBySort, compareValues, matchesWhere } from "./where";
 
 export type { AccessResult } from "./access";
@@ -49,6 +62,14 @@ export type { AuthAdapter, DevAuthOptions, QuickbenUser } from "./auth";
 export type { PluginDefinition } from "./config";
 export type { ErrorCode, ForbiddenErrorOptions, ValidationIssue } from "./errors";
 export type { LocaleFromRequestOptions, LocalizedText } from "./localize";
+export type {
+  MemoryStorage,
+  SignedUrlOptions,
+  StorageAdapter,
+  StorageObject,
+  StorageObjectInfo,
+  StoragePutOptions,
+} from "./storage";
 export type { DateLike, FormatDateOptions } from "./time";
 export type {
   AnyField,
@@ -63,6 +84,10 @@ export type {
   FieldValidateContext,
   FieldValidator,
   Fields,
+  FileField,
+  FileOptions,
+  FileRef,
+  FileUpload,
   JsonField,
   JsonValue,
   NumberField,
@@ -98,6 +123,7 @@ export type {
   Depth,
   ExtendRegistry,
   FieldExtensions,
+  FileFieldKey,
   FindQuery,
   FindResult,
   HookArgs,
@@ -123,5 +149,6 @@ export type {
   ResultDoc,
   SanitizedCollection,
   SanitizedField,
+  StoredFile,
   SystemFields,
 } from "./types";

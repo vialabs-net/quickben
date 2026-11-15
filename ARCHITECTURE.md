@@ -32,6 +32,9 @@ This file describes what exists. Sections marked **Planned** describe agreed des
 | `packages/plugin-tenancy`    | `@quickben/plugin-tenancy`                  | Exists |
 | `packages/plugin-doc-reader` | `@quickben/plugin-doc-reader`               | Exists |
 | `packages/plugin-templates`  | `@quickben/plugin-templates`                | Exists |
+| `packages/storage-local`     | `@quickben/storage-local`                   | Exists |
+| `packages/storage-gcs`       | `@quickben/storage-gcs`                     | Exists |
+| `packages/storage-s3`        | `@quickben/storage-s3`                      | Exists |
 | `packages/create-quickben`   | `create-quickben`                           | Exists |
 | `apps/docs`                  | Nextra site at https://quickben.vialabs.net | Exists |
 | `apps/playground`            | Next.js app using everything (PGlite)       | Exists |
@@ -85,6 +88,7 @@ const posts = defineCollection({
 | `select`           | one option, or an array with `many: true` | `options`, `many`                                       |
 | `relation`         | id, or ids with `many: true`              | `to`, `many`                                            |
 | `json`             | JSON value                                | `schema` (Zod) types and validates it                   |
+| `file`             | `{ key, name, mime, size, sha256 }`       | `accept`, `maxBytes` (default 10 MB), `storage`         |
 
 Common options: `required`, `unique`, `index`, `default` (value or function), `label`, `description`, `validate`, `access { read, create, update }`, `admin { hidden, readOnly, width, component }`. `component` names a custom admin input (see `@quickben/admin`); core stores only the name.
 
@@ -191,6 +195,7 @@ await qb.delete(slug, id, ctx);
 await qb.transaction(async (tx) => {
   /* tx has the same methods */
 });
+await qb.readFile(slug, id, field, ctx); // { file, body, size }
 qb.collections.posts; // collection metadata
 qb.db.raw; // native client
 ```
@@ -205,7 +210,31 @@ Writes (`create`, `update`, `delete`) run in one transaction together with their
 
 **delete:** load (needs read access; unreadable = `NOT_FOUND`) → access (filter must match) → `beforeDelete` → delete → `afterDelete` → `afterRead`. Documents that reference the deleted one keep its id.
 
+**files:** uploads are stored after related ids and before `beforeChange` (see [Files and storage](#files-and-storage)).
+
 **reads:** access filter AND query → adapter → relations → `afterRead` → remove unreadable fields → `select`. When a collection has `afterRead` hooks, core loads full documents and applies `select` after the hooks.
+
+### Files and storage
+
+```ts
+interface StorageAdapter {
+  readonly name: string;
+  put(key, bytes, { contentType? }): Promise<void>;
+  get(key): Promise<StorageObject | null>; // stream body
+  getBytes(key): Promise<Uint8Array | null>;
+  head(key): Promise<StorageObjectInfo | null>;
+  delete(key): Promise<void>;
+  signedUrl?(key, { expiresIn?, downloadName? }): Promise<string>;
+}
+```
+
+- `defineConfig({ storage })` is the default; a field's `storage` wins. Without one, an upload throws `ConfigError`.
+- Keys are relative paths (`<collection>/<field>/<uuidv7><ext>` for file fields). `assertStorageKey` rejects absolute paths, `\`, control characters and empty, `.` or `..` segments. Every adapter calls it.
+- Input of a file field: a `Blob`, `{ name, bytes }`, the stored reference (left out of the write, so it keeps its stored metadata and never overwrites a newer file), or `null`. Another reference needs `overrideAccess`.
+- Checks: size, empty, type from the first bytes (`detectMime`: PDF, PNG, JPEG, GIF, WebP, AVIF, woff, woff2, else `text/plain` for UTF-8 text, else `application/octet-stream`), `accept`, `validate` (on the reference). Every upload of a write is checked before any is stored.
+- Cleanup: the old object of a replaced or cleared file, and every file of a deleted document, is removed after the outermost commit. Objects stored by writes of a transaction are removed when the outermost transaction rolls back. A write that fails inside a transaction that still commits keeps its objects. Removal errors are logged.
+- `qb.readFile` reads the document with `select: [field]`, so document and field read access apply.
+- Adapters: `memoryStorage()` (core), `@quickben/storage-local`, `@quickben/storage-gcs`, `@quickben/storage-s3` (SDKs as optional peers). `@quickben/adapter-tests` exports `runStorageContractTests`.
 
 ### Access
 
@@ -313,9 +342,10 @@ export default createAdminPage(config, { serverFunction }); // async server comp
 
 ### `@quickben/next`
 
-- Route handlers: `GET /_meta`, `GET|POST /:collection`, `GET|PATCH|DELETE /:collection/:id`. They take plain `Request` objects, so tests call them directly.
+- Route handlers: `GET /_meta`, `GET|POST /:collection`, `GET|PATCH|DELETE /:collection/:id`, `GET /:collection/:id/:field` (file download). They take plain `Request` objects, so tests call them directly.
 - Query string: `where` is JSON; `sort` and `select` are comma-separated; `limit` (≤ `maxLimit`, default 100), `page`, `cursor`, `depth`. Unknown parameters are rejected.
-- Bodies: JSON objects only, at most `maxBodyBytes` (default 1 MB); `id`, `createdAt`, `updatedAt` are removed.
+- Bodies: JSON objects, at most `maxBodyBytes` (default 1 MB), or `multipart/form-data` with a `_payload` JSON part and one file part per file field, at most `maxUploadBytes` (default 10 MB); `id`, `createdAt`, `updatedAt` are removed.
+- Downloads stream `qb.readFile` with the stored type, `Content-Disposition` (`inline` for images, PDFs and text, else or with `?download` `attachment`), `nosniff`, a `sandbox` CSP (not for PDFs) and an `ETag` (`304` on match). No redirects.
 - Errors: `{ error: { code, message, details } }` with the status of the error. `details` is `{ issues }` for `VALIDATION`, `{ field }` for `CONFLICT` and `{ fields }` for `FORBIDDEN` from field rules.
 - `GET /_meta` leaves out unreadable fields and gives each field `access: { create, update }`. HTTP-only codes: `METHOD_NOT_ALLOWED` 405, `PAYLOAD_TOO_LARGE` 413, `UNSUPPORTED_MEDIA_TYPE` 415, `INTERNAL` 500 (message hidden, error logged; also for 5xx Quickben errors such as `CONFIG`).
 - CSRF: `POST`, `PATCH` and `DELETE` require a same-origin `Origin` (or a trusted one) when the browser sends one, and reject `Sec-Fetch-Site: cross-site`.
@@ -326,7 +356,7 @@ export default createAdminPage(config, { serverFunction }); // async server comp
 - `createAdminPage(config, options)` returns one async server component that renders the shell, dashboard, list, create and edit views and custom pages. Data is loaded on the server with the local API and the current user.
 - Writes and relation searches go through one server function (`AdminRequest` → `AdminResult`). It must be defined in the app's page file so Next.js can load the config when it runs; the built-in fallback only works after the page module has loaded in the process.
 - Field access: unreadable fields are not in lists, filters or forms. Fields the user cannot set are disabled and not submitted. `datetime-local` inputs use the admin time zone (`admin.timeZone`, then the config `timeZone`).
-- Client components: form (submit, errors, focus), relation picker, JSON editor, delete confirmation, toast. Everything else is server-rendered.
+- Client components: form (submit, errors, focus), relation picker, JSON editor, file input (size check, image and PDF preview, remove checkbox), delete confirmation, toast. File links use `apiBasePath` (default `/api`). Everything else is server-rendered.
 - Extensions: `components` (custom field inputs, chosen by `admin.component`), `views` (per collection), `pages`, `nav`, `sidebar` (components at the top of the sidebar), and `extensions` from plugins.
 - Styles: Tailwind v4 with the `qb:` prefix, compiled into `@quickben/admin/styles.css`; base styles only inside `.qb-root`, in `@layer base`. Utilities are unlayered, so unlayered app resets do not override them.
 - Theme tokens: colors, radius, fonts and the focus ring come only from public `--qb-*` custom properties on `.qb-root` (`--qb-surface`, `--qb-surface-muted`, `--qb-text`, `--qb-text-muted`, `--qb-border`, `--qb-accent`, `--qb-accent-text`, `--qb-danger`, `--qb-danger-text`, `--qb-success`, `--qb-warning`, `--qb-info`, `--qb-focus-ring`, `--qb-radius`, `--qb-font-sans`, `--qb-font-mono`). Defaults use `light-dark()`; `.qb-root` inherits `color-scheme`. Semantic utilities (`qb:bg-surface`, `qb:text-fg-muted`, `qb:bg-danger-soft`, …) read them and are all compiled, so plugins use them too. Plugin CSS (`qbt:` in templates) reads the same tokens.
@@ -352,6 +382,7 @@ export default createAdminPage(config, { serverFunction }); // async server comp
 - Versions: one draft and one published version per kind (unique `slot`), published versions immutable, publishing refuses content with issues. Helpers: `saveDraft`, `publishTemplate`, `discardDraft`, `archiveTemplate`, `restoreVersion`.
 - `renderTemplate` returns the body HTML, a letterhead page and a preview page. `renderPdf` passes them to a `PdfRenderer`; `@quickben/plugin-templates/chromium` draws the letterhead over every page with pdf-lib. `playwright-core`, `pdf-lib` and `@tiptap/*` are optional peers.
 - With tenancy, add `TEMPLATE_COLLECTIONS` to the scope: one brand and set of templates per organization.
+- The brand logo is the `logoFile` file field (option `storage`, default the config `storage`). Without storage the brand form keeps the old `data:` URL `logo`. `migrateBrandLogos(qb)` moves old logos.
 - `@quickben/plugin-templates/admin`: Templates list, editor (TipTap, lazy-loaded) with variable panel, live preview and publishing, and a Brand page. Its CSS uses its own `qbt:` prefix.
 
 ### `@quickben/plugin-doc-reader`
@@ -359,7 +390,7 @@ export default createAdminPage(config, { serverFunction }); // async server comp
 - `docReader(options)` adds `doc-types` (one row per version, `draft` or `published`), `doc-samples`, `doc-test-runs`, `doc-jobs`, `doc-usage` and `doc-quotas`, all hidden from the generic admin.
 - A document type is JSON validated with Zod: fields (`text`, `date`, `number`, `email`, `phone`, with `transform` and `pattern`), parameters, classification hints and a pipeline. Steps run in order; per field the first value at the threshold wins; the run stops once the `stopWhen` fields are read. A skip hook drops paid steps over budget.
 - Extractors: `text-layer` (unpdf text, regex templates or reader functions, boxes from text runs) and `vision-llm` (AI SDK `generateText` + `Output.object`; no nullable or union types in the answer schema). Models come from `resolveModel(connectionId, modelId, qb)`; `/connections` exports `connectionModels()`, backed by `@quickben/plugin-connections/ai`. Cost is computed from the model's prices.
-- `readDocument(qb, input, ctx)` checks the file by its first bytes, stores it in a `FileStore`, creates a job and queues it through a `JobRunner` (`inProcessRunner` by default, `bullmqRunner` in `/bullmq`). A run claims a job by queue version, so cancelled or retried jobs keep the newer state.
+- `readDocument(qb, input, ctx)` checks the file by its first bytes (core `sniffMime`), stores it in the plugin's `files` storage adapter (default: the config `storage`; a deprecated `FileStore` still works), creates a job and queues it through a `JobRunner` (`inProcessRunner` by default, `bullmqRunner` in `/bullmq`). A run claims a job by queue version, so cancelled or retried jobs keep the newer state.
 - Studio rules: one draft per type, published versions never change, publishing needs a finished test run of the draft's current revision.
 - `@quickben/plugin-doc-reader/admin`: `docReaderAdmin(config)` adds Document types, Readings and Usage pages. Server actions redirect with fixed `?toast=` / `?error=` codes.
 

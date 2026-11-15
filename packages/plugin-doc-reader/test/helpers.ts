@@ -1,9 +1,9 @@
-import { createQuickben, defineConfig, devAuth } from "@quickben/core";
+import { createQuickben, defineConfig, devAuth, memoryStorage } from "@quickben/core";
 import { memoryAdapter } from "@quickben/db-memory";
 import { MockLanguageModelV4 } from "ai/test";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 
-import { docReader, inProcessRunner, memoryFileStore, parseDocumentType } from "../src";
+import { docReader, inProcessRunner, parseDocumentType } from "../src";
 
 import type { DocReaderOptions, DocumentTypeInput, ExtractionTemplate, ModelInfo } from "../src";
 import type { QuickbenUser, RequestContext } from "@quickben/core";
@@ -156,7 +156,7 @@ export function makeConfig(options: DocReaderOptions & { answer?: string | Error
   const { answer, ...rest } = options;
   const mock = mockModel(answer ?? invoiceReply(), { input: 2000, output: 300 });
   const runner = inProcessRunner();
-  const files = memoryFileStore();
+  const files = memoryStorage();
   const config = defineConfig({
     db: memoryAdapter(),
     auth: devAuth(),

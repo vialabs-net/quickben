@@ -75,3 +75,8 @@ it("treats an unknown field type as text", () => {
   const odd = { ...byName("title"), type: "color" } as unknown as FieldSchema;
   expect(columnKind(odd)).toBe("text");
 });
+
+it("stores file references as JSON", () => {
+  const file = { ...byName("title"), type: "file" } as FieldSchema;
+  expect(columnKind(file)).toBe("json");
+});

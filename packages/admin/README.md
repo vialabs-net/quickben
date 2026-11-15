@@ -68,18 +68,19 @@ Relation columns show the title of the related document.
 
 ### Forms
 
-| Field type                 | Input                                                  |
-| -------------------------- | ------------------------------------------------------ |
-| text, email, url           | `<input>` of that type, with length limits             |
-| textarea                   | `<textarea>`                                           |
-| number                     | `<input type="number">`, `step` 1 for integers         |
-| boolean                    | checkbox                                               |
-| date / datetime            | `date` / `datetime-local` input in the admin time zone |
-| select / select `many`     | `<select>` / checkbox group                            |
-| relation / relation `many` | search box with keyboard support, chips for many       |
-| json                       | textarea with live syntax check and Format button      |
+| Field type                 | Input                                                         |
+| -------------------------- | ------------------------------------------------------------- |
+| text, email, url           | `<input>` of that type, with length limits                    |
+| textarea                   | `<textarea>`                                                  |
+| number                     | `<input type="number">`, `step` 1 for integers                |
+| boolean                    | checkbox                                                      |
+| date / datetime            | `date` / `datetime-local` input in the admin time zone        |
+| select / select `many`     | `<select>` / checkbox group                                   |
+| relation / relation `many` | search box with keyboard support, chips for many              |
+| json                       | textarea with live syntax check and Format button             |
+| file                       | file input, size check, image or PDF preview, remove checkbox |
 
-Field options: `admin.hidden` (not rendered, not sent), `admin.readOnly` (shown disabled, not sent), field `access.read` denied (not in lists, filters or forms), `access.create` / `access.update` denied (shown disabled, not sent), `admin.width` (`full`, `half`, `third`), `description` (hint text). Validation errors from the local API are shown next to their field; the first invalid field gets focus.
+Field options: `admin.hidden` (not rendered, not sent), `admin.readOnly` (shown disabled, not sent), field `access.read` denied (not in lists, filters or forms), `access.create` / `access.update` denied (shown disabled, not sent), `admin.width` (`full`, `half`, `third`), `description` (hint text). Validation errors from the local API are shown next to their field; the first invalid field gets focus. File previews and links use `GET <apiBasePath>/:collection/:id/:field` (option `apiBasePath`, default `/api`). Uploads go through the server function: raise `experimental.serverActions.bodySizeLimit` for files over 1 MB.
 
 ## Extensions
 

@@ -81,9 +81,20 @@ test("the brand shows in the letterhead preview", async ({ page }) => {
   await page.goto("/admin/brand");
   await page.getByLabel("Display name").fill("Acme Documents");
   await page.getByLabel("Legal name").fill("Acme Inc.");
+  // The logo is a file in the playground storage.
+  await page.getByLabel("Upload a logo").setInputFiles({
+    name: "logo.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=",
+      "base64",
+    ),
+  });
   await page.getByRole("button", { name: "Save brand" }).click();
   await expect(page.getByRole("status")).toContainText("Brand saved");
   const preview = page.frameLocator('iframe[title="Brand preview"]');
   await expect(preview.getByText("Acme Inc.")).toBeVisible();
+  await expect(preview.locator("img.logo")).toHaveAttribute("src", /^data:image\/png;base64,/);
+  await expect(page.getByRole("img", { name: "Current logo" })).toBeVisible();
   await expect(page.getByLabel("Display name")).toHaveValue("Acme Documents");
 });

@@ -26,14 +26,15 @@ const { html, version } = await renderTemplate(qb, { kind: "invoice", data });
 
 ## What the plugin adds
 
-| Addition                     | Details                                                                                                              |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `brands`                     | Names, tax id, address, contact, footer, colors, font, custom woff2 font, logo. One per organization, or one in all. |
-| `document-templates`         | One per kind.                                                                                                        |
-| `document-template-versions` | Numbered versions: one draft and one published per template. Published versions never change.                        |
-| Kinds                        | `defineTemplateKind({ kind, label, catalog, baseTemplate?, sampleData?, requireSignature? })`.                       |
-| Rendering                    | `renderTemplate` (HTML), `renderPdf` (with a `PdfRenderer`), `renderDocument` (pure).                                |
-| Versions                     | `saveDraft`, `publishTemplate`, `discardDraft`, `archiveTemplate`, `restoreVersion`, `validateTemplate`.             |
+| Addition                     | Details                                                                                                                                                        |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `brands`                     | Names, tax id, address, contact, footer, colors, font, custom woff2 font, logo. One per organization, or one in all.                                           |
+| Logo                         | `logoFile` file field in the plugin's `storage` or the config `storage`. Without storage: the old `data:` URL `logo`. `migrateBrandLogos(qb)` moves old logos. |
+| `document-templates`         | One per kind.                                                                                                                                                  |
+| `document-template-versions` | Numbered versions: one draft and one published per template. Published versions never change.                                                                  |
+| Kinds                        | `defineTemplateKind({ kind, label, catalog, baseTemplate?, sampleData?, requireSignature? })`.                                                                 |
+| Rendering                    | `renderTemplate` (HTML), `renderPdf` (with a `PdfRenderer`), `renderDocument` (pure).                                                                          |
+| Versions                     | `saveDraft`, `publishTemplate`, `discardDraft`, `archiveTemplate`, `restoreVersion`, `validateTemplate`.                                                       |
 
 ## Entry points
 

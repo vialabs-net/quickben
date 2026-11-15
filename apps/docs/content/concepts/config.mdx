@@ -34,6 +34,7 @@ export default defineConfig({
 | `collections` | `AnyCollection[]`   | yes      | Your collections, from `defineCollection`.                                                                                         |
 | `plugins`     | `Plugin[]`          | no       | Applied in order. See [Plugins and modules](/docs/concepts/plugins-and-modules).                                                   |
 | `auth`        | `AuthAdapter`       | no       | Resolves the user of a request. See [Auth adapters](/docs/concepts/auth-adapters).                                                 |
+| `storage`     | `StorageAdapter`    | no       | Default storage of `file` fields. See [Files and storage](/docs/storage).                                                          |
 | `admin`       | `{ title?, meta? }` | no       | Admin UI options. `title` defaults to `Quickben`. `meta: { title?, description? }` is the page metadata (`generateAdminMetadata`). |
 | `modules`     | `Module[]`          | no       | Feature areas that group collections.                                                                                              |
 | `timeZone`    | `string` (IANA)     | no       | Time zone of `date` and `datetime` inputs. Default `UTC`. See [Fields](/docs/concepts/fields#dates-and-time-zones).                |

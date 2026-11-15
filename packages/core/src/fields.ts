@@ -1,5 +1,6 @@
 import type { QuickbenUser } from "./auth";
 import type { LocalizedText } from "./localize";
+import type { StorageAdapter } from "./storage";
 import type { AccessArgs } from "./types";
 import type { z } from "zod";
 
@@ -15,7 +16,8 @@ export type FieldType =
   | "datetime"
   | "select"
   | "relation"
-  | "json";
+  | "json"
+  | "file";
 
 /** A JSON value. The value type of `json` fields without a `schema`. */
 export type JsonValue =
@@ -201,9 +203,56 @@ export interface JsonField<
   readonly schema: z.ZodType | undefined;
 }
 
+/** A stored file, as kept in the document. The bytes are in the storage adapter. */
+export interface FileRef {
+  /** Storage key. */
+  key: string;
+  /** File name as uploaded. */
+  name: string;
+  /** Type found from the first bytes, never the declared type. */
+  mime: string;
+  /** Size in bytes. */
+  size: number;
+  /** Hex SHA-256 of the bytes. */
+  sha256: string;
+}
+
+/**
+ * A new file in create or update input: a `Blob` or `File`, or bytes with a name. Core checks
+ * it, stores it and saves a {@link FileRef} instead.
+ */
+export type FileUpload = Blob | { name: string; bytes: Uint8Array; type?: string };
+
+/**
+ * File field. The document stores a {@link FileRef}. Input takes a {@link FileUpload}, the
+ * stored reference (kept as is) or `null` (removes the file).
+ */
+export interface FileField<TRequired extends boolean = boolean> extends FieldBase<
+  "file",
+  FileRef,
+  FileRef | FileUpload,
+  TRequired,
+  false,
+  false
+> {
+  /** Accepted types: exact types or `type/*`. `undefined` accepts every type. */
+  readonly accept: readonly string[] | undefined;
+  /** Largest file in bytes. */
+  readonly maxBytes: number;
+  /** Storage of this field. `undefined` uses the config `storage`. */
+  readonly storage: StorageAdapter | undefined;
+}
+
 /** Any field definition. */
 export type AnyField =
-  TextField | NumberField | BooleanField | DateField | SelectField | RelationField | JsonField;
+  | TextField
+  | NumberField
+  | BooleanField
+  | DateField
+  | SelectField
+  | RelationField
+  | JsonField
+  | FileField;
 
 /** The fields of a collection, keyed by field name. */
 export type Fields = Record<string, AnyField>;
@@ -304,6 +353,22 @@ export interface JsonOptions<TSchema, TRequired extends boolean, TDefault> exten
   /** Zod schema that validates the value and gives it a type. */
   schema?: TSchema;
 }
+
+/** Options for `file` fields. */
+export interface FileOptions<TRequired extends boolean> extends Omit<
+  FieldOptions<FileRef, TRequired, undefined>,
+  "default" | "unique" | "index"
+> {
+  /** Accepted types, checked against the first bytes: `["image/png", "application/pdf"]`, `["image/*"]`. */
+  accept?: readonly string[];
+  /** Largest file in bytes. Default `10_485_760` (10 MB). */
+  maxBytes?: number;
+  /** Storage of this field. Default: the config `storage`. */
+  storage?: StorageAdapter;
+}
+
+/** Default largest file of a `file` field: 10 MB. */
+export const DEFAULT_FILE_MAX_BYTES = 10 * 1024 * 1024;
 
 type JsonOutput<TSchema> = TSchema extends z.ZodType ? z.output<TSchema> : JsonValue;
 
@@ -475,6 +540,20 @@ function json<
   } as JsonField<JsonOutput<TSchema>, NoInfer<TRequired>, NoInfer<HasDefault<TDefault>>>;
 }
 
+/**
+ * A file kept in a storage adapter. The document stores `{ key, name, mime, size, sha256 }`.
+ * Uploads are checked by their first bytes against `accept` and `maxBytes`. Replaced and
+ * deleted files are removed after the transaction commits.
+ */
+function file<const TRequired extends boolean = false>(options: FileOptions<TRequired> = {}) {
+  return {
+    ...base("file", options),
+    accept: options.accept,
+    maxBytes: options.maxBytes ?? DEFAULT_FILE_MAX_BYTES,
+    storage: options.storage,
+  } as FileField<NoInfer<TRequired>>;
+}
+
 /** Field factories. Import as `fields` (or `f`) and call one per field. */
 export const fields = {
   text,
@@ -488,4 +567,5 @@ export const fields = {
   select,
   relation,
   json,
+  file,
 };

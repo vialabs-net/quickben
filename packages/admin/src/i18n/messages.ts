@@ -60,6 +60,8 @@ export const adminMessages = defineMessages("admin", {
     "edit.details": "Details",
     "edit.timeZone": "Time in {zone}.",
     "edit.choose": "Choose…",
+    "file.preview": "Preview",
+    "file.remove": "Remove file",
     "delete.open": "Delete {singular}",
     "delete.confirm": "Delete “{title}”? This cannot be undone.",
     "delete.submit": "Delete",
@@ -84,6 +86,7 @@ export const adminMessages = defineMessages("admin", {
     "error.wholeNumber": "Enter a whole number",
     "error.datetime": "Enter a valid date and time",
     "error.json": "Enter valid JSON",
+    "error.fileTooLarge": "Choose a file of at most {size}",
     "count.documents": { one: "{count} document", other: "{count} documents" },
   },
   es: {
@@ -141,6 +144,8 @@ export const adminMessages = defineMessages("admin", {
     "edit.details": "Detalles",
     "edit.timeZone": "Hora en {zone}.",
     "edit.choose": "Elige…",
+    "file.preview": "Vista previa",
+    "file.remove": "Quitar archivo",
     "delete.open": "Eliminar {singular}",
     "delete.confirm": "¿Eliminar «{title}»? No se puede deshacer.",
     "delete.submit": "Eliminar",
@@ -166,6 +171,7 @@ export const adminMessages = defineMessages("admin", {
     "error.wholeNumber": "Introduce un número entero",
     "error.datetime": "Introduce una fecha y hora válidas",
     "error.json": "Introduce un JSON válido",
+    "error.fileTooLarge": "Elige un archivo de {size} como máximo",
     "count.documents": { one: "{count} documento", other: "{count} documentos" },
   },
 });

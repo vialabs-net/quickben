@@ -1,7 +1,8 @@
 import type { DatabaseAdapter } from "./adapter";
 import type { AuthAdapter, QuickbenUser } from "./auth";
-import type { AnyField, Fields, FieldTypes, RelationField } from "./fields";
+import type { AnyField, Fields, FieldTypes, FileRef, RelationField } from "./fields";
 import type { LocalizedText } from "./localize";
+import type { StorageAdapter } from "./storage";
 
 type Simplify<T> = { [K in keyof T]: T[K] } & {};
 type MaybePromise<T> = T | Promise<T>;
@@ -132,7 +133,7 @@ export type FieldOperators<F extends AnyField> = F["many"] extends true
         ? EqualityOperators<boolean>
         : F["type"] extends "select" | "relation"
           ? EqualityOperators<Types<F>["value"]>
-          : F["type"] extends "json"
+          : F["type"] extends "json" | "file"
             ? JsonOperators
             : TextOperators;
 
@@ -157,7 +158,11 @@ export interface LooseWhere {
 
 type SortableKey<F extends Fields> =
   | {
-      [K in keyof F]: F[K]["many"] extends true ? never : F[K]["type"] extends "json" ? never : K;
+      [K in keyof F]: F[K]["many"] extends true
+        ? never
+        : F[K]["type"] extends "json" | "file"
+          ? never
+          : K;
     }[keyof F]
   | SystemFieldName;
 
@@ -474,6 +479,8 @@ export type InitHook = (qb: Quickben) => MaybePromise<void>;
 /** The config that plugins receive and return. */
 export interface PluginConfig {
   db: DatabaseAdapter;
+  /** Default storage of `file` fields. */
+  storage: StorageAdapter | undefined;
   collections: readonly AnyCollection[];
   auth: AuthAdapter | undefined;
   admin: AdminConfig;
@@ -557,6 +564,8 @@ export interface ConfigInput<
   P extends readonly AnyPlugin[] = readonly AnyPlugin[],
 > {
   db: DatabaseAdapter;
+  /** Default storage of `file` fields. A field's own `storage` wins. */
+  storage?: StorageAdapter;
   collections: C;
   plugins?: P;
   auth?: AuthAdapter;
@@ -572,6 +581,8 @@ export interface ConfigInput<
 /** The resolved config returned by `defineConfig`. */
 export interface QuickbenConfig<R extends Registry = Registry> {
   readonly db: DatabaseAdapter;
+  /** Default storage of `file` fields. */
+  readonly storage: StorageAdapter | undefined;
   readonly collections: readonly SanitizedCollection[];
   readonly auth: AuthAdapter | undefined;
   readonly admin: AdminConfig & { readonly title: LocalizedText; readonly meta: AdminMeta };
@@ -736,6 +747,36 @@ export interface Quickben<R extends Registry = Registry> {
 
   /** Run several calls in one transaction. */
   transaction<T>(fn: (qb: Quickben<R>) => Promise<T>): Promise<T>;
+
+  /**
+   * Read the file of a `file` field. Needs read access to the document and the field.
+   * Throws `NotFoundError` when the document, the file or the stored object is missing.
+   */
+  readFile<S extends Slug<R>>(
+    slug: S,
+    id: string,
+    field: FileFieldKey<R[S]>,
+    ctx: RequestContext,
+  ): Promise<StoredFile>;
+}
+
+/** Names of the `file` fields of a collection. */
+export type FileFieldKey<C extends AnyCollection> =
+  IsLoose<C["fields"]> extends true
+    ? string
+    : {
+        [K in keyof C["fields"]]: C["fields"][K]["type"] extends "file" ? K : never;
+      }[keyof C["fields"]] &
+        string;
+
+/** What {@link Quickben.readFile} returns. */
+export interface StoredFile {
+  /** The reference stored in the document. */
+  file: FileRef;
+  /** The bytes. Read it once. */
+  body: ReadableStream<Uint8Array>;
+  /** Size of the stored object in bytes. */
+  size: number;
 }
 
 /** Field type information, re-exported for adapters and UI packages. */

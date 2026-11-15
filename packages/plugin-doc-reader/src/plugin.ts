@@ -54,6 +54,7 @@ export function docReader(options: DocReaderOptions = {}): DocReaderPlugin {
     ],
     onInit: async (qb) => {
       state.rootQb = qb;
+      if (!state.ownFiles && qb.config.storage) state.files = qb.config.storage;
       register(qb.config, state);
       await seedTypes(qb, state.types);
       state.runner.start((jobId, run) => processJob(qb, jobId, run));

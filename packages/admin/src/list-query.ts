@@ -53,7 +53,7 @@ export function filterFields(meta: CollectionMeta): FieldMeta[] {
 export function isSortable(meta: CollectionMeta, name: string): boolean {
   if (systemColumns.has(name)) return true;
   const field = fieldOf(meta, name);
-  return field !== undefined && !field.many && field.type !== "json";
+  return field !== undefined && !field.many && field.type !== "json" && field.type !== "file";
 }
 
 /**

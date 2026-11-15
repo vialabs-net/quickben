@@ -26,7 +26,7 @@ export {
   VISION_LLM,
 } from "./extractors/vision-llm";
 export { normalizeFieldValue, sameFieldValue } from "./field-values";
-export { localFileStore, memoryFileStore } from "./files";
+export { fromFileStore, localFileStore, memoryFileStore } from "./files";
 export { callCost } from "./models";
 export { getDocReader } from "./options";
 export { mergeFields, pendingFields, runPipeline } from "./pipeline";

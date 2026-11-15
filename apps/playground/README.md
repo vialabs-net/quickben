@@ -14,13 +14,14 @@ pnpm dev          # builds the packages, then http://localhost:3000
 | `/embedded`  | Admin pages with `chrome: "none"` in a host layout.    |
 | `/api/_meta` | REST API (`/api/posts`, `/api/posts/:id`, …).          |
 
-| File                                 | Purpose                                      |
-| ------------------------------------ | -------------------------------------------- |
-| `quickben.config.ts`                 | Collections: authors, tags, posts, settings. |
-| `app/api/[...quickben]/route.ts`     | REST handlers.                               |
-| `app/admin/[[...segments]]/page.tsx` | Admin page and its server function.          |
-| `lib/db.ts`                          | Database choice.                             |
-| `lib/auth.ts`                        | `devAuth()` with a role cookie.              |
+| File                                 | Purpose                                           |
+| ------------------------------------ | ------------------------------------------------- |
+| `quickben.config.ts`                 | Collections: authors, tags, posts, settings.      |
+| `app/api/[...quickben]/route.ts`     | REST handlers.                                    |
+| `app/admin/[[...segments]]/page.tsx` | Admin page and its server function.               |
+| `lib/db.ts`                          | Database choice.                                  |
+| `lib/auth.ts`                        | `devAuth()` with a role cookie.                   |
+| `lib/storage.ts`                     | File storage: `localFileStorage` in `./.uploads`. |
 
 ## Database
 
@@ -29,7 +30,11 @@ pnpm dev          # builds the packages, then http://localhost:3000
 | `pglite` (default) | PGlite in `./.pglite`. Tables are created on start. |
 | `memory`           | In memory. Resets on restart.                       |
 
-An empty database is seeded on start. `pnpm seed` seeds it from the command line, `pnpm db:reset` deletes `./.pglite`.
+An empty database is seeded on start. `pnpm seed` seeds it from the command line, `pnpm db:reset` deletes `./.pglite` and the uploaded files.
+
+## Files
+
+The config `storage` is `localFileStorage({ root: "./.uploads" })`. Authors have a `photo` file field: the admin shows a preview and `/api/authors/:id/photo` serves it with the author's read access. The brand logo and the doc reader use the same storage. `pnpm db:reset` deletes `./.uploads` too. `e2e/files.spec.ts` covers uploads.
 
 ## Language
 

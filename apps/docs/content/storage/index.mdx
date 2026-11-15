@@ -1,0 +1,141 @@
+---
+title: Files and storage
+description: File fields, the StorageAdapter contract and how Quickben stores, checks, serves and removes uploaded files.
+---
+
+# Files and storage
+
+A `file` field keeps a small reference in the document. The bytes live in a storage adapter.
+
+```ts filename="quickben.config.ts"
+import { defineCollection, defineConfig, fields as f } from "@quickben/core";
+import { memoryAdapter } from "@quickben/db-memory";
+import { localFileStorage } from "@quickben/storage-local";
+
+export const contracts = defineCollection({
+  slug: "contracts",
+  fields: {
+    title: f.text({ required: true }),
+    signed: f.file({ accept: ["application/pdf"], maxBytes: 5 * 1024 * 1024 }),
+    scan: f.file({ accept: ["image/*"] }),
+  },
+});
+
+export default defineConfig({
+  db: memoryAdapter(),
+  storage: localFileStorage({ root: "./uploads" }),
+  collections: [contracts],
+});
+```
+
+## Adapters
+
+| Package                                          | Use                                                |
+| ------------------------------------------------ | -------------------------------------------------- |
+| `memoryStorage()` from `@quickben/core`          | Tests and demos. Lost on restart.                  |
+| [`@quickben/storage-local`](/docs/storage/local) | Development, tests, one server or a shared volume. |
+| [`@quickben/storage-gcs`](/docs/storage/gcs)     | Google Cloud Storage.                              |
+| [`@quickben/storage-s3`](/docs/storage/s3)       | Amazon S3, Cloudflare R2, MinIO.                   |
+
+The config `storage` is the default. A field's own `storage` wins.
+
+## The file field
+
+| Option     | Default  | Effect                                                    |
+| ---------- | -------- | --------------------------------------------------------- |
+| `accept`   | any type | Exact types or `type/*`, checked against the first bytes. |
+| `maxBytes` | 10 MB    | Larger files are rejected.                                |
+| `storage`  | config   | Storage adapter of this field.                            |
+
+Common options also apply: `required`, `label`, `description`, `validate` (it receives the reference), `admin`, `access`. File fields have no `default`, `unique` or `index`.
+
+The stored value:
+
+| Key      | Value                                                         |
+| -------- | ------------------------------------------------------------- |
+| `key`    | Storage key: `<collection>/<field>/<uuid><ext>`.              |
+| `name`   | File name as uploaded, without folders or control characters. |
+| `mime`   | Type found from the bytes. The declared type is never used.   |
+| `size`   | Bytes.                                                        |
+| `sha256` | Hex SHA-256.                                                  |
+
+## Writing files
+
+Create and update input takes a `Blob` or `File`, or `{ name, bytes }`:
+
+```ts filename="lease.ts"
+import { getQuickben } from "@quickben/core";
+
+import config from "./quickben.config";
+
+const qb = await getQuickben(config);
+export const contract = await qb.create(
+  "contracts",
+  {
+    title: "Lease",
+    signed: { name: "lease.pdf", bytes: new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]) },
+  },
+  { user },
+);
+```
+
+| Input                     | Result                                                            |
+| ------------------------- | ----------------------------------------------------------------- |
+| `Blob`, `{ name, bytes }` | Checked, stored, saved as a reference.                            |
+| The stored reference      | Unchanged, as stored. Any other reference needs `overrideAccess`. |
+| `null`                    | Removes the file.                                                 |
+| Left out                  | Unchanged.                                                        |
+
+Checks, in order: size, empty file, type from the first bytes, `accept`, `validate`. Every upload of a write is checked before any is stored. Errors are `ValidationError` issues on the field.
+
+Types found from the bytes: PDF, PNG, JPEG, GIF, WebP, AVIF, woff and woff2. Other UTF-8 text is `text/plain`; anything else is `application/octet-stream`. SVG is never detected as an image.
+
+## Removing files
+
+| Event                                | Removed object                                |
+| ------------------------------------ | --------------------------------------------- |
+| Update replaces or clears a file     | The old one, after the commit.                |
+| Delete                               | Every file of the document, after the commit. |
+| The outermost transaction rolls back | The files its writes stored.                  |
+
+Removal errors are logged and do not fail the write.
+
+## Reading files
+
+`qb.readFile(slug, id, field, ctx)` returns `{ file, body, size }`. It reads the document with `select: [field]`, so the user needs read access to the document and to the field. It throws `NotFoundError` when the document, the file or the stored object is missing.
+
+```ts
+import { getQuickben } from "@quickben/core";
+
+import { contract } from "./lease";
+import config from "./quickben.config";
+
+const qb = await getQuickben(config);
+const { file, body } = await qb.readFile("contracts", contract.id, "signed", { user });
+```
+
+The route handlers serve files at `GET /api/:collection/:id/:field`. See [Route handlers](/docs/nextjs/route-handlers#files).
+
+## The storage contract
+
+```ts nocheck
+interface StorageAdapter {
+  readonly name: string;
+  put(key: string, bytes: Uint8Array, options?: { contentType?: string }): Promise<void>;
+  get(key: string): Promise<StorageObject | null>; // { key, size, contentType, body: ReadableStream }
+  getBytes(key: string): Promise<Uint8Array | null>;
+  head(key: string): Promise<StorageObjectInfo | null>; // { key, size, contentType }
+  delete(key: string): Promise<void>; // a missing object is not an error
+  signedUrl?(key: string, options?: { expiresIn?: number; downloadName?: string }): Promise<string>;
+}
+```
+
+Keys are relative paths. `assertStorageKey(key)` rejects empty keys, keys over 1024 characters, absolute paths (`/x`, `C:x`), `\`, control characters, and empty, `.` or `..` segments. Every adapter calls it.
+
+Test a new adapter with the shared suite of the repository:
+
+```ts nocheck
+import { runStorageContractTests } from "@quickben/adapter-tests";
+
+runStorageContractTests(() => fooStorage());
+```
