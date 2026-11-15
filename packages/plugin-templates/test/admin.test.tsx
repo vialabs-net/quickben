@@ -1,7 +1,10 @@
 // @vitest-environment happy-dom
-import { readdir, readFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { promisify } from "node:util";
 
 import { createAdminI18n, englishI18n, missingMessages } from "@quickben/admin/i18n";
 import { defineConfig, devAuth, getQuickben } from "@quickben/core";
@@ -429,8 +432,28 @@ describe("styles", () => {
     expect(missing).toEqual([]);
   });
 
-  it("uses only qbt: classes that exist in the built styles.css, and no palette colors", async () => {
-    const css = await readFile(join(import.meta.dirname, "../dist/styles.css"), "utf8");
+  /** Compiles `src/admin/styles.css` like the build does, so the test does not need `dist/`. */
+  async function compiledStyles() {
+    const require = createRequire(import.meta.url);
+    const cli = join(dirname(require.resolve("@tailwindcss/cli/package.json")), "dist/index.mjs");
+    const out = await mkdtemp(join(tmpdir(), "qbt-styles-"));
+    try {
+      const output = join(out, "styles.css");
+      await promisify(execFile)(
+        process.execPath,
+        [cli, "-i", "src/admin/styles.css", "-o", output],
+        {
+          cwd: join(import.meta.dirname, ".."),
+        },
+      );
+      return await readFile(output, "utf8");
+    } finally {
+      await rm(out, { recursive: true, force: true });
+    }
+  }
+
+  it("uses only qbt: classes that exist in the compiled styles.css, and no palette colors", async () => {
+    const css = await compiledStyles();
     const missing: string[] = [];
     const palette: string[] = [];
     for (const { file, source } of await sources()) {
@@ -443,5 +466,5 @@ describe("styles", () => {
     expect(palette).toEqual([]);
     const source = await readFile(join(import.meta.dirname, "../src/admin/styles.css"), "utf8");
     expect(source).not.toMatch(/--qbt-color-|rgb\(/);
-  });
+  }, 30_000);
 });
