@@ -1,5 +1,6 @@
 import type { DatabaseAdapter } from "./adapter";
 import type { AuthAdapter, QuickbenUser } from "./auth";
+import type { AnyEndpoint } from "./endpoints";
 import type { AnyField, Fields, FieldTypes, FileRef, RelationField } from "./fields";
 import type { LocalizedText } from "./localize";
 import type { StorageAdapter } from "./storage";
@@ -488,6 +489,8 @@ export interface PluginConfig {
   onInit: readonly InitHook[];
   /** Names of plugins applied so far, in order. */
   plugins: readonly string[];
+  /** Custom HTTP endpoints. Missing in configs built before endpoints existed. */
+  endpoints?: readonly AnyEndpoint[];
 }
 
 /** Fields a plugin adds to existing collections, keyed by collection slug. */
@@ -571,6 +574,8 @@ export interface ConfigInput<
   auth?: AuthAdapter;
   admin?: AdminConfig;
   modules?: readonly Module[];
+  /** Custom HTTP endpoints made with `defineEndpoint`. */
+  endpoints?: readonly AnyEndpoint[];
   /**
    * IANA time zone that resolves `date` and `datetime` inputs given as `Date` objects or with
    * offsets. Fields can override it. Default `UTC`. The server time zone is never used.
@@ -589,6 +594,8 @@ export interface QuickbenConfig<R extends Registry = Registry> {
   readonly modules: readonly Module[];
   readonly onInit: readonly InitHook[];
   readonly plugins: readonly string[];
+  /** Custom HTTP endpoints, yours and the ones added by plugins. Always set by `defineConfig`. */
+  readonly endpoints?: readonly AnyEndpoint[];
   /** Time zone of `date` and `datetime` inputs. Default `UTC`. */
   readonly timeZone: string;
   /** Type-level only. */
