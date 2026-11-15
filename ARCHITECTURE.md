@@ -305,6 +305,30 @@ Extend `QuickbenUser` with declaration merging. Auth adapters should set `emailV
 
 All errors extend `QuickbenError` with a stable `code` and a suggested HTTP `status`: `VALIDATION` 400, `UNAUTHORIZED` 401, `FORBIDDEN` 403, `NOT_FOUND` 404, `CONFLICT` 409, `CONFIG` 500.
 
+### Endpoints
+
+```ts
+const startPurchase = defineEndpoint({
+  method: "POST",
+  path: "/purchases/:id/start",
+  version: 1, // mounted at /v1/purchases/:id/start
+  input: { params: z.object({ id: z.string() }), body: z.object({ amount: z.number() }) },
+  output: { 200: z.object({ id: z.string() }), 409: z.object({ reason: z.string() }) },
+  access: ({ user }) => user !== null,
+  transactional: true,
+  handler: async ({ input, qb, ctx, user, req }) => reply(200, { id: input.params.id }),
+});
+defineConfig({ …, endpoints: [startPurchase] }); // plugins: definePlugin({ endpoints })
+```
+
+- Types: `input` is the output of the Zod schemas (params default to the `:name` segments as strings, query to `Record<string, string | string[]>`, body to `undefined`). The handler result must match `output` (per status for a status map). `endpointFactory<Registry>()` types `qb`.
+- Config checks: valid method and path (`/seg/:param`), positive integer `version`, valid `deprecated` / `sunset` dates, no `GET` body, unique method + mounted path (parameter names ignored). Unversioned paths cannot start with `_`, `:` or `vN`. No mounted path may start with a collection slug.
+- Execution: `handleEndpointRequest(config, request, { basePath, csrf, maxBodyBytes, validateOutput })` in `@quickben/core/http` returns `Response | null` (`null` = no path matched; a matched path with another method is `405`). Steps: match (static segments win) → CSRF on unsafe methods unless `Authorization: Bearer` → `auth.getUser` → access (default: authenticated users) → validate params, query, JSON body (`400 VALIDATION`, paths like `body.amount`; body limit 1 MB) → handler (in `qb.transaction` with `transactional`; afterCommit hooks run after it) → output validation unless `NODE_ENV` is `production` (or `validateOutput`), a mismatch is a logged `500 INTERNAL`.
+- Results: a value (200, `undefined` = 204), `reply(status, body, headers)` or a plain `{ status, body, headers }`, or a `Response` (sent as is).
+- `deprecated: true | date` sets `Deprecation` (`true` or `@<unix seconds>`), `sunset` sets `Sunset` (HTTP date), also on errors.
+- `@quickben/core/http` also holds the HTTP helpers that `@quickben/next` re-exports: `HttpError`, `errorResponse`, `json`, `assertSameOrigin`, `readBytes`.
+- Unversioned endpoints are not a stable contract; external clients use versioned ones.
+
 ### Drizzle adapter (`@quickben/db-drizzle`)
 
 ```ts
@@ -330,7 +354,7 @@ drizzleAdapter({ url }); // /sqlite: libSQL; :memory: by default
 
 ```ts
 // app/api/[...quickben]/route.ts
-export const { GET, POST, PATCH, DELETE } = createRouteHandlers(config);
+export const { GET, POST, PATCH, PUT, DELETE } = createRouteHandlers(config);
 
 // app/admin/[[...segments]]/page.tsx
 async function serverFunction(request: AdminRequest) {
@@ -342,7 +366,7 @@ export default createAdminPage(config, { serverFunction }); // async server comp
 
 ### `@quickben/next`
 
-- Route handlers: `GET /_meta`, `GET|POST /:collection`, `GET|PATCH|DELETE /:collection/:id`, `GET /:collection/:id/:field` (file download). They take plain `Request` objects, so tests call them directly.
+- Route handlers: custom endpoints first (`handleEndpointRequest`; `PUT` serves only endpoints), then `GET /_meta`, `GET|POST /:collection`, `GET|PATCH|DELETE /:collection/:id`, `GET /:collection/:id/:field` (file download). They take plain `Request` objects, so tests call them directly.
 - Query string: `where` is JSON; `sort` and `select` are comma-separated; `limit` (≤ `maxLimit`, default 100), `page`, `cursor`, `depth`. Unknown parameters are rejected.
 - Bodies: JSON objects, at most `maxBodyBytes` (default 1 MB), or `multipart/form-data` with a `_payload` JSON part and one file part per file field, at most `maxUploadBytes` (default 10 MB); `id`, `createdAt`, `updatedAt` are removed.
 - Downloads stream `qb.readFile` with the stored type, `Content-Disposition` (`inline` for images, PDFs and text, else or with `?download` `attachment`), `nosniff`, a `sandbox` CSP (not for PDFs) and an `ETag` (`304` on match). No redirects.

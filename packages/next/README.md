@@ -27,6 +27,8 @@ export const { GET, POST, PATCH, PUT, DELETE } = createRouteHandlers(config);
 | `DELETE /:collection/:id`     | `qb.delete` (returns the deleted document) | 200     |
 | `GET /:collection/:id/:field` | `qb.readFile`: streams a file              | 200     |
 
+Custom endpoints (`defineConfig({ endpoints })`) are served first, with `handleEndpointRequest` from `@quickben/core/http`. `PUT` serves only endpoints. See [Endpoints](https://quickben.vialabs.net/docs/concepts/endpoints).
+
 | Option           | Default            | Purpose                                                                 |
 | ---------------- | ------------------ | ----------------------------------------------------------------------- |
 | `basePath`       | `/api`             | URL path of the catch-all route.                                        |
@@ -34,6 +36,7 @@ export const { GET, POST, PATCH, PUT, DELETE } = createRouteHandlers(config);
 | `csrf`           | `{}`               | Same-origin check on mutating methods. `{ trustedOrigins }` or `false`. |
 | `maxBodyBytes`   | `1048576` (1 MB)   | Largest `POST` / `PATCH` body. Larger bodies get `413`.                 |
 | `maxUploadBytes` | `10485760` (10 MB) | Largest multipart body. Larger bodies get `413`.                        |
+| `validateOutput` | not in production  | Validate the results of custom endpoints.                               |
 
 - The user comes from `config.auth.getUser(req)` on every request.
 - Bodies are JSON objects (`application/json`), or `multipart/form-data` with a `_payload` JSON part and one file part per file field. `id`, `createdAt` and `updatedAt` are removed from bodies.

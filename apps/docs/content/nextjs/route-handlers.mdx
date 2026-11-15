@@ -16,7 +16,7 @@ import { createRouteHandlers } from "@quickben/next";
 
 import config from "../../../quickben.config";
 
-export const { GET, POST, PATCH, DELETE } = createRouteHandlers(config);
+export const { GET, POST, PATCH, PUT, DELETE } = createRouteHandlers(config);
 ```
 
 No `next.config` wrapper is needed.
@@ -36,6 +36,7 @@ No `next.config` wrapper is needed.
 - The user comes from `config.auth.getUser(req)` on every request. Access rules and hooks run as in the [local API](/docs/concepts/local-api).
 - Bodies are JSON objects sent with `Content-Type: application/json`, or [multipart forms](#files) with files. `id`, `createdAt` and `updatedAt` are removed from bodies.
 - Responses have `Cache-Control: private, no-store`.
+- [Custom endpoints](/docs/concepts/endpoints) are matched first. `PUT` only serves endpoints; export it when one uses it.
 
 ## Options
 
@@ -44,7 +45,7 @@ import { createRouteHandlers } from "@quickben/next";
 
 import config from "../../../quickben.config";
 
-export const { GET, POST, PATCH, DELETE } = createRouteHandlers(config, {
+export const { GET, POST, PATCH, PUT, DELETE } = createRouteHandlers(config, {
   basePath: "/api",
   maxLimit: 100,
   maxBodyBytes: 1_048_576,
@@ -59,6 +60,7 @@ export const { GET, POST, PATCH, DELETE } = createRouteHandlers(config, {
 | `csrf`           | `{}`               | Same-origin check on mutating methods. `{ trustedOrigins }` or `false`. |
 | `maxBodyBytes`   | `1048576` (1 MB)   | Largest `POST` / `PATCH` body. Larger bodies get `413`.                 |
 | `maxUploadBytes` | `10485760` (10 MB) | Largest multipart body. Larger bodies get `413`.                        |
+| `validateOutput` | not in production  | Validate the results of custom endpoints.                               |
 
 ## Files
 
