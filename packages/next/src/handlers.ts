@@ -1,13 +1,20 @@
 import { getQuickben, ValidationError } from "@quickben/core";
+import {
+  assertSameOrigin,
+  errorResponse,
+  handleEndpointRequest,
+  HttpError,
+  json,
+  normalizeBasePath,
+  readBytes,
+} from "@quickben/core/http";
 
-import { assertSameOrigin } from "./csrf";
-import { errorResponse, HttpError, json } from "./errors";
-import { fileResponse, readBytes, readMultipart } from "./files";
+import { fileResponse, readMultipart } from "./files";
 import { getMeta } from "./meta";
 import { parseFindParams, parseReadParams } from "./query-string";
 
-import type { CsrfOptions } from "./csrf";
 import type { Quickben, QuickbenConfig, RequestContext } from "@quickben/core";
+import type { CsrfOptions } from "@quickben/core/http";
 
 /** Options of {@link createRouteHandlers}. */
 export interface RouteHandlerOptions {
@@ -27,6 +34,11 @@ export interface RouteHandlerOptions {
    * (10 MB). Each file field also has its own `maxBytes`.
    */
   maxUploadBytes?: number;
+  /**
+   * Validate the output of custom endpoints. Default: only when `NODE_ENV` is not
+   * `production`. An endpoint's own `validateOutput` wins.
+   */
+  validateOutput?: boolean;
 }
 
 /** A Next.js route handler. */
@@ -38,6 +50,11 @@ export interface RouteHandlers {
   POST: RouteHandler;
   PATCH: RouteHandler;
   DELETE: RouteHandler;
+}
+
+/** {@link RouteHandlers} plus `PUT`, which only custom endpoints answer. */
+export interface RouteHandlersWithPut extends RouteHandlers {
+  PUT: RouteHandler;
 }
 
 type Method = keyof RouteHandlers;
@@ -60,11 +77,6 @@ function trimSlashes(path: string): string {
   let end = path.length;
   while (end > 0 && path[end - 1] === "/") end -= 1;
   return path.slice(0, end);
-}
-
-function normalizeBasePath(basePath: string): string {
-  const trimmed = trimSlashes(basePath);
-  return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
 }
 
 function notFound(): HttpError {
@@ -193,6 +205,9 @@ const dispatch: Record<Method, (call: Call) => Promise<Response>> = {
  * | `DELETE /:collection/:id`    | `qb.delete`                        | 200     |
  * | `GET /:collection/:id/:field` | `qb.readFile` (streams the file)  | 200     |
  *
+ * Custom endpoints (`defineConfig({ endpoints })`) are served first, with
+ * `handleEndpointRequest`. Export `PUT` too when an endpoint uses it.
+ *
  * `POST` and `PATCH` take JSON, or `multipart/form-data` with a `_payload` JSON part and one
  * file part per file field. The user comes from `config.auth.getUser(req)` on every request.
  * JSON bodies larger than `maxBodyBytes` (default 1 MB) and multipart bodies larger than
@@ -202,22 +217,31 @@ const dispatch: Record<Method, (call: Call) => Promise<Response>> = {
 export function createRouteHandlers(
   config: QuickbenConfig,
   options: RouteHandlerOptions = {},
-): RouteHandlers {
+): RouteHandlersWithPut {
   const basePath = normalizeBasePath(options.basePath ?? "/api");
   const maxLimit = options.maxLimit ?? 100;
   const maxBodyBytes = options.maxBodyBytes ?? 1_048_576;
   const maxUploadBytes = options.maxUploadBytes ?? 10_485_760;
   const csrf = options.csrf ?? {};
 
+  const endpointOptions = {
+    basePath,
+    csrf,
+    maxBodyBytes,
+    validateOutput: options.validateOutput,
+  };
+
   const handler =
-    (method: Method): RouteHandler =>
+    (method: Method | "PUT"): RouteHandler =>
     async (req) => {
+      const custom = await handleEndpointRequest(config, req, endpointOptions);
+      if (custom) return custom;
       try {
         const url = new URL(req.url);
         const segments = segmentsOf(url, basePath);
         const allowed = allowedMethods(segments);
         if (allowed.length === 0) throw notFound();
-        if (!allowed.includes(method)) {
+        if (method === "PUT" || !allowed.includes(method)) {
           throw new HttpError(405, "METHOD_NOT_ALLOWED", `${method} is not allowed here`, {
             allow: allowed.join(", "),
           });
@@ -245,5 +269,6 @@ export function createRouteHandlers(
     POST: handler("POST"),
     PATCH: handler("PATCH"),
     DELETE: handler("DELETE"),
+    PUT: handler("PUT"),
   };
 }
