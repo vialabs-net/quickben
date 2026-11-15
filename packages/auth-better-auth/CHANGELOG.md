@@ -1,5 +1,14 @@
 # @quickben/auth-better-auth
 
+## 0.3.0
+
+### Patch Changes
+
+- Updated dependencies [2aa9bd5]
+- Updated dependencies [66c95ed]
+- Updated dependencies [102d4f2]
+  - @quickben/core@0.3.0
+
 ## 0.2.0
 
 ### Patch Changes
