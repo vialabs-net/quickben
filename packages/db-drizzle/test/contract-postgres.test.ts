@@ -37,4 +37,18 @@ describe.runIf(url)("postgres", () => {
     current = drizzleAdapter({ dialect: "postgres", url: url ?? "", push: true });
     return current;
   });
+
+  describe("in a schema", () => {
+    runAdapterContractTests(async () => {
+      await admin.query('drop schema if exists "quickben" cascade');
+      current = drizzleAdapter({
+        dialect: "postgres",
+        url: url ?? "",
+        schema: "quickben",
+        push: true,
+        verify: true,
+      });
+      return current;
+    });
+  });
 });

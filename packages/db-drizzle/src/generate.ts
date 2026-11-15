@@ -9,6 +9,8 @@ import type { DatabaseSchema, QuickbenConfig } from "@quickben/core";
 export interface GenerateSchemaOptions {
   /** Defaults to the dialect of `config.db` when it is a Drizzle adapter. */
   dialect?: Dialect;
+  /** Postgres schema of the tables. Defaults to the `schema` of `config.db`. */
+  schema?: string;
   /** Write the file to this path. Directories are created. */
   out?: string;
 }
@@ -98,15 +100,16 @@ function indexCode(table: TableSpec, family: Family): string[] {
   return lines;
 }
 
-function tableCode(table: TableSpec, family: Family): string {
+function tableCode(table: TableSpec, family: Family, schema: string | undefined): string {
   const ns = family === "pg" ? "pg" : "sqlite";
   const fn = family === "pg" ? "pgTable" : "sqliteTable";
+  const define = schema === undefined ? `${ns}.${fn}` : "dbSchema.table";
   const columns = table.columns.map(
     (column) => `    ${column.name}: ${columnCode(column, family)},`,
   );
   const indexes = indexCode(table, family).map((line) => `    ${line},`);
   return [
-    `export const ${tableExportName(table.slug)} = ${ns}.${fn}(`,
+    `export const ${tableExportName(table.slug)} = ${define}(`,
     `  ${JSON.stringify(table.slug)},`,
     "  {",
     ...columns,
@@ -118,9 +121,11 @@ function tableCode(table: TableSpec, family: Family): string {
   ].join("\n");
 }
 
-/** TypeScript source of the Drizzle schema for `schema`. */
-export function schemaSource(schema: DatabaseSchema, dialect: Dialect): string {
+/** TypeScript source of the Drizzle schema for `schema`, in a Postgres `pgSchema` if given. */
+export function schemaSource(schema: DatabaseSchema, dialect: Dialect, pgSchema?: string): string {
   const family = familyOf(dialect);
+  // Drizzle uses `public` when there is no schema, and rejects `pgSchema("public")`.
+  const named = family === "pg" && pgSchema !== "public" ? pgSchema : undefined;
   const tables = tableSpecs(schema);
   const usesSql = tables.some((table) => table.columns.some((column) => column.kind === "array"));
   const imports = [
@@ -134,16 +139,51 @@ export function schemaSource(schema: DatabaseSchema, dialect: Dialect): string {
     "// Run `quickben-drizzle generate` again after you change collections.",
     ...imports,
     "",
-    ...tables.map((table) => `${tableCode(table, family)}\n`),
+    ...(named === undefined
+      ? []
+      : [`export const dbSchema = pg.pgSchema(${JSON.stringify(named)});`, ""]),
+    ...tables.map((table) => `${tableCode(table, family, named)}\n`),
   ].join("\n");
 }
 
-function dialectOf(config: QuickbenConfig): Dialect | undefined {
-  const db = config.db as { name?: unknown; dialect?: unknown };
-  const dialect = db.name === "drizzle" ? db.dialect : undefined;
-  return dialect === "postgres" || dialect === "pglite" || dialect === "sqlite"
-    ? dialect
-    : undefined;
+/** The dialect and Postgres schema of `config.db` when it is a Drizzle adapter. */
+export function drizzleOptionsOf(config: QuickbenConfig): {
+  dialect: Dialect | undefined;
+  schema: string | undefined;
+} {
+  const db = config.db as { name?: unknown; dialect?: unknown; schema?: unknown };
+  if (db.name !== "drizzle") return { dialect: undefined, schema: undefined };
+  const { dialect, schema } = db;
+  return {
+    dialect:
+      dialect === "postgres" || dialect === "pglite" || dialect === "sqlite" ? dialect : undefined,
+    schema: typeof schema === "string" ? schema : undefined,
+  };
+}
+
+/** Dialect and schema from the options, else from the config. Throws without a dialect. */
+export function resolveTarget(
+  caller: string,
+  config: QuickbenConfig,
+  options: { dialect?: Dialect; schema?: string },
+): { dialect: Dialect; schema: string | undefined } {
+  const fromConfig = drizzleOptionsOf(config);
+  const dialect = options.dialect ?? fromConfig.dialect;
+  if (!dialect) {
+    throw new ConfigError(
+      `${caller}: pass \`dialect\` when the config does not use drizzleAdapter`,
+    );
+  }
+  const schema = familyOf(dialect) === "pg" ? (options.schema ?? fromConfig.schema) : undefined;
+  return { dialect, schema };
+}
+
+/** Write `source` to `out`, creating directories. */
+export async function writeOut(out: string, source: string): Promise<void> {
+  const fs = await import("node:fs/promises");
+  const path = await import("node:path");
+  await fs.mkdir(path.dirname(out), { recursive: true });
+  await fs.writeFile(out, source, "utf8");
 }
 
 /**
@@ -155,18 +195,8 @@ export async function generateDrizzleSchema(
   config: QuickbenConfig,
   options: GenerateSchemaOptions = {},
 ): Promise<string> {
-  const dialect = options.dialect ?? dialectOf(config);
-  if (!dialect) {
-    throw new ConfigError(
-      "generateDrizzleSchema: pass `dialect` when the config does not use drizzleAdapter",
-    );
-  }
-  const source = schemaSource(schemaOf(config), dialect);
-  if (options.out) {
-    const fs = await import("node:fs/promises");
-    const path = await import("node:path");
-    await fs.mkdir(path.dirname(options.out), { recursive: true });
-    await fs.writeFile(options.out, source, "utf8");
-  }
+  const { dialect, schema } = resolveTarget("generateDrizzleSchema", config, options);
+  const source = schemaSource(schemaOf(config), dialect, schema);
+  if (options.out) await writeOut(options.out, source);
   return source;
 }
