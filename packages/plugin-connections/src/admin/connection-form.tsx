@@ -1,8 +1,10 @@
 "use client";
 
+import { useAdminI18n } from "@quickben/admin/i18n";
 import { Checkbox, Input, Select, Textarea } from "@quickben/admin/ui";
 
 import { ActionForm, FormField } from "./form";
+import { connectionsMessages } from "./messages";
 
 import type { FieldView, ProviderView } from "./describe";
 import type { FormState } from "./state";
@@ -49,6 +51,7 @@ function MetadataControl({
   describedBy: string;
   disabled: boolean;
 }>) {
+  const i18n = useAdminI18n();
   const name = `metadata.${field.key}`;
   const current = value === undefined ? field.default : value;
   switch (field.control) {
@@ -71,7 +74,7 @@ function MetadataControl({
           disabled={disabled}
           aria-describedby={describedBy}
         >
-          {field.required ? null : <option value="">—</option>}
+          {field.required ? null : <option value="">{i18n.t("value.empty")}</option>}
           {field.options.map((option) => (
             <option key={option} value={option}>
               {option}
@@ -119,6 +122,7 @@ export function ConnectionForm({
   readOnly,
   secondary,
 }: Readonly<ConnectionFormProps>) {
+  const { t } = useAdminI18n().scope(connectionsMessages);
   const scope = "qb-connection";
   return (
     <ActionForm
@@ -129,7 +133,7 @@ export function ConnectionForm({
       secondary={secondary}
     >
       <div className="qb:grid qb:grid-cols-1 qb:gap-x-5 qb:gap-y-5 qb:md:grid-cols-6">
-        <FormField scope={scope} name="name" label="Name" required>
+        <FormField scope={scope} name="name" label={t("field.name")} required>
           {(control) => (
             <Input
               id={control.id}
@@ -145,9 +149,9 @@ export function ConnectionForm({
         <FormField
           scope={scope}
           name="baseUrl"
-          label="Base URL"
+          label={t("field.baseUrl")}
           required={provider.baseUrl.required}
-          hint={provider.baseUrl.required ? null : "Leave it empty to use the provider's URL."}
+          hint={provider.baseUrl.required ? null : t("field.baseUrlHint")}
         >
           {(control) => (
             <Input
@@ -164,11 +168,9 @@ export function ConnectionForm({
         <FormField
           scope={scope}
           name="credential"
-          label="Credential"
+          label={t("field.credential")}
           required={provider.credential.required}
-          hint={
-            credentials.length === 0 ? "No credential of a kind this provider takes yet." : null
-          }
+          hint={credentials.length === 0 ? t("field.noCredential") : null}
         >
           {(control) => (
             <div className="qb:flex qb:items-center qb:gap-2">
@@ -179,7 +181,9 @@ export function ConnectionForm({
                 disabled={readOnly}
                 aria-describedby={control.describedBy}
               >
-                <option value="">{provider.credential.required ? "Choose…" : "None"}</option>
+                <option value="">
+                  {provider.credential.required ? t("field.choose") : t("field.none")}
+                </option>
                 {credentials.map((credential) => (
                   <option key={credential.id} value={credential.id}>
                     {credential.label}
@@ -189,18 +193,18 @@ export function ConnectionForm({
               {readOnly ? null : (
                 <a
                   href={newCredentialHref}
-                  className="qb:text-sm qb:whitespace-nowrap qb:text-zinc-700 qb:hover:underline"
+                  className="qb:text-sm qb:whitespace-nowrap qb:text-fg qb:hover:underline"
                 >
-                  New credential
+                  {t("field.newCredential")}
                 </a>
               )}
             </div>
           )}
         </FormField>
         <div className="qb:flex qb:items-end qb:md:col-span-3">
-          <label className="qb:flex qb:items-center qb:gap-2 qb:text-sm qb:font-medium qb:text-zinc-900">
+          <label className="qb:flex qb:items-center qb:gap-2 qb:text-sm qb:font-medium qb:text-fg">
             <Checkbox name="enabled" defaultChecked={values.enabled} disabled={readOnly} />
-            Enabled
+            {t("field.enabled")}
           </label>
         </div>
         {provider.fields.map((field) => (

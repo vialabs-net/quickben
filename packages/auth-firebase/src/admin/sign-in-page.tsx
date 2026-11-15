@@ -1,14 +1,16 @@
 "use client";
 
+import { createAdminI18n, useAdminI18n } from "@quickben/admin/i18n";
 import { Button, Card, CardBody, Checkbox, Input, Label } from "@quickben/admin/ui";
 import { useMemo, useRef, useState } from "react";
 
 import { useGoogleOneTap } from "../client/one-tap";
 import { createSessionClient } from "../client/session-client";
 
-import { safeRedirect, signInErrorMessage } from "./messages";
+import { firebaseAuthMessages, safeRedirect, signInErrorMessage } from "./messages";
 
 import type { FirebaseSessionClient } from "../client/session-client";
+import type { AdminI18n, AdminI18nData } from "@quickben/admin/i18n";
 import type { FirebaseOptions } from "firebase/app";
 import type { SubmitEvent } from "react";
 
@@ -20,8 +22,15 @@ export interface FirebaseSignInPageProps {
   googleClientId?: string;
   /** Sign-in methods to offer. Default `["google"]`. */
   methods?: readonly ("google" | "password")[];
-  /** Heading. Default `Sign in`. */
+  /** Heading. Default `Sign in`, translated. */
   title?: string;
+  /**
+   * Locale data, e.g. `(await getAdminI18n(config)).data` in the server page, so the page
+   * follows the admin locale and `admin.messages` overrides. Wins over `locale`.
+   */
+  i18n?: AdminI18nData;
+  /** Locale such as `es`, when `i18n` is not given. Default: the admin provider's, else English. */
+  locale?: string;
   /** Where to go after sign-in when the URL has no safe `?next=`. Default `/admin`. */
   redirectTo?: string;
   /** URL of the session route. Default `/api/auth/session`. */
@@ -67,11 +76,20 @@ export function FirebaseSignInPage(props: Readonly<FirebaseSignInPageProps>) {
     firebaseConfig,
     googleClientId,
     methods = ["google"],
-    title = "Sign in",
+    title,
+    i18n: data,
+    locale,
     redirectTo = "/admin",
     endpoint,
     showRemember = true,
   } = props;
+  const contextI18n = useAdminI18n();
+  const i18n: AdminI18n = useMemo(() => {
+    if (data) return createAdminI18n(data);
+    if (locale) return createAdminI18n({ locale, timeZone: "UTC", overrides: {} });
+    return contextI18n;
+  }, [data, locale, contextI18n]);
+  const t = i18n.scope(firebaseAuthMessages).t;
   const client: FirebaseSessionClient = useMemo(
     () => createSessionClient({ firebaseConfig, endpoint }),
     [firebaseConfig, endpoint],
@@ -93,7 +111,7 @@ export function FirebaseSignInPage(props: Readonly<FirebaseSignInPageProps>) {
     } catch (caught) {
       running.current = false;
       setBusy(null);
-      setError(signInErrorMessage(caught));
+      setError(signInErrorMessage(caught, t));
     }
   }
 
@@ -118,14 +136,14 @@ export function FirebaseSignInPage(props: Readonly<FirebaseSignInPageProps>) {
   }
 
   return (
-    <div className="qb-root qb:flex qb:min-h-screen qb:items-center qb:justify-center qb:bg-zinc-50 qb:px-4 qb:py-12">
+    <div className="qb-root qb:flex qb:min-h-screen qb:items-center qb:justify-center qb:bg-surface-muted qb:px-4 qb:py-12">
       <Card className="qb:w-full qb:max-w-sm">
         <CardBody className="qb:flex qb:flex-col qb:gap-4">
-          <h1 className="qb:text-2xl qb:font-semibold qb:text-zinc-900">{title}</h1>
+          <h1 className="qb:text-2xl qb:font-semibold qb:text-fg">{title ?? t("title")}</h1>
           {error ? (
             <p
               role="alert"
-              className="qb:rounded-md qb:bg-red-50 qb:px-3 qb:py-2 qb:text-sm qb:text-red-700"
+              className="qb:rounded-md qb:bg-danger-soft qb:px-3 qb:py-2 qb:text-sm qb:text-danger-strong"
             >
               {error}
             </p>
@@ -139,13 +157,13 @@ export function FirebaseSignInPage(props: Readonly<FirebaseSignInPageProps>) {
               }}
             >
               <GoogleIcon />
-              {busy === "google" || busy === "one-tap" ? "Signing in…" : "Continue with Google"}
+              {busy === "google" || busy === "one-tap" ? t("signingIn") : t("google")}
             </Button>
           ) : null}
           {methods.includes("password") ? (
             <form className="qb:flex qb:flex-col qb:gap-3" onSubmit={onPassword}>
               <div className="qb:flex qb:flex-col qb:gap-1">
-                <Label htmlFor="qb-sign-in-email">Email</Label>
+                <Label htmlFor="qb-sign-in-email">{t("email")}</Label>
                 <Input
                   id="qb-sign-in-email"
                   name="email"
@@ -155,7 +173,7 @@ export function FirebaseSignInPage(props: Readonly<FirebaseSignInPageProps>) {
                 />
               </div>
               <div className="qb:flex qb:flex-col qb:gap-1">
-                <Label htmlFor="qb-sign-in-password">Password</Label>
+                <Label htmlFor="qb-sign-in-password">{t("password")}</Label>
                 <Input
                   id="qb-sign-in-password"
                   name="password"
@@ -165,7 +183,7 @@ export function FirebaseSignInPage(props: Readonly<FirebaseSignInPageProps>) {
                 />
               </div>
               <Button type="submit" disabled={busy !== null}>
-                {busy === "password" ? "Signing in…" : "Sign in"}
+                {busy === "password" ? t("signingIn") : t("submit")}
               </Button>
             </form>
           ) : null}
@@ -178,7 +196,7 @@ export function FirebaseSignInPage(props: Readonly<FirebaseSignInPageProps>) {
                   setRemember(event.currentTarget.checked);
                 }}
               />
-              <Label htmlFor="qb-sign-in-remember">Keep me signed in</Label>
+              <Label htmlFor="qb-sign-in-remember">{t("remember")}</Label>
             </div>
           ) : null}
         </CardBody>

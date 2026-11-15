@@ -14,6 +14,8 @@
  * A path is a catalog variable. A list is true when it has items. Expressions are parsed into a
  * tree and evaluated: nothing is executed, and paths read own properties of the data only.
  */
+import { localize } from "@quickben/core";
+
 import { lookup } from "./values";
 
 import type { CatalogVariable } from "./kinds";
@@ -284,13 +286,13 @@ function checkComparison(
   const value = literalSide.value;
   const ordered = expr.type !== "eq" && expr.type !== "neq";
   if (variable.type === "list") {
-    return `"${variable.label}" is a list: use it alone to test whether it has items`;
+    return `"${localize(variable.label)}" is a list: use it alone to test whether it has items`;
   }
   if (variable.type === "boolean" && (ordered || (typeof value !== "boolean" && value !== null))) {
-    return `"${variable.label}" is true or false: compare it with true or false`;
+    return `"${localize(variable.label)}" is true or false: compare it with true or false`;
   }
   if (ordered && variable.type !== "number" && variable.type !== "date") {
-    return `"${variable.label}" is not a number or a date: use == or !=`;
+    return `"${localize(variable.label)}" is not a number or a date: use == or !=`;
   }
   if (
     variable.type === "enum" &&
@@ -298,7 +300,7 @@ function checkComparison(
     !variable.values?.some((v) => v.value === value)
   ) {
     const values = (variable.values ?? []).map((v) => `'${v.value}'`).join(", ");
-    return `"${variable.label}" is never '${value}'. Values: ${values}`;
+    return `"${localize(variable.label)}" is never '${value}'. Values: ${values}`;
   }
   return null;
 }

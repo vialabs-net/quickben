@@ -230,3 +230,16 @@ export default createAdminPage(config, { extensions: [tenancyAdmin(config)] });
 `tenancyAdmin(config, { basePath, group })`: pass the same `basePath` as `createAdminPage` when it is not `/admin`. `group` is the sidebar group (default `Organization`).
 
 All changes go through the helpers above, so the guard rails apply. Actions redirect with a code (`?toast=member-updated`, `?error=last-owner`). The pages map codes to fixed messages and ignore unknown codes, so the URL never puts text on the page. The playground runs this with `QUICKBEN_TENANCY=1`.
+
+## Admin languages
+
+The admin pages ship English and Spanish messages in the `tenancy` namespace (`tenancyMessages` from `@quickben/plugin-tenancy/admin`). They follow the admin locale. Override a message with `admin.messages`, for example `{ es: { "tenancy.<key>": "…" } }`. See [Languages](/docs/nextjs/admin#languages).
+
+For a host layout with `chrome: "none"`, render the switcher alone:
+
+```tsx
+import { createOrganizationSwitcher } from "@quickben/plugin-tenancy/admin";
+
+const OrganizationSwitcher = createOrganizationSwitcher(config, { basePath: "/data" });
+// In your layout, inside <Suspense>: <OrganizationSwitcher />
+```

@@ -1,5 +1,6 @@
 "use client";
 
+import { useAdminI18n } from "@quickben/admin/i18n";
 import { Button, FieldHint, Label } from "@quickben/admin/ui";
 import {
   createContext,
@@ -11,7 +12,8 @@ import {
   useState,
 } from "react";
 
-import { idleState } from "./state";
+import { connectionsMessages } from "./messages";
+import { formMessage, idleState } from "./state";
 
 import type { FormState } from "./state";
 import type { ReactNode, SubmitEvent } from "react";
@@ -46,6 +48,7 @@ export function ActionForm({
   secondary,
   children,
 }: Readonly<ActionFormProps>) {
+  const { t } = useAdminI18n().scope(connectionsMessages);
   const [state, formAction, pending] = useActionState(action, idleState);
   const formRef = useRef<HTMLFormElement>(null);
   const [ready, setReady] = useState(false);
@@ -81,16 +84,16 @@ export function ActionForm({
         {state.status === "error" ? (
           <div
             role="alert"
-            className="qb:mx-5 qb:mt-5 qb:rounded-md qb:border qb:border-red-200 qb:bg-red-50 qb:px-4 qb:py-3 qb:text-sm qb:text-red-800"
+            className="qb:mx-5 qb:mt-5 qb:rounded-md qb:border qb:border-danger-line qb:bg-danger-soft qb:px-4 qb:py-3 qb:text-sm qb:text-danger-strong"
           >
-            {state.message}
+            {formMessage(t, state.message)}
           </div>
         ) : null}
         <div className="qb:p-5">{children}</div>
         {readOnly ? null : (
-          <div className="qb:flex qb:items-center qb:gap-3 qb:border-t qb:border-zinc-200 qb:bg-zinc-50 qb:px-5 qb:py-3 qb:rounded-b-lg">
+          <div className="qb:flex qb:items-center qb:gap-3 qb:border-t qb:border-line qb:bg-surface-muted qb:px-5 qb:py-3 qb:rounded-b-lg">
             <Button type="submit" disabled={pending || !ready}>
-              {pending ? "Saving…" : submitLabel}
+              {pending ? t("action.saving") : submitLabel}
             </Button>
             {secondary}
           </div>
@@ -135,12 +138,12 @@ export function FormField({
     >
       <Label htmlFor={id}>
         {label}
-        {required ? <span className="qb:text-red-600"> *</span> : null}
+        {required ? <span className="qb:text-danger"> *</span> : null}
       </Label>
       {children({ id, describedBy: `${id}-hint ${id}-error` })}
       {hint ? <FieldHint id={`${id}-hint`}>{hint}</FieldHint> : null}
       {error ? (
-        <p id={`${id}-error`} className="qb:text-xs qb:text-red-600">
+        <p id={`${id}-error`} className="qb:text-xs qb:text-danger">
           {error}
         </p>
       ) : null}

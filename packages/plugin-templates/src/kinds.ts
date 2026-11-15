@@ -1,6 +1,7 @@
 import { ConfigError } from "@quickben/core";
 
 import type { TemplateContent } from "./content";
+import type { LocalizedText } from "@quickben/core";
 
 /** How a variable's value is printed and compared. */
 export type VariableType = "text" | "number" | "date" | "boolean" | "enum" | "list";
@@ -24,7 +25,8 @@ export interface VariableDefinition {
    * and `_` per segment. `brand.*` is reserved for the brand variables.
    */
   path: string;
-  label: string;
+  /** Shown in the variable panel: one string, or one per locale (`{ en: "Total", es: "Total" }`). */
+  label: LocalizedText;
   /** Group in the variable panel. Default `Data`. */
   group?: string;
   /** Default `text`. */
@@ -47,8 +49,10 @@ export interface VariableDefinition {
 export interface TemplateKindDefinition {
   /** Identifier: lowercase letters, digits, `-` and `_`. */
   kind: string;
-  label: string;
-  description?: string;
+  /** Shown in the admin: one string, or one per locale. */
+  label: LocalizedText;
+  /** Shown in the admin: one string, or one per locale. */
+  description?: LocalizedText;
   /** Variables the kind's templates can use. */
   catalog: readonly VariableDefinition[];
   /**
@@ -65,7 +69,7 @@ export interface TemplateKindDefinition {
 /** A variable with defaults applied. Plain data: safe to send to the browser. */
 export interface CatalogVariable {
   path: string;
-  label: string;
+  label: LocalizedText;
   group: string;
   type: VariableType;
   values?: EnumValue[];
@@ -77,8 +81,8 @@ export interface CatalogVariable {
 /** A kind with defaults applied. */
 export interface ResolvedKind {
   readonly kind: string;
-  readonly label: string;
-  readonly description: string | null;
+  readonly label: LocalizedText;
+  readonly description: LocalizedText | null;
   readonly catalog: readonly CatalogVariable[];
   /** Server-only formatters by path. */
   readonly formats: ReadonlyMap<string, (value: unknown) => string>;
@@ -91,8 +95,11 @@ const kindPattern = /^[a-z\d][a-z\d_-]{0,62}$/;
 const pathPattern = /^[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*$/;
 const types = new Set<VariableType>(["text", "number", "date", "boolean", "enum", "list"]);
 
-/** Paths that are not data: the brand variables. */
+/** Group of the brand variables. The admin shows it translated. */
 export const BRAND_GROUP = "Brand";
+
+/** Group of variables without one. The admin shows it translated. */
+export const DEFAULT_GROUP = "Data";
 
 /** Variables every kind gets, filled from the brand. */
 export const brandVariables: readonly CatalogVariable[] = [
@@ -157,7 +164,7 @@ function checkVariable(kind: string, variable: VariableDefinition): CatalogVaria
   return {
     path: variable.path,
     label: variable.label,
-    group: variable.group ?? "Data",
+    group: variable.group ?? DEFAULT_GROUP,
     type,
     ...(variable.values ? { values: variable.values.map((v) => ({ ...v })) } : {}),
     ...(variable.fields ? { fields: variable.fields.map((f) => ({ ...f })) } : {}),

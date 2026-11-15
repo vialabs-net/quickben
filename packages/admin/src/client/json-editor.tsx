@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 
+import { useAdminI18n } from "../i18n/context";
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/input";
 
@@ -17,13 +18,13 @@ export interface JsonEditorProps {
   describedBy: string;
 }
 
-function jsonError(text: string): string | null {
+function jsonError(text: string, fallback: string): string | null {
   if (text.trim() === "") return null;
   try {
     JSON.parse(text);
     return null;
   } catch (error) {
-    return error instanceof Error ? error.message : "Invalid JSON";
+    return error instanceof Error ? error.message : fallback;
   }
 }
 
@@ -38,16 +39,18 @@ export function JsonEditor({
 }: Readonly<JsonEditorProps>) {
   const [error, setError] = useState<string | null>(null);
   const ref = useRef<HTMLTextAreaElement>(null);
+  const i18n = useAdminI18n();
+  const fallback = i18n.t("json.invalidShort");
 
   const check = (element: HTMLTextAreaElement) => {
-    const problem = jsonError(element.value);
-    element.setCustomValidity(problem ? "Enter valid JSON" : "");
+    const problem = jsonError(element.value, fallback);
+    element.setCustomValidity(problem ? i18n.t("error.json") : "");
     setError(problem);
   };
 
   const format = () => {
     const element = ref.current;
-    if (!element || jsonError(element.value) || element.value.trim() === "") return;
+    if (!element || jsonError(element.value, fallback) || element.value.trim() === "") return;
     element.value = JSON.stringify(JSON.parse(element.value), null, 2);
     check(element);
   };
@@ -73,13 +76,13 @@ export function JsonEditor({
         <p
           id={`${id}-json`}
           aria-live="polite"
-          className={error ? "qb:text-xs qb:text-red-600" : "qb:text-xs qb:text-zinc-500"}
+          className={error ? "qb:text-xs qb:text-danger" : "qb:text-xs qb:text-fg-muted"}
         >
-          {error ? `Invalid JSON: ${error}` : "JSON"}
+          {error ? i18n.t("json.invalid", { error }) : i18n.t("json.label")}
         </p>
         {disabled ? null : (
           <Button size="sm" variant="ghost" onClick={format} disabled={error !== null}>
-            Format
+            {i18n.t("json.format")}
           </Button>
         )}
       </div>

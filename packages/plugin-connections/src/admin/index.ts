@@ -2,6 +2,7 @@ import { CONNECTIONS, CREDENTIALS } from "../options";
 
 import { createConnectionEdit, createConnectionsList } from "./connections";
 import { createCredentialEdit, createCredentialsList } from "./credentials";
+import { connectionsMessages } from "./messages";
 import { normalizeBasePath, registerConnectionsAdmin } from "./registry";
 
 import type { AdminExtension } from "@quickben/admin";
@@ -9,8 +10,10 @@ import type { QuickbenConfig } from "@quickben/core";
 
 export { ProviderMark, TestBadge } from "./shared";
 export { describeFields, describeProvider } from "./describe";
+export { connectionsMessages } from "./messages";
 
 export type { FieldView, ProviderView } from "./describe";
+export type { ConnectionsKey } from "./messages";
 
 /** Options of {@link connectionsAdmin}. */
 export interface ConnectionsAdminOptions {
@@ -37,6 +40,7 @@ export function connectionsAdmin(
   const basePath = normalizeBasePath(options.basePath ?? "/admin");
   const key = registerConnectionsAdmin({ config, basePath });
   return {
+    catalogs: [connectionsMessages],
     views: {
       [CONNECTIONS]: {
         list: createConnectionsList(config, key),

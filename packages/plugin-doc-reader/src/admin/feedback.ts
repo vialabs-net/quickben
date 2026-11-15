@@ -2,45 +2,46 @@ import { ConflictError, ValidationError } from "@quickben/core";
 
 import { StudioError } from "../studio";
 
+import type { DocReaderT } from "./messages";
 import type { QuickbenError } from "@quickben/core";
 
-/** Success messages, by the code in `?toast=`. */
-export const toastMessages = {
-  "type-created": "Document type created",
-  "draft-created": "Draft created",
-  "draft-saved": "Draft saved. Test it again before publishing.",
-  "draft-deleted": "Draft deleted",
-  published: "Version published",
-  "samples-added": "Samples added",
-  "sample-saved": "Sample saved",
-  "sample-removed": "Sample removed",
-  "test-started": "Test started",
-  "budget-saved": "Budget saved",
-  "budget-removed": "Budget removed",
-  "cap-saved": "Platform cap saved",
-  "reading-retried": "Reading queued again",
-  "reading-cancelled": "Reading cancelled",
-} as const;
+/** Codes of success messages in `?toast=`. Each maps to the catalog key `toast.<code>`. */
+export const toastCodes = [
+  "type-created",
+  "draft-created",
+  "draft-saved",
+  "draft-deleted",
+  "published",
+  "samples-added",
+  "sample-saved",
+  "sample-removed",
+  "test-started",
+  "budget-saved",
+  "budget-removed",
+  "cap-saved",
+  "reading-retried",
+  "reading-cancelled",
+] as const;
 
-/** Error messages, by the code in `?error=`. */
-export const errorMessages = {
-  unauthorized: "Sign in again to continue.",
-  forbidden: "You are not allowed to do that.",
-  "not-found": "That item does not exist or you cannot see it.",
-  invalid: "Some values are not valid. Check the form and try again.",
-  "type-exists": "A document type with that key already exists.",
-  "draft-exists": "This type already has a draft. Edit or delete it first.",
-  published: "Published versions cannot change. Create a draft.",
-  "not-tested": "Test this version on its samples before publishing it.",
-  "no-samples": "Add samples before running a test.",
-  changed: "The draft changed after its test. Test it again.",
-  "no-file": "Choose a file.",
-  conflict: "That value is already used.",
-  failed: "The change could not be saved.",
-} as const;
+/** Codes of error messages in `?error=`. Each maps to the catalog key `error.<code>`. */
+export const errorCodes = [
+  "unauthorized",
+  "forbidden",
+  "not-found",
+  "invalid",
+  "type-exists",
+  "draft-exists",
+  "published",
+  "not-tested",
+  "no-samples",
+  "changed",
+  "no-file",
+  "conflict",
+  "failed",
+] as const;
 
-export type ToastCode = keyof typeof toastMessages;
-export type FeedbackErrorCode = keyof typeof errorMessages;
+export type ToastCode = (typeof toastCodes)[number];
+export type FeedbackErrorCode = (typeof errorCodes)[number];
 
 /** The `?error=` code for an error thrown by an action. */
 export function errorCode(error: QuickbenError): FeedbackErrorCode {
@@ -66,37 +67,31 @@ export function issuePath(error: unknown): string | undefined {
   return path && /^[\w.]{1,80}$/u.test(path) ? path : undefined;
 }
 
-function lookup(messages: Readonly<Record<string, string>>, code: unknown): string | undefined {
-  return typeof code === "string" && Object.hasOwn(messages, code) ? messages[code] : undefined;
+function isCode<C extends string>(codes: readonly C[], code: unknown): code is C {
+  return typeof code === "string" && (codes as readonly string[]).includes(code);
 }
 
-export function toastMessage(code: unknown): string | undefined {
-  return lookup(toastMessages, code);
+/** The message for a `?toast=` code, or `undefined` for unknown codes. */
+export function toastMessage(t: DocReaderT, code: unknown): string | undefined {
+  return isCode(toastCodes, code) ? t(`toast.${code}`) : undefined;
 }
 
-export function errorMessage(code: unknown): string | undefined {
-  return lookup(errorMessages, code);
+/** The message for an `?error=` code, or `undefined` for unknown codes. */
+export function errorMessage(t: DocReaderT, code: unknown): string | undefined {
+  return isCode(errorCodes, code) ? t(`error.${code}`) : undefined;
 }
 
-const parts: Readonly<Record<string, string>> = {
-  fields: "Field",
-  params: "Parameter",
-  steps: "Step",
-  pages: "Page",
-  text: "Text pattern",
-  fileName: "File name pattern",
-  excludes: "Excluded field",
-};
+const parts = ["fields", "params", "steps", "pages", "text", "fileName", "excludes"] as const;
 
-/** `fields.1.key` → `Field 2: key`. Only known words and numbers are shown. */
-export function describeIssue(path: unknown): string | undefined {
+/** `fields.1.key` → `Field 2 key`. Only known words and numbers are shown. */
+export function describeIssue(t: DocReaderT, path: unknown): string | undefined {
   if (typeof path !== "string" || !/^[\w.]{1,80}$/u.test(path)) return undefined;
   const words: string[] = [];
   for (const part of path.split(".")) {
     if (/^\d+$/u.test(part)) {
       words.push(String(Number(part) + 1));
-    } else if (Object.hasOwn(parts, part)) {
-      words.push(parts[part] ?? part);
+    } else if (isCode(parts, part)) {
+      words.push(t(`issue.${part}`));
     } else if (/^[a-zA-Z]{1,40}$/u.test(part) && part !== "pipeline" && part !== "classification") {
       words.push(part);
     }

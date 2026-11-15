@@ -20,19 +20,22 @@ import { deleteAction, saveConnectionAction, testConnectionAction } from "./acti
 import { ConnectionForm } from "./connection-form";
 import { DeleteButton } from "./delete-button";
 import { describeProvider } from "./describe";
+import { connectionsMessages } from "./messages";
 import {
+  DateTime,
   Detail,
-  formatDatetime,
   LastTestDetails,
   PageHeader,
   ProviderMark,
+  RelativeTime,
   TestBadge,
 } from "./shared";
 import { TestConnectionButton } from "./test-button";
 
 import type { ConnectionRecord, CredentialRecord } from "../api";
 import type { ProviderView } from "./describe";
-import type { ViewProps } from "@quickben/admin";
+import type { ConnectionsT } from "./messages";
+import type { AdminI18n, ViewProps } from "@quickben/admin";
 import type { Quickben, QuickbenConfig, RequestContext } from "@quickben/core";
 
 type Loaded = ConnectionRecord<string | CredentialRecord | null>;
@@ -47,15 +50,16 @@ async function load(config: QuickbenConfig) {
   return { qb, ctx, options: getConnectionsOptions(qb) };
 }
 
-function credentialLabel(credential: Loaded["credential"]): string {
-  if (credential === null) return "None";
-  if (typeof credential === "string") return "Hidden";
+function credentialLabel(credential: Loaded["credential"], t: ConnectionsT): string {
+  if (credential === null) return t("value.none");
+  if (typeof credential === "string") return t("value.hidden");
   return credential.last4 ? `${credential.name} (•••• ${credential.last4})` : credential.name;
 }
 
 /** The list of connections. */
 export function createConnectionsList(config: QuickbenConfig, key: string) {
-  return async function ConnectionsList({ collection, basePath }: Readonly<ViewProps>) {
+  return async function ConnectionsList({ collection, basePath, i18n }: Readonly<ViewProps>) {
+    const { t } = i18n.scope(connectionsMessages);
     const { qb, ctx, options } = await load(config);
     const result = await qb.find(
       CONNECTIONS,
@@ -67,11 +71,12 @@ export function createConnectionsList(config: QuickbenConfig, key: string) {
     return (
       <>
         <PageHeader
-          title="Connections"
-          description="External providers and the credential each one uses."
+          i18n={i18n}
+          title={t("list.title")}
+          description={t("list.description")}
           actions={
             collection.access.create ? (
-              <ButtonLink href={`${basePath}/${CONNECTIONS}/new`}>New connection</ButtonLink>
+              <ButtonLink href={`${basePath}/${CONNECTIONS}/new`}>{t("list.new")}</ButtonLink>
             ) : null
           }
         />
@@ -79,21 +84,22 @@ export function createConnectionsList(config: QuickbenConfig, key: string) {
           <Table>
             <thead>
               <tr>
-                <Th>Name</Th>
-                <Th>Provider</Th>
-                <Th>Credential</Th>
-                <Th>Status</Th>
-                <Th>Last test</Th>
+                <Th>{t("column.name")}</Th>
+                <Th>{t("column.provider")}</Th>
+                <Th>{t("column.credential")}</Th>
+                <Th>{t("column.status")}</Th>
+                <Th>{t("column.lastTest")}</Th>
                 {manage ? (
                   <Th>
-                    <span className="qb:sr-only">Actions</span>
+                    <span className="qb:sr-only">{t("column.actions")}</span>
                   </Th>
                 ) : null}
               </tr>
             </thead>
             <tbody>
               {docs.map((doc) => {
-                const provider = options.providers.get(doc.providerType);
+                const target = options.providers.get(doc.providerType);
+                const provider = target ? describeProvider(target, i18n) : null;
                 return (
                   <Tr key={doc.id}>
                     <Td>
@@ -105,24 +111,30 @@ export function createConnectionsList(config: QuickbenConfig, key: string) {
                         />
                         <Link
                           href={`${basePath}/${CONNECTIONS}/${encodeURIComponent(doc.id)}`}
-                          className="qb:font-medium qb:text-zinc-900 qb:hover:underline"
+                          className="qb:font-medium qb:text-fg qb:hover:underline"
                         >
                           {doc.name}
                         </Link>
-                        {doc.enabled ? null : <Badge>Disabled</Badge>}
+                        {doc.enabled ? null : <Badge>{t("value.disabled")}</Badge>}
                       </div>
                     </Td>
                     <Td>
                       {provider ? `${provider.label} · ${provider.category}` : doc.providerType}
                     </Td>
-                    <Td>{credentialLabel(doc.credential)}</Td>
+                    <Td>{credentialLabel(doc.credential, t)}</Td>
                     <Td>
-                      <TestBadge lastTest={doc.lastTest} />
+                      <TestBadge lastTest={doc.lastTest} i18n={i18n} />
                     </Td>
-                    <Td>{doc.lastTest ? formatDatetime(doc.lastTest.at) : "—"}</Td>
+                    <Td>
+                      {doc.lastTest ? (
+                        <RelativeTime value={doc.lastTest.at} i18n={i18n} />
+                      ) : (
+                        i18n.t("value.empty")
+                      )}
+                    </Td>
                     {manage ? (
                       <Td>
-                        {provider?.test ? (
+                        {provider?.testable ? (
                           <TestConnectionButton
                             size="sm"
                             action={testConnectionAction.bind(null, key, doc.id)}
@@ -137,10 +149,9 @@ export function createConnectionsList(config: QuickbenConfig, key: string) {
                 <tr>
                   <td
                     colSpan={manage ? 6 : 5}
-                    className="qb:px-4 qb:py-12 qb:text-center qb:text-sm qb:text-zinc-500"
+                    className="qb:px-4 qb:py-12 qb:text-center qb:text-sm qb:text-fg-muted"
                   >
-                    No connections yet. A connection is an external provider (AI models, identity,
-                    any API) with the credential it uses.
+                    {t("list.empty")}
                   </td>
                 </tr>
               ) : null}
@@ -155,20 +166,26 @@ export function createConnectionsList(config: QuickbenConfig, key: string) {
 function ProviderPicker({
   basePath,
   providers,
-}: Readonly<{ basePath: string; providers: ProviderView[] }>) {
+  i18n,
+}: Readonly<{ basePath: string; providers: ProviderView[]; i18n: AdminI18n }>) {
+  const { t } = i18n.scope(connectionsMessages);
   return (
     <>
       <PageHeader
-        title="New connection"
-        description="Choose a provider."
-        crumbs={[{ label: "Connections", href: `${basePath}/${CONNECTIONS}` }, { label: "New" }]}
+        i18n={i18n}
+        title={t("picker.title")}
+        description={t("picker.description")}
+        crumbs={[
+          { label: t("list.title"), href: `${basePath}/${CONNECTIONS}` },
+          { label: t("crumb.new") },
+        ]}
       />
       <div className="qb:grid qb:gap-6">
         {providersByCategory(providers).map(({ category, providers: group }) => (
           <section key={category} aria-labelledby={`qb-category-${category}`}>
             <h2
               id={`qb-category-${category}`}
-              className="qb:mb-3 qb:text-xs qb:font-medium qb:tracking-wide qb:text-zinc-500 qb:uppercase"
+              className="qb:mb-3 qb:text-xs qb:font-medium qb:tracking-wide qb:text-fg-muted qb:uppercase"
             >
               {category}
             </h2>
@@ -177,14 +194,14 @@ function ProviderPicker({
                 <li key={provider.type} className="qb:md:col-span-3">
                   <Link
                     href={`${basePath}/${CONNECTIONS}/new?provider=${encodeURIComponent(provider.type)}`}
-                    className="qb:flex qb:items-start qb:gap-3 qb:rounded-lg qb:border qb:border-zinc-200 qb:bg-white qb:px-4 qb:py-3 qb:shadow-xs qb:hover:bg-zinc-50"
+                    className="qb:flex qb:items-start qb:gap-3 qb:rounded-lg qb:border qb:border-line qb:bg-surface qb:px-4 qb:py-3 qb:shadow-xs qb:hover:bg-surface-muted"
                   >
                     <ProviderMark label={provider.label} logo={provider.logo} />
                     <span className="qb:min-w-0">
-                      <span className="qb:block qb:text-sm qb:font-medium qb:text-zinc-900">
+                      <span className="qb:block qb:text-sm qb:font-medium qb:text-fg">
                         {provider.label}
                       </span>
-                      <span className="qb:block qb:text-sm qb:text-zinc-500">
+                      <span className="qb:block qb:text-sm qb:text-fg-muted">
                         {provider.description}
                       </span>
                     </span>
@@ -218,23 +235,28 @@ export function createConnectionEdit(config: QuickbenConfig, key: string) {
     basePath,
     searchParams,
     id,
+    i18n,
   }: Readonly<ViewProps>) {
+    const { t } = i18n.scope(connectionsMessages);
     const { qb, ctx, options } = await load(config);
     const listHref = `${basePath}/${CONNECTIONS}`;
     const newCredentialHref = `${basePath}/${CREDENTIALS}/new`;
     if (id === undefined) {
-      const providers = [...options.providers.values()].map(describeProvider);
+      const providers = [...options.providers.values()].map((provider) =>
+        describeProvider(provider, i18n),
+      );
       const chosen = providers.find((provider) => provider.type === first(searchParams.provider));
-      if (!chosen) return <ProviderPicker basePath={basePath} providers={providers} />;
+      if (!chosen) return <ProviderPicker basePath={basePath} providers={providers} i18n={i18n} />;
       return (
         <>
           <PageHeader
-            title={`New ${chosen.label} connection`}
+            i18n={i18n}
+            title={t("connection.newTitle", { provider: chosen.label })}
             description={chosen.description}
             leading={<ProviderMark label={chosen.label} logo={chosen.logo} />}
             crumbs={[
-              { label: "Connections", href: listHref },
-              { label: "New", href: `${listHref}/new` },
+              { label: t("list.title"), href: listHref },
+              { label: t("crumb.new"), href: `${listHref}/new` },
               { label: chosen.label },
             ]}
           />
@@ -252,11 +274,11 @@ export function createConnectionEdit(config: QuickbenConfig, key: string) {
                 }}
                 credentials={await credentialOptions(qb, ctx, chosen)}
                 newCredentialHref={newCredentialHref}
-                submitLabel="Create connection"
+                submitLabel={t("connection.create")}
                 readOnly={!collection.access.create}
                 secondary={
                   <ButtonLink href={`${listHref}/new`} variant="ghost">
-                    Back
+                    {t("action.back")}
                   </ButtonLink>
                 }
               />
@@ -267,18 +289,19 @@ export function createConnectionEdit(config: QuickbenConfig, key: string) {
     }
     const doc = (await qb.findById(CONNECTIONS, id, { depth: 1 }, ctx)) as unknown as Loaded;
     const target = options.providers.get(doc.providerType);
-    const provider = target ? describeProvider(target) : null;
+    const provider = target ? describeProvider(target, i18n) : null;
     const readOnly = !collection.access.update;
     const credentialId =
       typeof doc.credential === "string" ? doc.credential : (doc.credential?.id ?? null);
     return (
       <>
         <PageHeader
+          i18n={i18n}
           title={doc.name}
           description={
             provider
               ? `${provider.label} · ${provider.category}`
-              : `Unknown provider ${doc.providerType}`
+              : t("connection.unknownProvider", { type: doc.providerType })
           }
           leading={
             <ProviderMark
@@ -287,10 +310,10 @@ export function createConnectionEdit(config: QuickbenConfig, key: string) {
               muted={!doc.enabled}
             />
           }
-          crumbs={[{ label: "Connections", href: listHref }, { label: doc.name }]}
+          crumbs={[{ label: t("list.title"), href: listHref }, { label: doc.name }]}
           actions={
             <>
-              {readOnly ? <Badge>Read only</Badge> : null}
+              {readOnly ? <Badge>{t("value.readOnly")}</Badge> : null}
               {!readOnly && provider?.testable ? (
                 <TestConnectionButton action={testConnectionAction.bind(null, key, doc.id)} />
               ) : null}
@@ -312,38 +335,41 @@ export function createConnectionEdit(config: QuickbenConfig, key: string) {
                 }}
                 credentials={await credentialOptions(qb, ctx, provider)}
                 newCredentialHref={newCredentialHref}
-                submitLabel="Save changes"
+                submitLabel={t("action.save")}
                 readOnly={readOnly}
                 secondary={
                   <ButtonLink href={listHref} variant="ghost">
-                    Cancel
+                    {t("action.cancel")}
                   </ButtonLink>
                 }
               />
             ) : (
               <CardBody>
-                <p className="qb:text-sm qb:text-zinc-600">
-                  The provider type “{doc.providerType}” is not registered. Register it with
-                  defineProvider to edit this connection.
+                <p className="qb:text-sm qb:text-fg-muted">
+                  {t("connection.notRegistered", { type: doc.providerType })}
                 </p>
               </CardBody>
             )}
           </Card>
           <Card>
-            <CardHeader title="Status" />
+            <CardHeader title={t("status.title")} />
             <CardBody className="qb:space-y-4">
-              <LastTestDetails lastTest={doc.lastTest} />
+              <LastTestDetails lastTest={doc.lastTest} i18n={i18n} />
               <dl className="qb:space-y-3 qb:text-sm">
-                <Detail label="ID">
+                <Detail label={t("detail.id")}>
                   <span className="qb:font-mono qb:text-xs qb:break-all">{doc.id}</span>
                 </Detail>
-                <Detail label="Created">{formatDatetime(doc.createdAt)}</Detail>
-                <Detail label="Updated">{formatDatetime(doc.updatedAt)}</Detail>
+                <Detail label={t("detail.created")}>
+                  <DateTime value={doc.createdAt} i18n={i18n} />
+                </Detail>
+                <Detail label={t("detail.updated")}>
+                  <DateTime value={doc.updatedAt} i18n={i18n} />
+                </Detail>
               </dl>
               {collection.access.delete ? (
                 <DeleteButton
                   action={deleteAction.bind(null, key, CONNECTIONS, doc.id)}
-                  label="connection"
+                  kind="connection"
                   title={doc.name}
                 />
               ) : null}

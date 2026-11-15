@@ -6,6 +6,7 @@ import { controlId } from "../ids";
 import { cn } from "../ui/cn";
 import { Checkbox, FieldHint, Input, Label, Select, Textarea } from "../ui/input";
 
+import type { AdminI18n } from "../i18n/translator";
 import type { AdminServerFunction, FieldComponentProps, RelationOption } from "../types";
 import type { FieldMeta } from "@quickben/next";
 import type { ComponentType, ReactNode } from "react";
@@ -24,6 +25,7 @@ export interface FieldInputContext {
   readOnly: boolean;
   /** Scope of the control ids, from `formScope`. */
   scope: string;
+  i18n: AdminI18n;
 }
 
 const spans = {
@@ -62,17 +64,21 @@ function SelectInput({
   field,
   value,
   props,
+  i18n,
 }: Readonly<{
   field: FieldMeta;
   value: unknown;
   props: ControlProps;
+  i18n: AdminI18n;
 }>) {
   const options = field.options ?? [];
   if (!field.many) {
     return (
       <Select {...props} defaultValue={stringValue(value)}>
-        {field.required ? null : <option value="">—</option>}
-        {field.required && value === null ? <option value="">Choose…</option> : null}
+        {field.required ? null : <option value="">{i18n.t("value.empty")}</option>}
+        {field.required && value === null ? (
+          <option value="">{i18n.t("edit.choose")}</option>
+        ) : null}
         {options.map((option) => (
           <option key={option} value={option}>
             {option}
@@ -152,7 +158,7 @@ function Control({
     case "datetime":
       return <Input {...props} type="datetime-local" defaultValue={toDatetimeLocal(value)} />;
     case "select":
-      return <SelectInput field={field} value={value} props={props} />;
+      return <SelectInput field={field} value={value} props={props} i18n={context.i18n} />;
     case "relation": {
       const to = field.to ?? "";
       return (
@@ -227,19 +233,21 @@ export function FieldInput({
       required={props.required}
       disabled={disabled}
       describedBy={describedBy}
+      i18n={context.i18n.data}
     />
   ) : (
     <Control field={field} value={value} props={props} context={context} />
   );
   const inline = field.type === "boolean" && !Custom;
   const width = widthOf(field);
-  const hint = field.description ?? (field.type === "datetime" && !Custom ? "Time in UTC." : null);
+  const hint =
+    field.description ?? (field.type === "datetime" && !Custom ? context.i18n.t("edit.utc") : null);
   const group = field.type === "select" && field.many && !Custom;
   const label = (
     <>
       {field.label}
       {props.required ? (
-        <span className="qb:text-red-600" aria-hidden="true">
+        <span className="qb:text-danger" aria-hidden="true">
           {" "}
           *
         </span>
@@ -256,7 +264,7 @@ export function FieldInput({
       ) : (
         <>
           {group ? (
-            <p id={`${id}-label`} className="qb:text-sm qb:font-medium qb:text-zinc-900">
+            <p id={`${id}-label`} className="qb:text-sm qb:font-medium qb:text-fg">
               {label}
             </p>
           ) : (

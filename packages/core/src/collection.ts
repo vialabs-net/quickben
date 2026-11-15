@@ -1,4 +1,5 @@
 import { ConfigError } from "./errors";
+import { mapLocalized } from "./localize";
 
 import type { AnyField, Fields } from "./fields";
 import type { AnyCollection, Collection, CollectionConfig, CollectionHooks } from "./types";
@@ -78,7 +79,7 @@ export function defineCollection<const TSlug extends string, F extends Fields>(
   const plural = config.labels?.plural ?? humanize(config.slug);
   return {
     slug: config.slug,
-    labels: { singular: config.labels?.singular ?? singularize(plural), plural },
+    labels: { singular: config.labels?.singular ?? mapLocalized(plural, singularize), plural },
     fields: config.fields,
     access: config.access ?? {},
     hooks: config.hooks ?? {},

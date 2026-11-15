@@ -4,6 +4,7 @@
  * The template editor's nodes. The JSON they produce is what `serialize.ts` renders and
  * `validate.ts` checks: keep node names and attributes in step with `content.ts`.
  */
+import { useAdminI18n } from "@quickben/admin/i18n";
 import { Extension, mergeAttributes, Node } from "@tiptap/core";
 import { TableKit } from "@tiptap/extension-table";
 import { TextAlign } from "@tiptap/extension-text-align";
@@ -12,6 +13,8 @@ import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer } from "@tiptap/react";
 import { StarterKit } from "@tiptap/starter-kit";
 import { createContext, useContext } from "react";
+
+import { templatesMessages, variableLabel } from "./messages";
 
 import type { TemplateIssue } from "../content";
 import type { CatalogVariable } from "../kinds";
@@ -28,13 +31,17 @@ export interface EditorMeta {
 
 export const EditorMetaContext = createContext<EditorMeta>({ catalog: [], readOnly: true });
 const useMeta = () => useContext(EditorMetaContext);
+const useT = () => useAdminI18n().scope(templatesMessages).t;
+
+/** An example in the condition language. Not translated: the language has English keywords. */
+const conditionExample = "order.paid and total > 100";
 
 const cx = (...classes: (string | false | null | undefined)[]) => classes.filter(Boolean).join(" ");
 
 const control =
-  "qbt:h-7 qbt:rounded qbt:border qbt:border-zinc-300 qbt:bg-white qbt:px-2 qbt:text-xs qbt:text-zinc-900 qbt:disabled:bg-zinc-50";
+  "qbt:h-7 qbt:rounded qbt:border qbt:border-line-strong qbt:bg-surface qbt:px-2 qbt:text-xs qbt:text-fg qbt:disabled:bg-surface-muted";
 const caption =
-  "qbt:shrink-0 qbt:text-[11px] qbt:font-medium qbt:tracking-wide qbt:text-zinc-500 qbt:uppercase";
+  "qbt:shrink-0 qbt:text-[11px] qbt:font-medium qbt:tracking-wide qbt:text-fg-muted qbt:uppercase";
 
 function ConditionInput({
   value,
@@ -52,7 +59,7 @@ function ConditionInput({
         }}
         disabled={readOnly}
         spellCheck={false}
-        placeholder="order.paid and total > 100"
+        placeholder={conditionExample}
         className={cx(control, "qbt:min-w-0 qbt:flex-1 qbt:font-mono")}
       />
     </label>
@@ -65,14 +72,19 @@ const exprOf = (node: PMNode) => (typeof node.attrs.expr === "string" ? node.att
 
 function VariableView({ node, updateAttributes, selected }: Readonly<ReactNodeViewProps>) {
   const { catalog, readOnly } = useMeta();
+  const i18n = useAdminI18n();
+  const { t } = i18n.scope(templatesMessages);
   const path = typeof node.attrs.path === "string" ? node.attrs.path : "";
   const def = catalog.find((v) => v.path === path);
+  const label = def ? variableLabel(i18n, def) : null;
   const transform = typeof node.attrs.transform === "string" ? node.attrs.transform : "";
-  const suffix = { lower: " · lowercase", upper: " · UPPERCASE" }[transform] ?? "";
+  let suffix = "";
+  if (transform === "lower") suffix = ` · ${t("node.case.lower")}`;
+  else if (transform === "upper") suffix = ` · ${t("node.case.upper")}`;
   return (
     <NodeViewWrapper as="span" className="qbt:relative">
       <span
-        title={def ? `${def.label} · ${path}` : `Unknown variable: ${path}`}
+        title={label === null ? t("node.unknownVariable", { path }) : `${label} · ${path}`}
         data-variable-chip={path}
         className={cx(
           "qbt-chip",
@@ -80,7 +92,7 @@ function VariableView({ node, updateAttributes, selected }: Readonly<ReactNodeVi
           selected && "qbt-chip-selected",
         )}
       >
-        {(def?.label ?? path) + suffix}
+        {(label ?? path) + suffix}
       </span>
       {selected && !readOnly ? (
         <span contentEditable={false} className="qbt-popover">
@@ -89,12 +101,12 @@ function VariableView({ node, updateAttributes, selected }: Readonly<ReactNodeVi
             onChange={(event) => {
               updateAttributes({ transform: event.target.value || null });
             }}
-            aria-label="Letter case"
+            aria-label={t("node.case")}
             className={control}
           >
-            <option value="">As is</option>
-            <option value="lower">lowercase</option>
-            <option value="upper">UPPERCASE</option>
+            <option value="">{t("node.case.asIs")}</option>
+            <option value="lower">{t("node.case.lower")}</option>
+            <option value="upper">{t("node.case.upper")}</option>
           </select>
         </span>
       ) : null}
@@ -124,11 +136,12 @@ export const Variable = Node.create({
 /* Checkbox option: a box checked by a condition, then a line of text. */
 
 function CheckOptionView({ node, updateAttributes }: Readonly<ReactNodeViewProps>) {
+  const t = useT();
   return (
     <NodeViewWrapper className="qbt-block qbt-panel">
       <div contentEditable={false} className="qbt-panel-head">
         <ConditionInput
-          label="Check if"
+          label={t("node.checkIf")}
           value={exprOf(node)}
           onChange={(expr) => {
             updateAttributes({ expr });
@@ -170,7 +183,9 @@ function CheckMarkView({
   getPos,
 }: Readonly<ReactNodeViewProps>) {
   const { readOnly } = useMeta();
+  const t = useT();
   const expr = exprOf(node);
+  const boxLabel = expr ? t("node.checkedIf", { expr }) : t("node.noCondition");
   return (
     <NodeViewWrapper as="span" className="qbt:relative">
       <button
@@ -182,14 +197,14 @@ function CheckMarkView({
           event.preventDefault();
           editor.chain().focus().setNodeSelection(pos).run();
         }}
-        aria-label={expr ? `Checked if: ${expr}` : "Checkbox without a condition"}
-        title={expr ? `Checked if: ${expr}` : "Checkbox without a condition"}
+        aria-label={boxLabel}
+        title={boxLabel}
         className={cx("qbt-ibox", !expr && "qbt-ibox-empty", selected && "qbt-chip-selected")}
       />
       {selected && !readOnly ? (
         <span contentEditable={false} className="qbt-popover qbt:w-80">
           <ConditionInput
-            label="Check if"
+            label={t("node.checkIf")}
             value={expr}
             onChange={(value) => {
               updateAttributes({ expr: value });
@@ -222,11 +237,12 @@ export const CheckMark = Node.create({
 /* Conditional block: printed only when its condition holds. */
 
 function ConditionalView({ node, updateAttributes }: Readonly<ReactNodeViewProps>) {
+  const t = useT();
   return (
     <NodeViewWrapper className="qbt-block qbt-panel qbt-conditional">
       <div contentEditable={false} className="qbt-panel-head">
         <ConditionInput
-          label="Show if"
+          label={t("node.showIf")}
           value={exprOf(node)}
           onChange={(expr) => {
             updateAttributes({ expr });
@@ -275,6 +291,7 @@ function RepeatColumns({
   readOnly: boolean;
   update: (columns: Column[]) => void;
 }>) {
+  const t = useT();
   const fields = list?.fields ?? [];
   const toggle = (key: string, label: string, on: boolean) => {
     const order = fields.map((f) => f.key);
@@ -296,7 +313,7 @@ function RepeatColumns({
               onChange={(event) => {
                 toggle(field.key, field.label, event.target.checked);
               }}
-              aria-label={`Column ${field.label}`}
+              aria-label={t("node.column", { label: field.label })}
             />
             {display === "table" && column ? (
               <input
@@ -309,11 +326,11 @@ function RepeatColumns({
                     ),
                   );
                 }}
-                aria-label={`Header of ${field.label}`}
+                aria-label={t("node.header", { label: field.label })}
                 className={cx(control, "qbt:w-32")}
               />
             ) : (
-              <span className="qbt:text-zinc-700">{field.label}</span>
+              <span className="qbt:text-fg">{field.label}</span>
             )}
           </span>
         );
@@ -324,6 +341,8 @@ function RepeatColumns({
 
 function RepeatView({ node, updateAttributes, selected }: Readonly<ReactNodeViewProps>) {
   const { catalog, readOnly } = useMeta();
+  const i18n = useAdminI18n();
+  const { t } = i18n.scope(templatesMessages);
   const lists = catalog.filter((v) => v.type === "list");
   const path = typeof node.attrs.list === "string" ? node.attrs.list : "";
   const list = lists.find((v) => v.path === path);
@@ -335,20 +354,20 @@ function RepeatView({ node, updateAttributes, selected }: Readonly<ReactNodeView
       data-drag-handle=""
     >
       <div contentEditable={false} className="qbt-panel-head qbt:flex-wrap qbt:text-xs">
-        <span className={caption}>Repeated list</span>
+        <span className={caption}>{t("block.repeat")}</span>
         <select
           value={path}
           disabled={readOnly}
           onChange={(event) => {
             updateAttributes({ list: event.target.value, columns: [] });
           }}
-          aria-label="List"
+          aria-label={t("node.list")}
           className={control}
         >
-          {list ? null : <option value={path}>{path || "Choose a list"}</option>}
+          {list ? null : <option value={path}>{path || t("node.chooseList")}</option>}
           {lists.map((v) => (
             <option key={v.path} value={v.path}>
-              {v.label}
+              {variableLabel(i18n, v)}
             </option>
           ))}
         </select>
@@ -358,11 +377,11 @@ function RepeatView({ node, updateAttributes, selected }: Readonly<ReactNodeView
           onChange={(event) => {
             updateAttributes({ display: event.target.value });
           }}
-          aria-label="Display"
+          aria-label={t("node.display")}
           className={control}
         >
-          <option value="table">as a table</option>
-          <option value="bullets">as bullets</option>
+          <option value="table">{t("node.asTable")}</option>
+          <option value="bullets">{t("node.asBullets")}</option>
         </select>
         <select
           value={node.attrs.empty === "hide" ? "hide" : "blank"}
@@ -370,11 +389,11 @@ function RepeatView({ node, updateAttributes, selected }: Readonly<ReactNodeView
           onChange={(event) => {
             updateAttributes({ empty: event.target.value });
           }}
-          aria-label="When empty"
+          aria-label={t("node.whenEmpty")}
           className={control}
         >
-          <option value="blank">empty: blank line</option>
-          <option value="hide">empty: hide</option>
+          <option value="blank">{t("node.emptyBlank")}</option>
+          <option value="hide">{t("node.emptyHide")}</option>
         </select>
       </div>
       <div contentEditable={false} className="qbt:space-y-2 qbt:px-3 qbt:py-2 qbt:text-xs">
@@ -416,12 +435,13 @@ export const Repeat = Node.create({
 /* Page break, signature and page footer. */
 
 function PageBreakView({ selected }: Readonly<ReactNodeViewProps>) {
+  const t = useT();
   return (
     <NodeViewWrapper
       contentEditable={false}
       className={cx("qbt-block qbt-page-break", selected && "qbt-selected")}
     >
-      Page break
+      {t("block.pageBreak")}
     </NodeViewWrapper>
   );
 }
@@ -440,6 +460,7 @@ export const PageBreak = Node.create({
 
 function SignatureView({ node, updateAttributes }: Readonly<ReactNodeViewProps>) {
   const { readOnly } = useMeta();
+  const t = useT();
   return (
     <NodeViewWrapper className="qbt-block qbt-signature">
       <div contentEditable={false} className="qbt-sig-line">
@@ -450,8 +471,8 @@ function SignatureView({ node, updateAttributes }: Readonly<ReactNodeViewProps>)
           }}
           disabled={readOnly}
           maxLength={80}
-          aria-label="Signature caption"
-          className="qbt:w-full qbt:bg-transparent qbt:text-center qbt:font-semibold qbt:text-zinc-900"
+          aria-label={t("node.signatureCaption")}
+          className="qbt:w-full qbt:bg-transparent qbt:text-center qbt:font-semibold qbt:text-fg"
         />
       </div>
       <NodeViewContent className="qbt-sig-lines" />
@@ -477,12 +498,13 @@ export const Signature = Node.create({
 });
 
 function PageFooterView() {
+  const t = useT();
   return (
     <NodeViewWrapper className="qbt-block qbt-panel qbt-footer">
       <div contentEditable={false} className={cx("qbt-panel-head", caption)}>
-        Page footer · printed on every page instead of the brand footer
+        {t("node.pageFooter")}
       </div>
-      <NodeViewContent className="qbt:px-3 qbt:py-1.5 qbt:text-xs qbt:text-zinc-600" />
+      <NodeViewContent className="qbt:px-3 qbt:py-1.5 qbt:text-xs qbt:text-fg-muted" />
     </NodeViewWrapper>
   );
 }

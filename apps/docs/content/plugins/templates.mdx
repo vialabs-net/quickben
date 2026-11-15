@@ -198,3 +198,7 @@ plugins: [templates({ kinds }), tenancy({ scope: ["posts", ...TEMPLATE_COLLECTIO
 ```
 
 List `templates()` before `tenancy()`. Each organization then has its own brand, templates and versions. In server code, pass the organization: `renderTemplate(qb, { kind, data, organization })`.
+
+## Admin languages
+
+The admin pages ship English and Spanish messages in the `templates` namespace (`templatesMessages` from `@quickben/plugin-templates/admin`). They follow the admin locale. Override a message with `admin.messages`, for example `{ es: { "templates.<key>": "…" } }`. See [Languages](/docs/nextjs/admin#languages).

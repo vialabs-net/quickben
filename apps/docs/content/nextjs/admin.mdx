@@ -130,7 +130,10 @@ Validation errors from the local API are shown next to their field. The first in
 | ---------------------- | ------------------ | -------------------------------------------------------------------------- |
 | `admin.title`          | `defineConfig`     | Title in the sidebar and dashboard.                                        |
 | `admin.meta`           | `defineConfig`     | `title` and `description` for `generateAdminMetadata`.                     |
-| `labels`               | `defineCollection` | Singular and plural names.                                                 |
+| `admin.locale`         | `defineConfig`     | Locale, or a function of the request. See [Languages](#languages).         |
+| `admin.messages`       | `defineConfig`     | Message overrides by locale and key.                                       |
+| `admin.timeZone`       | `defineConfig`     | Time zone of dates and times. Default `UTC`.                               |
+| `labels`               | `defineCollection` | Singular and plural names. Strings or per-locale records.                  |
 | `admin.useAsTitle`     | `defineCollection` | Document title, search field, relation labels.                             |
 | `admin.defaultColumns` | `defineCollection` | List columns.                                                              |
 | `admin.description`    | `defineCollection` | Text under the list title.                                                 |
@@ -151,6 +154,11 @@ Validation errors from the local API are shown next to their field. The first in
 | `nav`            | `[]`     | Extra sidebar links.                                                      |
 | `sidebar`        | `[]`     | Components at the top of the sidebar. Props: `user`, `basePath`.          |
 | `extensions`     | `[]`     | `{ components, views, pages, nav, sidebar }` from plugins. Applied first. |
+| `catalogs`       | `[]`     | Message bundles from `defineMessages`.                                    |
+| `locale`         | config   | Wins over `admin.locale`.                                                 |
+| `messages`       | none     | Merged over `admin.messages`.                                             |
+| `timeZone`       | config   | Wins over `admin.timeZone`.                                               |
+| `chrome`         | `full`   | `none` renders only the page. See [Embedded mode](#embedded-mode).        |
 
 ## Extensions
 
@@ -254,6 +262,128 @@ export function Reports({ user, segments }: PageProps) {
 3. Custom pages, by `group` (default "Pages").
 4. `nav` links.
 
+## Languages
+
+English is the default. A complete Spanish catalog (`es`) ships with the admin and every plugin.
+
+```ts
+import { defineConfig } from "@quickben/core";
+import { memoryAdapter } from "@quickben/db-memory";
+
+defineConfig({
+  db: memoryAdapter(),
+  collections: [],
+  admin: {
+    locale: "es", // or a function of the request, see below
+    messages: { es: { "admin.nav.dashboard": "Inicio" } }, // overrides by locale and key
+    timeZone: "America/Santiago", // dates and times; default UTC
+  },
+});
+```
+
+| Setting    | Where                                       | Default |
+| ---------- | ------------------------------------------- | ------- |
+| `locale`   | `admin.locale` or `createAdminPage` options | `en`    |
+| `messages` | same                                        | none    |
+| `timeZone` | same                                        | `UTC`   |
+
+- `locale` is a BCP 47 tag or `(req) => tag`. `localeFromRequest({ supported: ["en", "es"], cookie: "locale" })` from `@quickben/core` reads the cookie, then `Accept-Language`.
+- Messages fall back from `es-CL` to `es` to English. Unknown keys show the key.
+- Dates, numbers, lists and relative times use `Intl` with the active locale.
+- Labels of collections, fields, modules and nav items can be per-locale records: `labels: { plural: { en: "Posts", es: "Entradas" } }`.
+- `?toast=` and `?error=` codes in URLs map to catalog keys.
+- `.qb-root` gets `lang`. For `<html lang>`, call `await getAdminLocale(config)` in a dynamic root layout, or set it from the same setting you pass to `admin.locale`.
+- `handleAdminRequest(config, request, { locale, messages, timeZone })` takes the same options for error messages of saves.
+
+**Your own messages** (custom pages, plugins):
+
+```ts
+import { defineMessages, missingMessages, useAdminI18n } from "@quickben/admin/i18n";
+
+export const messages = defineMessages("reports", {
+  en: { title: "Reports", count: { one: "{count} report", other: "{count} reports" } },
+  es: { title: "Informes", count: { one: "{count} informe", other: "{count} informes" } },
+});
+
+// Server component: props.i18n.scope(messages).t("count", { count: 3 })
+// Client component: useAdminI18n().scope(messages).t("title")
+// Test: expect(missingMessages(messages)).toEqual([])
+```
+
+Every locale in `defineMessages` must have all English keys; the type checks it. Register the bundle with `catalogs: [messages]`. Admin keys are listed in `adminMessages` (`@quickben/admin/i18n`), namespace `admin`.
+
+| Translator method                    | Output                                 |
+| ------------------------------------ | -------------------------------------- |
+| `t(key, values)`                     | message with `{name}` and plural forms |
+| `text(label)`                        | a string or per-locale label           |
+| `number`, `date`, `dateTime`, `list` | `Intl` formats                         |
+| `relativeTime(value, now?)`          | `yesterday`, `in 2 hours`              |
+
+## Embedded mode
+
+`chrome: "none"` renders only the page, without sidebar and header, so admin and plugin pages sit inside your own layout at any `basePath`.
+
+```tsx filename="app/(app)/data/[[...segments]]/page.tsx"
+import { createAdminPage, handleAdminRequest } from "@quickben/admin";
+
+import type { AdminRequest } from "@quickben/admin";
+
+async function serverFunction(request: AdminRequest) {
+  "use server";
+  return handleAdminRequest(config, request);
+}
+
+export default createAdminPage(config, { basePath: "/data", chrome: "none", serverFunction });
+```
+
+```tsx filename="app/(app)/layout.tsx"
+import { getAdminNav } from "@quickben/admin";
+import { headers } from "next/headers";
+
+import type { ReactNode } from "react";
+
+export default async function Layout({ children }: { children: ReactNode }) {
+  // Your proxy (middleware) sets x-pathname; omit it and mark the active link on the client.
+  const pathname = (await headers()).get("x-pathname") ?? undefined;
+  const nav = await getAdminNav(config, { basePath: "/data" }, { pathname });
+  return (
+    <>
+      <nav aria-label={nav.title}>{/* your links from nav.groups */}</nav>
+      {children}
+    </>
+  );
+}
+```
+
+`getAdminNav` returns `{ title, basePath, dashboard, groups, current }`. Each link has `label`, `href`, `key`, `external` and `active`. Pass the same options as to `createAdminPage` so custom and plugin pages appear. Without `pathname`, mark the active link on the client (`usePathname()`). The organization switcher is `createOrganizationSwitcher` from `@quickben/plugin-tenancy/admin`.
+
+## Theme tokens
+
+The admin and plugin pages read only these custom properties. Override them on `.qb-root` from unlayered CSS:
+
+```css
+.qb-root {
+  --qb-accent: var(--brand-600);
+  --qb-radius: 0.5rem;
+  --qb-font-sans: "Inter", sans-serif;
+}
+```
+
+| Token                                       | Use                                |
+| ------------------------------------------- | ---------------------------------- |
+| `--qb-surface`                              | cards, inputs, sidebar             |
+| `--qb-surface-muted`                        | page background, table headers     |
+| `--qb-text`, `--qb-text-muted`              | text, secondary text               |
+| `--qb-border`                               | borders, dividers                  |
+| `--qb-accent`, `--qb-accent-text`           | primary buttons, toasts            |
+| `--qb-danger`, `--qb-danger-text`           | errors, delete buttons             |
+| `--qb-success`, `--qb-warning`, `--qb-info` | badges and notices                 |
+| `--qb-focus-ring`                           | focus outline                      |
+| `--qb-radius`                               | control radius; cards use it + 2px |
+| `--qb-font-sans`, `--qb-font-mono`          | fonts                              |
+
+Hover and soft shades are mixed from these with `color-mix()`. Defaults use `light-dark()`. `.qb-root` does not set `color-scheme`: it inherits the page's, so `:root { color-scheme: light dark }` follows the system.
+
 ## Styles
 
 `@quickben/admin/styles.css` is built with Tailwind CSS v4. Import it once, in `app/admin/layout.tsx`. You do not need Tailwind in your app.
@@ -274,4 +404,5 @@ The `qb:` utilities are not in a cascade layer, so a global reset in your app su
 | Limit             | Effect                                                         |
 | ----------------- | -------------------------------------------------------------- |
 | Document id `new` | Cannot be opened. `/admin/:collection/new` is the create form. |
-| Datetimes         | Edited in UTC.                                                 |
+| Datetimes         | Edited in UTC. `timeZone` changes how they are shown.          |
+| Validation text   | Messages from core and from `validate` are not translated.     |

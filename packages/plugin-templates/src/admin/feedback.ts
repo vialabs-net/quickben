@@ -4,32 +4,30 @@ import { RendererUnavailableError } from "../pdf";
 import { NoDraftError, TemplateIssuesError } from "../service";
 
 import type { TemplateIssue } from "../content";
+import type { TemplatesMessageKey } from "./messages";
 
-/** Success messages of the brand page, by the code in `?toast=`. */
-export const toastMessages = {
-  "brand-saved": "Brand saved",
-} as const;
+/** Codes of `?toast=` after a redirect. Each has the message `toast.<code>`. */
+const toastCodes = ["brand-saved"] as const;
 
-/** Error messages, by code. */
-export const errorMessages = {
-  unauthorized: "Sign in again to continue.",
-  forbidden: "You are not allowed to do that.",
-  "not-found": "That item does not exist or you cannot see it.",
-  invalid: "Some values are not valid. Check the form and try again.",
-  "invalid-logo": "The logo must be a PNG, JPEG or WebP image of at most 512 KB.",
-  "invalid-font":
-    "Fonts must be woff2 files of at most 512 KB. Upload a font before choosing Custom.",
-  "invalid-color": "Use colors like #1d4ed8.",
-  issues: "Not published: fix the marked problems first.",
-  "no-draft": "There is no draft to publish.",
-  conflict: "Someone else changed this template. Reload the page.",
-  organization: "Choose an organization first.",
-  "pdf-unavailable": "The PDF renderer is not available.",
-  failed: "The change could not be saved.",
-} as const;
+/** Error codes. Each has the message `error.<code>`. */
+const errorCodes = [
+  "unauthorized",
+  "forbidden",
+  "not-found",
+  "invalid",
+  "invalid-logo",
+  "invalid-font",
+  "invalid-color",
+  "issues",
+  "no-draft",
+  "conflict",
+  "organization",
+  "pdf-unavailable",
+  "failed",
+] as const;
 
-export type FeedbackErrorCode = keyof typeof errorMessages;
-export type ToastCode = keyof typeof toastMessages;
+export type FeedbackErrorCode = (typeof errorCodes)[number];
+export type ToastCode = (typeof toastCodes)[number];
 
 const fieldCodes: Readonly<Record<string, FeedbackErrorCode>> = {
   organization: "organization",
@@ -75,16 +73,16 @@ export function issuesOf(error: unknown): TemplateIssue[] {
   return error instanceof TemplateIssuesError ? error.templateIssues.map((i) => ({ ...i })) : [];
 }
 
-function lookup(messages: Readonly<Record<string, string>>, code: unknown): string | undefined {
-  return typeof code === "string" && Object.hasOwn(messages, code) ? messages[code] : undefined;
+function isOneOf<T extends string>(codes: readonly T[], code: unknown): code is T {
+  return typeof code === "string" && (codes as readonly string[]).includes(code);
 }
 
-/** The fixed message for a `?toast=` code. */
-export function toastMessage(code: unknown): string | undefined {
-  return lookup(toastMessages, code);
+/** The message key for a `?toast=` code. Unknown codes give `undefined`. */
+export function toastKey(code: unknown): TemplatesMessageKey | undefined {
+  return isOneOf(toastCodes, code) ? `toast.${code}` : undefined;
 }
 
-/** The fixed message for an error code. */
-export function errorMessage(code: unknown): string | undefined {
-  return lookup(errorMessages, code);
+/** The message key for an error code. Unknown codes give `undefined`. */
+export function errorKey(code: unknown): TemplatesMessageKey | undefined {
+  return isOneOf(errorCodes, code) ? `error.${code}` : undefined;
 }

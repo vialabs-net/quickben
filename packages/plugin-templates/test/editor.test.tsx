@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { AdminI18nProvider } from "@quickben/admin/i18n";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -236,21 +237,23 @@ describe("TemplateWorkspace", () => {
         publish: vi.fn(() =>
           Promise.resolve({
             ok: false as const,
-            message: "Not published",
+            code: "issues" as const,
             issues: [{ path: [0], message: "Fix me" }],
           }),
         ),
         preview: vi.fn(() =>
-          Promise.resolve({ ok: false as const, message: "Preview failed", issues: [] }),
+          Promise.resolve({ ok: false as const, code: "pdf-unavailable" as const, issues: [] }),
         ),
       }),
     });
-    await screen.findByText("Preview failed", undefined, { timeout: 5000 });
+    await screen.findByText("The PDF renderer is not available.", undefined, {
+      timeout: 5000,
+    });
     fireEvent.click(screen.getByRole("button", { name: "Publish" }));
     fireEvent.click(
       within(screen.getByRole("alertdialog")).getByRole("button", { name: "Publish" }),
     );
-    await screen.findByText("Not published");
+    await screen.findByText("Not published: fix the marked problems first.");
     expect(screen.getByRole("button", { name: "Fix me" })).toBeTruthy();
     expect(props.actions.publish).toHaveBeenCalled();
   });
@@ -265,5 +268,68 @@ describe("TemplateWorkspace", () => {
       fireEvent.keyDown(globalThis.window, { key: "s", metaKey: true });
       await Promise.resolve();
     });
+  });
+});
+
+describe("TemplateWorkspace in Spanish", () => {
+  it("translates the workspace, toolbar, side panel and node views", async () => {
+    const all: WorkspaceProps = {
+      kind: "invoice",
+      label: "Factura",
+      back: "/admin/templates",
+      catalog: [
+        ...kind.catalog.map((variable) =>
+          variable.path === "customer.name"
+            ? { ...variable, label: { en: "Customer name", es: "Nombre del cliente" } }
+            : variable,
+        ),
+      ],
+      initialContent: content,
+      draft: { number: 3 },
+      published: null,
+      versions: [version(2, "published"), version(3, "draft")],
+      canEdit: true,
+      hasPdf: false,
+      actions: actions(),
+    };
+    render(
+      <AdminI18nProvider value={{ locale: "es", timeZone: "UTC", overrides: {} }}>
+        <TemplateWorkspace {...all} />
+      </AdminI18nProvider>,
+    );
+    await screen.findByRole("textbox", { name: "Texto de la plantilla" }, { timeout: 5000 });
+    expect(screen.getByRole("button", { name: "Guardar borrador" })).toBeTruthy();
+    expect(screen.getByText("Sin publicar")).toBeTruthy();
+    const toolbar = screen.getByRole("toolbar", { name: "Formato" });
+    expect(within(toolbar).getByRole("button", { name: "Negrita" })).toBeTruthy();
+    expect(within(toolbar).getByRole("option", { name: "Párrafo" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Bloques" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Marca" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Datos" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Insertar Nombre de la marca" })).toBeTruthy();
+    fireEvent.change(screen.getByRole("searchbox", { name: "Buscar variables" }), {
+      target: { value: "CLIENTE" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Insertar Nombre del cliente" }));
+    expect(screen.getByText("Cambios sin guardar")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /^Firma/ }));
+    await waitFor(() => {
+      const captions = screen.getAllByRole<HTMLInputElement>("textbox", {
+        name: "Leyenda de la firma",
+      });
+      expect(captions.map((input) => input.value)).toContain("Firma");
+    });
+    await waitFor(() => {
+      expect(screen.getByRole("region", { name: "Problemas" }).textContent).toContain(
+        "1 problema impide publicar",
+      );
+    });
+    expect(screen.getByRole("region", { name: "Historial" }).textContent).toContain(
+      "restaurada desde v1",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Restaurar v2" }));
+    expect(
+      within(screen.getByRole("alertdialog")).getByText("¿Restaurar la versión 2?"),
+    ).toBeTruthy();
   });
 });

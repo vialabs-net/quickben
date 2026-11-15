@@ -8,7 +8,7 @@ import { validateContent } from "./validate";
 import type { VersionStatus } from "./collections";
 import type { TemplateContent, TemplateIssue } from "./content";
 import type { ResolvedKind } from "./kinds";
-import type { DocumentData, Quickben, RequestContext } from "@quickben/core";
+import type { DocumentData, LocalizedText, Quickben, RequestContext } from "@quickben/core";
 
 /** Metadata of a template version. */
 export interface VersionSummary {
@@ -34,8 +34,8 @@ export interface VersionDetail extends VersionSummary {
 /** A kind and the state of its template. */
 export interface TemplateSummary {
   kind: string;
-  label: string;
-  description: string | null;
+  label: LocalizedText;
+  description: LocalizedText | null;
   templateId: string | null;
   draft: VersionSummary | null;
   published: VersionSummary | null;

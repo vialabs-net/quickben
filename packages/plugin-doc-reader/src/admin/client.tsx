@@ -1,11 +1,15 @@
 "use client";
 
+import { useAdminI18n } from "@quickben/admin/i18n";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+
+import { docReaderMessages } from "./messages";
 
 /** Refresh the page every few seconds while something runs in the background. */
 export function AutoRefresh({ every = 2000 }: Readonly<{ every?: number }>) {
   const router = useRouter();
+  const t = useAdminI18n().scope(docReaderMessages).t;
   useEffect(() => {
     const timer = setInterval(() => {
       router.refresh();
@@ -15,8 +19,8 @@ export function AutoRefresh({ every = 2000 }: Readonly<{ every?: number }>) {
     };
   }, [router, every]);
   return (
-    <p role="status" className="qb:text-xs qb:text-zinc-500">
-      Running… this page refreshes by itself.
+    <p role="status" className="qb:text-xs qb:text-fg-muted">
+      {t("client.running")}
     </p>
   );
 }
@@ -47,6 +51,7 @@ export function FilePreview({
   name,
   boxes = [],
 }: Readonly<{ base64: string; mime: string; name: string; boxes?: readonly PreviewBox[] }>) {
+  const t = useAdminI18n().scope(docReaderMessages).t;
   const [url, setUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -58,7 +63,7 @@ export function FilePreview({
   }, [base64, mime]);
 
   if (!url) {
-    return <p className="qb:text-sm qb:text-zinc-500">Loading the file…</p>;
+    return <p className="qb:text-sm qb:text-fg-muted">{t("client.loading")}</p>;
   }
   return (
     <div className="qb:space-y-2">
@@ -68,7 +73,7 @@ export function FilePreview({
           <img
             src={url}
             alt={name}
-            className="qb:block qb:rounded-md qb:ring-1 qb:ring-zinc-200"
+            className="qb:block qb:rounded-md qb:ring-1 qb:ring-line"
             style={{ maxWidth: "100%", maxHeight: "40rem" }}
           />
           {boxes.map((box) => (
@@ -82,8 +87,8 @@ export function FilePreview({
                 top: pct(box.y0),
                 width: pct(box.x1 - box.x0),
                 height: pct(box.y1 - box.y0),
-                outline: "2px solid rgb(37 99 235)",
-                background: "rgb(37 99 235 / 0.12)",
+                outline: "2px solid var(--qb-info)",
+                background: "color-mix(in oklab, var(--qb-info) 12%, transparent)",
               }}
             />
           ))}
@@ -92,7 +97,7 @@ export function FilePreview({
         <iframe
           src={url}
           title={name}
-          className="qb:w-full qb:rounded-md qb:ring-1 qb:ring-zinc-200"
+          className="qb:w-full qb:rounded-md qb:ring-1 qb:ring-line"
           style={{ height: "40rem" }}
         />
       )}
@@ -100,9 +105,9 @@ export function FilePreview({
         href={url}
         target="_blank"
         rel="noreferrer"
-        className="qb:text-sm qb:font-medium qb:text-blue-700 qb:hover:underline"
+        className="qb:text-sm qb:font-medium qb:text-info qb:hover:underline"
       >
-        Open in a new tab
+        {t("client.openNewTab")}
       </a>
     </div>
   );

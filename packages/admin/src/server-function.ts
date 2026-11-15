@@ -4,8 +4,12 @@ import { collectionMeta, getRequestContext } from "@quickben/next";
 import { fieldErrorsState, toFormState } from "./action-errors";
 import { parseFormData } from "./form-data";
 import { documentTitle } from "./format";
+import { resolveAdminI18nData } from "./i18n/resolve";
+import { createAdminI18n } from "./i18n/translator";
 import { searchField } from "./list-query";
 
+import type { AdminI18nOptions } from "./i18n/resolve";
+import type { AdminI18n } from "./i18n/translator";
 import type { AdminRequest, AdminResult } from "./types";
 import type { Quickben, QuickbenConfig, RequestContext } from "@quickben/core";
 import type { CollectionMeta } from "@quickben/next";
@@ -32,16 +36,11 @@ function parseRequest(value: unknown): AdminRequest {
   throw new TypeError("Invalid admin request");
 }
 
-const notReadable: AdminResult = {
-  status: "error",
-  message: "You cannot access this collection.",
-  fieldErrors: {},
-};
-
 interface Scope {
   qb: Quickben;
   ctx: RequestContext;
   meta: CollectionMeta;
+  i18n: AdminI18n;
 }
 
 async function search(
@@ -66,23 +65,23 @@ async function search(
 }
 
 async function remove(
-  { qb, ctx }: Scope,
+  { qb, ctx, i18n }: Scope,
   request: Extract<AdminRequest, { type: "delete" }>,
 ): Promise<AdminResult> {
   try {
     await qb.delete(request.slug, request.id, ctx);
     return { status: "ok", id: request.id };
   } catch (error) {
-    return toFormState(error, []);
+    return toFormState(error, [], i18n);
   }
 }
 
 async function save(
-  { qb, ctx, meta }: Scope,
+  { qb, ctx, meta, i18n }: Scope,
   request: Extract<AdminRequest, { type: "save" }>,
 ): Promise<AdminResult> {
-  const { data, errors } = parseFormData(meta.fields, request.formData);
-  if (Object.keys(errors).length > 0) return fieldErrorsState(errors);
+  const { data, errors } = parseFormData(meta.fields, request.formData, i18n);
+  if (Object.keys(errors).length > 0) return fieldErrorsState(errors, i18n);
   try {
     const doc =
       request.id === null
@@ -93,6 +92,7 @@ async function save(
     return toFormState(
       error,
       meta.fields.map((field) => field.name),
+      i18n,
     );
   }
 }
@@ -108,20 +108,29 @@ async function save(
  * }
  * export default createAdminPage(config, { serverFunction });
  * ```
+ *
+ * Messages use the locale of `admin.locale` in the config. Pass the same `locale`,
+ * `messages` and `timeZone` as to `createAdminPage` when you set them there.
  */
 export async function handleAdminRequest(
   config: QuickbenConfig,
   input: AdminRequest,
+  options: AdminI18nOptions = {},
 ): Promise<AdminResult> {
   const request = parseRequest(input);
   const qb = await getQuickben(config);
   const ctx = await getRequestContext(config);
+  const i18n = createAdminI18n(await resolveAdminI18nData(config, options, ctx.req));
   const collection = Object.hasOwn(qb.collections, request.slug)
     ? qb.collections[request.slug]
     : undefined;
-  const meta = collection ? await collectionMeta(collection, ctx) : null;
-  if (!meta) return request.type === "search" ? { status: "options", options: [] } : notReadable;
-  const scope = { qb, ctx, meta };
+  const meta = collection ? await collectionMeta(collection, ctx, { locale: i18n.locale }) : null;
+  if (!meta) {
+    return request.type === "search"
+      ? { status: "options", options: [] }
+      : { status: "error", message: i18n.t("access.thisCollection"), fieldErrors: {} };
+  }
+  const scope = { qb, ctx, meta, i18n };
   switch (request.type) {
     case "search":
       return search(scope, request);

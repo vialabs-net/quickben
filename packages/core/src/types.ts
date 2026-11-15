@@ -1,6 +1,7 @@
 import type { DatabaseAdapter } from "./adapter";
 import type { AuthAdapter, QuickbenUser } from "./auth";
 import type { AnyField, Fields, FieldTypes, RelationField } from "./fields";
+import type { LocalizedText } from "./localize";
 
 type Simplify<T> = { [K in keyof T]: T[K] } & {};
 type MaybePromise<T> = T | Promise<T>;
@@ -314,17 +315,18 @@ export interface CollectionAdmin<F extends Fields = Fields> {
   /** Columns of the list view. */
   defaultColumns?: readonly ((keyof F & string) | SystemFieldName)[];
   /** Sidebar group label. */
-  group?: string;
+  group?: LocalizedText;
   /** Hide the collection from the admin UI. */
   hidden?: boolean;
-  description?: string;
+  description?: LocalizedText;
 }
 
 /** Input of {@link defineCollection}. */
 export interface CollectionConfig<TSlug extends string = string, F extends Fields = Fields> {
   /** Lowercase identifier: letters, digits, `-` and `_`. Used in URLs and table names. */
   slug: TSlug;
-  labels?: { singular?: string; plural?: string };
+  /** Labels in the admin UI. Strings or per-locale records: `{ en: "Posts", es: "Entradas" }`. */
+  labels?: { singular?: LocalizedText; plural?: LocalizedText };
   fields: F;
   access?: CollectionAccess<F>;
   hooks?: CollectionHooks<F>;
@@ -334,7 +336,7 @@ export interface CollectionConfig<TSlug extends string = string, F extends Field
 /** A collection returned by `defineCollection`. */
 export interface Collection<TSlug extends string = string, F extends Fields = Fields> {
   readonly slug: TSlug;
-  readonly labels: { readonly singular: string; readonly plural: string };
+  readonly labels: { readonly singular: LocalizedText; readonly plural: LocalizedText };
   readonly fields: F;
   readonly access: CollectionAccess<F>;
   readonly hooks: CollectionHooks<F>;
@@ -350,7 +352,7 @@ export type AnyHook = HookFn<never, unknown>;
  */
 export interface AnyCollection {
   readonly slug: string;
-  readonly labels: { readonly singular: string; readonly plural: string };
+  readonly labels: { readonly singular: LocalizedText; readonly plural: LocalizedText };
   readonly fields: Fields;
   readonly access: Partial<Readonly<Record<AccessOperation, AccessFn<object>>>>;
   readonly hooks: { readonly [K in keyof CollectionHooks]?: readonly AnyHook[] };
@@ -358,7 +360,7 @@ export interface AnyCollection {
 }
 
 /** A field with its name and label resolved. */
-export type SanitizedField = AnyField & { readonly name: string; readonly label: string };
+export type SanitizedField = AnyField & { readonly name: string; readonly label: LocalizedText };
 
 /** Collection metadata after `defineConfig`. Fields are listed in declaration order. */
 export interface SanitizedCollection extends AnyCollection {
@@ -388,7 +390,7 @@ export type RegistryOf<C extends AnyCollection> = { [K in C as K["slug"]]: K };
 
 /** Sidebar entry. Link to a collection or to any path. */
 export interface NavItem {
-  label: string;
+  label: LocalizedText;
   collection?: string;
   href?: string;
 }
@@ -399,7 +401,7 @@ export interface NavItem {
  */
 export interface Module {
   key: string;
-  label: string;
+  label: LocalizedText;
   collections: readonly string[];
   nav?: readonly NavItem[];
 }
@@ -407,18 +409,46 @@ export interface Module {
 /** Page metadata of the admin UI (`<title>`, description). */
 export interface AdminMeta {
   /** Document title of admin pages. Default `Admin · <admin.title>`. */
-  title?: string;
+  title?: LocalizedText;
   /** Meta description of admin pages. */
-  description?: string;
+  description?: LocalizedText;
 }
 
 /** Admin UI options. */
 export interface AdminConfig {
   /** Title shown in the admin UI. Default `Quickben`. */
-  title?: string;
+  title?: LocalizedText;
   /** Page metadata, used by `generateAdminMetadata` from `@quickben/admin`. */
   meta?: AdminMeta;
+  /**
+   * Locale of the admin UI, a BCP 47 tag such as `es` or `es-CL`. Default `en`. A function
+   * gets the request, so the locale can come from `Accept-Language` or a cookie.
+   */
+  locale?: AdminLocale;
+  /**
+   * Message overrides and extra locales, by locale and message key:
+   * `{ es: { "admin.nav.dashboard": "Inicio" } }`. Keys are listed in `@quickben/admin`.
+   */
+  messages?: AdminMessageOverrides;
+  /** Time zone for dates and times in the admin UI. Default `UTC`. */
+  timeZone?: string;
 }
+
+/** Locale of the admin UI, or a function of the request that returns it. */
+export type AdminLocale =
+  string | ((req: Request | undefined) => string | undefined | Promise<string | undefined>);
+
+/**
+ * A message of the admin UI: text with `{name}` placeholders, or plural forms chosen with
+ * `Intl.PluralRules` by the `count` value: `{ one: "{count} item", other: "{count} items" }`.
+ */
+export type AdminMessage =
+  string | Readonly<Partial<Record<Intl.LDMLPluralRule, string>> & { other: string }>;
+
+/** Messages by locale, then by key. */
+export type AdminMessageOverrides = Readonly<
+  Record<string, Readonly<Record<string, AdminMessage>>>
+>;
 
 /** Runs once after the database is ready. */
 export type InitHook = (qb: Quickben) => MaybePromise<void>;
@@ -521,7 +551,7 @@ export interface QuickbenConfig<R extends Registry = Registry> {
   readonly db: DatabaseAdapter;
   readonly collections: readonly SanitizedCollection[];
   readonly auth: AuthAdapter | undefined;
-  readonly admin: Required<AdminConfig>;
+  readonly admin: AdminConfig & { readonly title: LocalizedText; readonly meta: AdminMeta };
   readonly modules: readonly Module[];
   readonly onInit: readonly InitHook[];
   readonly plugins: readonly string[];

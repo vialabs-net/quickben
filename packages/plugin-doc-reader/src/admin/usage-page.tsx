@@ -18,6 +18,7 @@ import { monthOf, monthRange } from "../quotas";
 import { usageReport } from "../usage-report";
 
 import { removeBudgetAction, setBudgetAction, setCapAction } from "./actions";
+import { docReaderT } from "./messages";
 import {
   AlignedSubmit,
   Feedback,
@@ -32,7 +33,8 @@ import {
 } from "./shared";
 
 import type { UsageReport, UsageTotals } from "../usage-report";
-import type { PageProps } from "@quickben/admin";
+import type { DocReaderT } from "./messages";
+import type { AdminI18n, PageProps } from "@quickben/admin";
 import type { Quickben, QuickbenConfig, RequestContext } from "@quickben/core";
 
 const ORGANIZATIONS = "organizations";
@@ -50,26 +52,23 @@ async function tenantNames(qb: Quickben, ctx: RequestContext): Promise<Map<strin
   );
 }
 
-function monthLabel(month: string): string {
-  return new Date(monthRange(month).from).toLocaleDateString("en-US", {
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+/** `Nov 2026` for `2026-11`, in the admin's locale. */
+function monthLabel(i18n: AdminI18n, month: string): string {
+  return i18n.date(`${month}-01`, { month: "short", year: "numeric" });
 }
 
 function lastMonths(current: string, count: number): string[] {
   return Array.from({ length: count }, (_, i) => monthOf(new Date(monthRange(current, -i).from)));
 }
 
-function Trend({ report }: Readonly<{ report: UsageReport }>) {
+function Trend({ report, i18n }: Readonly<{ report: UsageReport; i18n: AdminI18n }>) {
   const max = Math.max(...report.trend.map((point) => point.costUsd), 0.000001);
   return (
     <div
       className="qb:flex qb:items-end qb:gap-3"
       style={{ height: "7rem" }}
       role="list"
-      aria-label="Spend by month"
+      aria-label={docReaderT(i18n)("usage.trend")}
     >
       {report.trend.map((point) => (
         <div
@@ -77,31 +76,34 @@ function Trend({ report }: Readonly<{ report: UsageReport }>) {
           role="listitem"
           className="qb:flex qb:h-full qb:flex-1 qb:flex-col qb:items-center qb:gap-1"
           style={{ justifyContent: "flex-end" }}
-          title={`${monthLabel(point.month)}: ${formatUsd(point.costUsd)}`}
+          title={`${monthLabel(i18n, point.month)}: ${formatUsd(i18n, point.costUsd)}`}
         >
-          <span className="qb:text-xs qb:text-zinc-500 qb:tabular-nums">
-            {formatUsd(point.costUsd)}
+          <span className="qb:text-xs qb:text-fg-muted qb:tabular-nums">
+            {formatUsd(i18n, point.costUsd)}
           </span>
           <div
             className="qb:w-full qb:rounded"
             style={{
               height: `${String(Math.max(2, (point.costUsd / max) * 100))}%`,
-              background: point.month === report.month ? "rgb(24 24 27)" : "rgb(212 212 216)",
+              background:
+                point.month === report.month
+                  ? "var(--qb-accent)"
+                  : "color-mix(in oklab, var(--qb-text-muted) 30%, var(--qb-surface))",
             }}
           />
-          <span className="qb:text-xs qb:text-zinc-500">{monthLabel(point.month)}</span>
+          <span className="qb:text-xs qb:text-fg-muted">{monthLabel(i18n, point.month)}</span>
         </div>
       ))}
     </div>
   );
 }
 
-function Totals({ totals }: Readonly<{ totals: UsageTotals }>) {
+function Totals({ totals, i18n }: Readonly<{ totals: UsageTotals; i18n: AdminI18n }>) {
   return (
     <>
-      <Td className="qb:tabular-nums">{formatCount(totals.calls)}</Td>
-      <Td className="qb:tabular-nums">{formatCount(totals.pages)}</Td>
-      <Td className="qb:tabular-nums">{formatUsd(totals.costUsd)}</Td>
+      <Td className="qb:tabular-nums">{formatCount(i18n, totals.calls)}</Td>
+      <Td className="qb:tabular-nums">{formatCount(i18n, totals.pages)}</Td>
+      <Td className="qb:tabular-nums">{formatUsd(i18n, totals.costUsd)}</Td>
     </>
   );
 }
@@ -112,16 +114,17 @@ export function createUsagePage(config: QuickbenConfig, key: string) {
   const removeBudget = removeBudgetAction.bind(null, key);
   const setCap = setCapAction.bind(null, key);
 
-  return async function DocumentUsagePage({ searchParams }: Readonly<PageProps>) {
+  return async function DocumentUsagePage({ searchParams, i18n }: Readonly<PageProps>) {
+    const t: DocReaderT = docReaderT(i18n);
     const qb = await getQuickben(config);
     const ctx = await getRequestContext(config);
     const params = searchParams;
-    const feedback = <Feedback searchParams={params} />;
+    const feedback = <Feedback searchParams={params} i18n={i18n} />;
     if (!ctx.user || !getDocReader(qb).isStaff(ctx.user)) {
       return (
         <>
-          <Heading title="Document reading usage" />
-          <Notice>Only platform staff can see document reading usage.</Notice>
+          <Heading title={t("usage.title")} />
+          <Notice>{t("usage.staffOnly")}</Notice>
         </>
       );
     }
@@ -130,57 +133,57 @@ export function createUsagePage(config: QuickbenConfig, key: string) {
     const month = asked && /^\d{4}-(?:0[1-9]|1[0-2])$/u.test(asked) ? asked : current;
     const [report, names] = await Promise.all([usageReport(qb, ctx, month), tenantNames(qb, ctx)]);
     const nameOf = (tenant: string | null) =>
-      tenant === null ? "Test bench and readings without a tenant" : (names.get(tenant) ?? tenant);
+      tenant === null ? t("usage.noTenant") : (names.get(tenant) ?? tenant);
     const { totals, platform } = report;
 
     return (
       <>
         <Heading
-          title="Document reading usage"
-          description="What paid extractors cost, from the prices of each connection's models. Budgets are monthly and soft: a reading checks them once, before it starts."
+          title={t("usage.title")}
+          description={t("usage.description")}
           actions={
             <form method="get" className="qb:flex qb:items-end qb:gap-2">
-              <Field label="Month" htmlFor="qb-dr-month">
+              <Field label={t("usage.month")} htmlFor="qb-dr-month">
                 <Select id="qb-dr-month" name="month" defaultValue={month}>
                   {lastMonths(current, 12).map((m) => (
                     <option key={m} value={m}>
-                      {monthLabel(m)}
+                      {monthLabel(i18n, m)}
                     </option>
                   ))}
                 </Select>
               </Field>
               <Button type="submit" variant="secondary">
-                Show
+                {t("usage.show")}
               </Button>
             </form>
           }
         />
         <div className="qb:space-y-4">
           <Card>
-            <CardHeader title={`Summary of ${monthLabel(month)}`} />
+            <CardHeader title={t("usage.summary", { month: monthLabel(i18n, month) })} />
             <CardBody className="qb:space-y-8">
               <div className="qb:grid qb:grid-cols-1 qb:gap-4 qb:sm:grid-cols-2 qb:2xl:grid-cols-4">
-                <Stat label="Spend">{formatUsd(totals.costUsd)}</Stat>
-                <Stat label="Paid reads">{formatCount(totals.calls)}</Stat>
-                <Stat label="Pages">{formatCount(totals.pages)}</Stat>
-                <Stat label="Tokens">
-                  {formatCount(totals.inputTokens)} in · {formatCount(totals.outputTokens)} out
+                <Stat label={t("col.spend")}>{formatUsd(i18n, totals.costUsd)}</Stat>
+                <Stat label={t("col.paidReads")}>{formatCount(i18n, totals.calls)}</Stat>
+                <Stat label={t("col.pages")}>{formatCount(i18n, totals.pages)}</Stat>
+                <Stat label={t("col.tokens")}>
+                  {t("usage.tokens", { input: totals.inputTokens, output: totals.outputTokens })}
                 </Stat>
               </div>
               <div className="qb:space-y-2">
-                <p className="qb:text-sm qb:font-medium qb:text-zinc-900">
-                  Platform cap:{" "}
-                  {platform.limitUsd === null ? "none" : `${formatUsd(platform.limitUsd)} a month`}
+                <p className="qb:text-sm qb:font-medium qb:text-fg">
+                  {t("usage.cap", {
+                    cap:
+                      platform.limitUsd === null
+                        ? t("usage.capNone")
+                        : t("usage.capMonthly", { amount: formatUsd(i18n, platform.limitUsd) }),
+                  })}
                 </p>
                 {platform.limitUsd === null ? null : (
-                  <Meter ratio={platform.ratio} label="Platform cap used" />
+                  <Meter ratio={platform.ratio} label={t("usage.capUsed")} i18n={i18n} />
                 )}
                 <form action={setCap} className="qb:flex qb:flex-wrap qb:items-start qb:gap-2">
-                  <Field
-                    label="Monthly cap (US$)"
-                    htmlFor="qb-dr-cap"
-                    hint="Empty removes the cap. At 100 % paid steps stop for everyone."
-                  >
+                  <Field label={t("usage.capField")} htmlFor="qb-dr-cap" hint={t("usage.capHint")}>
                     <Input
                       id="qb-dr-cap"
                       name="monthlyUsd"
@@ -192,53 +195,53 @@ export function createUsagePage(config: QuickbenConfig, key: string) {
                   </Field>
                   <AlignedSubmit>
                     <Button type="submit" variant="secondary">
-                      Save cap
+                      {t("usage.capSave")}
                     </Button>
                   </AlignedSubmit>
                 </form>
               </div>
-              <Trend report={report} />
+              <Trend report={report} i18n={i18n} />
             </CardBody>
           </Card>
 
           <Card>
-            <CardHeader
-              title="By tenant"
-              description="At 100 % of its budget a tenant's paid steps are skipped; free steps still run."
-            />
+            <CardHeader title={t("usage.byTenant")} description={t("usage.byTenantDescription")} />
             <Table>
               <thead>
                 <tr>
-                  <Th>Tenant</Th>
-                  <Th>Paid reads</Th>
-                  <Th>Pages</Th>
-                  <Th>Spend</Th>
-                  <Th>Budget</Th>
-                  <Th>Change budget</Th>
+                  <Th>{t("col.tenant")}</Th>
+                  <Th>{t("col.paidReads")}</Th>
+                  <Th>{t("col.pages")}</Th>
+                  <Th>{t("col.spend")}</Th>
+                  <Th>{t("col.budget")}</Th>
+                  <Th>{t("col.changeBudget")}</Th>
                 </tr>
               </thead>
               <tbody>
                 {report.byTenant.map((row) => (
                   <Tr key={row.tenant ?? "none"}>
                     <Td>
-                      <p className="qb:font-medium qb:text-zinc-900">{nameOf(row.tenant)}</p>
+                      <p className="qb:font-medium qb:text-fg">{nameOf(row.tenant)}</p>
                       {row.tenant && names.has(row.tenant) ? (
-                        <p className="qb:text-xs qb:text-zinc-500 qb:font-mono">{row.tenant}</p>
+                        <p className="qb:text-xs qb:text-fg-muted qb:font-mono">{row.tenant}</p>
                       ) : null}
                     </Td>
-                    <Totals totals={row} />
+                    <Totals totals={row} i18n={i18n} />
                     <Td>
                       {row.quota ? (
                         <div className="qb:space-y-1">
-                          <span className="qb:text-sm">{formatUsd(row.quota.limitUsd ?? 0)}</span>
+                          <span className="qb:text-sm">
+                            {formatUsd(i18n, row.quota.limitUsd ?? 0)}
+                          </span>
                           <Meter
                             ratio={row.quota.ratio}
-                            label={`Budget used by ${nameOf(row.tenant)}`}
+                            label={t("usage.budgetUsed", { tenant: nameOf(row.tenant) })}
+                            i18n={i18n}
                           />
                         </div>
                       ) : (
-                        <span className="qb:text-sm qb:text-zinc-400">
-                          {row.tenant === null ? "Platform cap only" : "No budget"}
+                        <span className="qb:text-sm qb:text-fg-subtle">
+                          {row.tenant === null ? t("usage.capOnly") : t("meter.noBudget")}
                         </span>
                       )}
                     </Td>
@@ -255,11 +258,11 @@ export function createUsagePage(config: QuickbenConfig, key: string) {
                               step={0.01}
                               required
                               defaultValue={row.quota?.limitUsd ?? ""}
-                              aria-label={`Monthly budget of ${nameOf(row.tenant)}`}
+                              aria-label={t("usage.budgetOf", { tenant: nameOf(row.tenant) })}
                               style={{ width: "7rem" }}
                             />
                             <Button type="submit" size="sm" variant="secondary">
-                              Save
+                              {t("usage.save")}
                             </Button>
                           </form>
                           {row.quota ? (
@@ -269,9 +272,11 @@ export function createUsagePage(config: QuickbenConfig, key: string) {
                                 type="submit"
                                 size="sm"
                                 variant="ghost"
-                                aria-label={`Remove the budget of ${nameOf(row.tenant)}`}
+                                aria-label={t("usage.removeBudgetOf", {
+                                  tenant: nameOf(row.tenant),
+                                })}
                               >
-                                Remove
+                                {t("usage.remove")}
                               </Button>
                             </form>
                           ) : null}
@@ -285,10 +290,10 @@ export function createUsagePage(config: QuickbenConfig, key: string) {
             <CardBody>
               <form action={setBudget} className="qb:flex qb:flex-wrap qb:items-start qb:gap-4">
                 <input type="hidden" name="month" value={month} />
-                <Field label="Tenant" htmlFor="qb-dr-tenant">
+                <Field label={t("col.tenant")} htmlFor="qb-dr-tenant">
                   {names.size > 0 ? (
                     <Select id="qb-dr-tenant" name="tenant" required>
-                      <option value="">Choose…</option>
+                      <option value="">{t("usage.choose")}</option>
                       {[...names.entries()].map(([tenantId, name]) => (
                         <option key={tenantId} value={tenantId}>
                           {name}
@@ -300,9 +305,9 @@ export function createUsagePage(config: QuickbenConfig, key: string) {
                   )}
                 </Field>
                 <Field
-                  label="Monthly budget (US$)"
+                  label={t("usage.budgetField")}
                   htmlFor="qb-dr-budget"
-                  hint="0 means no paid reads."
+                  hint={t("usage.budgetHint")}
                 >
                   <Input
                     id="qb-dr-budget"
@@ -314,36 +319,36 @@ export function createUsagePage(config: QuickbenConfig, key: string) {
                   />
                 </Field>
                 <AlignedSubmit>
-                  <Button type="submit">Set budget</Button>
+                  <Button type="submit">{t("usage.setBudget")}</Button>
                 </AlignedSubmit>
               </form>
             </CardBody>
           </Card>
 
           <Card>
-            <CardHeader title="By model" />
+            <CardHeader title={t("usage.byModel")} />
             <Table>
               <thead>
                 <tr>
-                  <Th>Model</Th>
-                  <Th>Paid reads</Th>
-                  <Th>Pages</Th>
-                  <Th>Spend</Th>
-                  <Th>Tokens</Th>
+                  <Th>{t("col.model")}</Th>
+                  <Th>{t("col.paidReads")}</Th>
+                  <Th>{t("col.pages")}</Th>
+                  <Th>{t("col.spend")}</Th>
+                  <Th>{t("col.tokens")}</Th>
                 </tr>
               </thead>
               <tbody>
                 {report.byModel.map((row) => (
                   <Tr key={`${row.connectionId}|${row.model}`}>
                     <Td>
-                      <p className="qb:font-medium qb:text-zinc-900">{row.model}</p>
-                      <p className="qb:text-xs qb:text-zinc-500">
+                      <p className="qb:font-medium qb:text-fg">{row.model}</p>
+                      <p className="qb:text-xs qb:text-fg-muted">
                         {row.connectionName ?? row.connectionId}
                       </p>
                     </Td>
-                    <Totals totals={row} />
+                    <Totals totals={row} i18n={i18n} />
                     <Td className="qb:tabular-nums">
-                      {formatCount(row.inputTokens)} in · {formatCount(row.outputTokens)} out
+                      {t("usage.tokens", { input: row.inputTokens, output: row.outputTokens })}
                     </Td>
                   </Tr>
                 ))}
@@ -351,27 +356,27 @@ export function createUsagePage(config: QuickbenConfig, key: string) {
             </Table>
             {report.byModel.length === 0 ? (
               <CardBody>
-                <p className="qb:text-sm qb:text-zinc-500">No paid reads this month.</p>
+                <p className="qb:text-sm qb:text-fg-muted">{t("usage.noPaidReads")}</p>
               </CardBody>
             ) : null}
           </Card>
 
           <Card>
-            <CardHeader title="By document type" />
+            <CardHeader title={t("usage.byType")} />
             <Table>
               <thead>
                 <tr>
-                  <Th>Type</Th>
-                  <Th>Paid reads</Th>
-                  <Th>Pages</Th>
-                  <Th>Spend</Th>
+                  <Th>{t("col.type")}</Th>
+                  <Th>{t("col.paidReads")}</Th>
+                  <Th>{t("col.pages")}</Th>
+                  <Th>{t("col.spend")}</Th>
                 </tr>
               </thead>
               <tbody>
                 {report.byType.map((row) => (
                   <Tr key={row.typeKey}>
                     <Td className="qb:font-mono">{row.typeKey}</Td>
-                    <Totals totals={row} />
+                    <Totals totals={row} i18n={i18n} />
                   </Tr>
                 ))}
               </tbody>

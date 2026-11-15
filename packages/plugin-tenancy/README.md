@@ -192,3 +192,18 @@ export default createAdminPage(config, { serverFunction, extensions: [tenancyAdm
 Pass `basePath` when the admin is not at `/admin`. Actions redirect with a code (`?toast=member-updated`, `?error=last-owner`). The pages map codes to fixed messages and ignore unknown codes, so the URL never puts text on the page. `@quickben/admin`, `@quickben/next`, `next` and `react` are needed only for this entry.
 
 Server actions find the config through a registry filled when the page module loads. After a restart, a form submitted from an open tab can fail once; reload the page.
+
+### Switcher in your own layout
+
+With `chrome: "none"` the admin renders no sidebar. Put the switcher in your layout:
+
+```tsx
+import { createOrganizationSwitcher } from "@quickben/plugin-tenancy/admin";
+
+const OrganizationSwitcher = createOrganizationSwitcher(config, { basePath: "/admin" });
+
+// In a server layout:
+<OrganizationSwitcher />;
+```
+
+It is a server component. It uses the locale of `getAdminI18n(config)`; pass `i18n` to use another translator. Use the same `basePath` as `createAdminPage`. Texts are in the `tenancy` namespace (`tenancyMessages`), so `admin.messages` can override them.

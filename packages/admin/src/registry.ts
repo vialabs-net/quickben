@@ -1,9 +1,12 @@
+import type { AdminI18nOptions } from "./i18n/resolve";
 import type { QuickbenConfig } from "@quickben/core";
 
 /** What the default server function needs to know about an admin instance. */
 export interface AdminInstance {
   config: QuickbenConfig;
   basePath: string;
+  /** Locale options, for messages of server function results. */
+  i18n?: AdminI18nOptions;
 }
 
 const registryKey = Symbol.for("quickben.admin.instances");

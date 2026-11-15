@@ -3,6 +3,12 @@ import { readdir, readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 
+import {
+  AdminI18nProvider,
+  createAdminI18n,
+  englishI18n,
+  missingMessages,
+} from "@quickben/admin/i18n";
 import { defineConfig, devAuth, getQuickben } from "@quickben/core";
 import { memoryAdapter } from "@quickben/db-memory";
 import { getMeta } from "@quickben/next";
@@ -11,7 +17,12 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import { connections, defineProvider } from "../src";
-import { connectionsAdmin, describeFields } from "../src/admin";
+import {
+  connectionsAdmin,
+  connectionsMessages,
+  describeFields,
+  describeProvider,
+} from "../src/admin";
 import {
   deleteAction,
   saveConnectionAction,
@@ -24,7 +35,7 @@ import { metadataFromForm } from "../src/admin/describe";
 import { actAs, navigation } from "./next-mocks";
 import { admin, API_KEY, fakeFetch, json, KEY_A, member, staff, system } from "./setup";
 
-import type { AdminExtension, ViewProps } from "@quickben/admin";
+import type { AdminExtension, AdminI18n, ViewProps } from "@quickben/admin";
 import type { Quickben, QuickbenUser } from "@quickben/core";
 import type { ReactElement } from "react";
 
@@ -96,12 +107,24 @@ async function viewProps(user: QuickbenUser, slug: string, extra: Partial<ViewPr
   actAs(user);
   const meta = await getMeta(qb, { user });
   const collection = meta.collections.find((c) => c.slug === slug)!;
-  return { collection, user, basePath: "/admin", searchParams: {}, ...extra };
+  return {
+    collection,
+    user,
+    basePath: "/admin",
+    searchParams: {},
+    i18n: englishI18n,
+    ...extra,
+  } satisfies ViewProps;
 }
 
 async function renderView(slug: string, kind: "list" | "edit", props: ViewProps) {
   const View = extension.views![slug]![kind]! as unknown as (p: ViewProps) => Promise<ReactElement>;
-  return render(await View(props));
+  const element = await View(props);
+  return render(<AdminI18nProvider value={props.i18n.data}>{element}</AdminI18nProvider>);
+}
+
+function i18nFor(locale: string, overrides: Record<string, string> = {}): AdminI18n {
+  return createAdminI18n({ locale, timeZone: "UTC", overrides });
 }
 
 function form(entries: Record<string, string>): FormData {
@@ -123,8 +146,76 @@ describe("connectionsAdmin", () => {
   });
 
   it("puts both collections in the Integrations group", () => {
-    expect(qb.collections.connections?.admin.group).toBe("Integrations");
-    expect(qb.collections.credentials?.admin.group).toBe("Integrations");
+    expect(qb.collections.connections?.admin.group).toEqual({
+      en: "Integrations",
+      es: "Integraciones",
+    });
+    expect(qb.collections.credentials?.admin.group).toEqual({
+      en: "Integrations",
+      es: "Integraciones",
+    });
+  });
+
+  it("registers its catalog, complete in Spanish", () => {
+    expect(extension.catalogs).toEqual([connectionsMessages]);
+    expect(missingMessages(connectionsMessages)).toEqual([]);
+  });
+});
+
+describe("locales", () => {
+  it("renders the connections list in Spanish", async () => {
+    actAs(admin);
+    await testConnectionAction("/admin", ids.check!);
+    await renderView(
+      "connections",
+      "list",
+      await viewProps(admin, "connections", { i18n: i18nFor("es") }),
+    );
+    expect(screen.getByRole("heading", { name: "Conexiones" })).toBeTruthy();
+    const row = screen.getByRole("link", { name: "Claude" }).closest("tr")!;
+    expect(within(row).getByText("Anthropic · Modelos de IA")).toBeTruthy();
+    expect(within(row).getByText("Sin probar")).toBeTruthy();
+    expect(within(row).getByRole("button", { name: "Probar" })).toBeTruthy();
+    const tested = screen.getByRole("link", { name: "ID" }).closest("tr")!;
+    expect(within(tested).getByText("Funciona")).toBeTruthy();
+    expect(tested.querySelector("time")?.textContent).toMatch(/ahora|segundo/);
+  });
+
+  it("renders forms, kinds and plurals in Spanish", async () => {
+    await renderView(
+      "credentials",
+      "list",
+      await viewProps(admin, "credentials", { i18n: i18nFor("es-CL") }),
+    );
+    expect(screen.getByText("2 conexiones")).toBeTruthy();
+    expect(screen.getAllByText("Clave de API").length).toBeGreaterThan(0);
+    cleanup();
+    await renderView(
+      "connections",
+      "edit",
+      await viewProps(admin, "connections", {
+        searchParams: { provider: "http" },
+        i18n: i18nFor("es"),
+      }),
+    );
+    expect(screen.getByRole("heading", { name: "Nueva conexión: API HTTP" })).toBeTruthy();
+    expect(screen.getByLabelText(/Ruta de prueba/)).toBeTruthy();
+    expect(screen.getByText("Un GET a esta ruta debe responder 2xx.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Crear conexión" })).toBeTruthy();
+  });
+
+  it("lets overrides win and falls back to a provider's own texts", async () => {
+    const i18n = i18nFor("es", {
+      "connections.list.title": "Integraciones",
+      "connections.provider.identity.description": "Verificación de identidad.",
+    });
+    await renderView("connections", "list", await viewProps(admin, "connections", { i18n }));
+    expect(screen.getByRole("heading", { name: "Integraciones" })).toBeTruthy();
+    const view = describeProvider(identity, i18n);
+    expect(view.description).toBe("Verificación de identidad.");
+    expect(view.label).toBe("Identity check");
+    expect(view.category).toBe("Identity");
+    expect(view.fields.map((field) => field.label)).toEqual(["Level", "Mode", "Notify"]);
   });
 });
 
@@ -332,7 +423,10 @@ describe("actions", () => {
     });
     await expect(
       saveConnectionAction("/admin", null, "nope", idle, form({ name: "x" })),
-    ).resolves.toMatchObject({ status: "error", message: 'Unknown provider type "nope"' });
+    ).resolves.toMatchObject({
+      status: "error",
+      message: { code: "unknownProvider", type: "nope" },
+    });
   });
 
   it("updates a connection; staff are refused", async () => {
@@ -353,7 +447,7 @@ describe("actions", () => {
       saveConnectionAction("/admin", ids.check!, "identity", idle, form({ name: "x" })),
     ).resolves.toMatchObject({
       status: "error",
-      message: expect.stringMatching(/denied|not allowed/i) as unknown,
+      message: { text: expect.stringMatching(/denied|not allowed/i) as unknown },
     });
   });
 
@@ -389,7 +483,7 @@ describe("actions", () => {
     actAs(admin);
     await expect(deleteAction("/admin", "credentials", ids.key!)).resolves.toMatchObject({
       status: "error",
-      message: expect.stringMatching(/used by 2 connection/) as unknown,
+      message: { text: expect.stringMatching(/used by 2 connection/) as unknown },
     });
     expect(await redirected(deleteAction("/admin", "credentials", ids.spare!))).toBe(
       "/admin/credentials?toast=deleted",
@@ -402,11 +496,11 @@ describe("actions", () => {
     await expect(testConnectionAction("/admin", ids.check!)).resolves.toMatchObject({
       status: "done",
       ok: true,
-      title: "The connection works",
+      subject: "connection",
     });
     await expect(testConnectionAction("/admin", ids.claude!)).resolves.toMatchObject({
       ok: false,
-      message: "Anthropic rejected the credential (HTTP 401).",
+      error: "Anthropic rejected the credential (HTTP 401).",
     });
     await expect(testCredentialAction("/admin", ids.spare!, {})).resolves.toMatchObject({
       status: "pick-provider",

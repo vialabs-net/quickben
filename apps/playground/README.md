@@ -11,6 +11,7 @@ pnpm dev          # builds the packages, then http://localhost:3000
 | ------------ | ------------------------------------------------------ |
 | `/`          | Public page: published posts, read with the local API. |
 | `/admin`     | Admin UI.                                              |
+| `/embedded`  | Admin pages with `chrome: "none"` in a host layout.    |
 | `/api/_meta` | REST API (`/api/posts`, `/api/posts/:id`, …).          |
 
 | File                                 | Purpose                                      |
@@ -29,6 +30,14 @@ pnpm dev          # builds the packages, then http://localhost:3000
 | `memory`           | In memory. Resets on restart.                       |
 
 An empty database is seeded on start. `pnpm seed` seeds it from the command line, `pnpm db:reset` deletes `./.pglite`.
+
+## Language
+
+Start with `QUICKBEN_LOCALE=es` to show the admin in Spanish. Without it the admin reads the `quickben-locale` cookie, then `Accept-Language`, then uses English. The playground collections have English and Spanish labels. `e2e/i18n.spec.ts` runs only with `QUICKBEN_LOCALE=es`.
+
+## Embedded admin
+
+`/embedded` renders admin pages with `chrome: "none"` inside `app/embedded/layout.tsx`: a host header, a navigation built with `getAdminNav`, and host colors mapped onto the admin theme tokens in `embedded.css`. `e2e/embedded.spec.ts` covers it.
 
 ## Document templates
 

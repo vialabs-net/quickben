@@ -214,6 +214,12 @@ jobs:
           CI: "true"
           QUICKBEN_CONNECTIONS: "1"
           QUICKBEN_DB: memory
+      - name: e2e in Spanish (QUICKBEN_LOCALE=es)
+        run: pnpm --filter @quickben/playground test:e2e e2e/i18n.spec.ts
+        env:
+          CI: "true"
+          QUICKBEN_LOCALE: es
+          QUICKBEN_DB: memory
       - name: e2e with Better Auth (QUICKBEN_AUTH=better-auth)
         run: pnpm --filter @quickben/playground test:e2e
         env:

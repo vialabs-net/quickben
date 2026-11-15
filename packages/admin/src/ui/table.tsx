@@ -16,7 +16,7 @@ export function Th({ className, ...props }: Readonly<ThHTMLAttributes<HTMLTableC
   return (
     <th
       className={cn(
-        "qb:border-b qb:border-zinc-200 qb:bg-zinc-50 qb:px-4 qb:py-2.5 qb:text-left qb:text-xs qb:font-medium qb:tracking-wide qb:text-zinc-500 qb:uppercase qb:whitespace-nowrap",
+        "qb:border-b qb:border-line qb:bg-surface-muted qb:px-4 qb:py-2.5 qb:text-left qb:text-xs qb:font-medium qb:tracking-wide qb:text-fg-muted qb:uppercase qb:whitespace-nowrap",
         className,
       )}
       {...props}
@@ -29,7 +29,7 @@ export function Td({ className, ...props }: Readonly<TdHTMLAttributes<HTMLTableC
   return (
     <td
       className={cn(
-        "qb:border-b qb:border-zinc-100 qb:px-4 qb:py-2.5 qb:align-middle qb:text-zinc-700",
+        "qb:border-b qb:border-line-soft qb:px-4 qb:py-2.5 qb:align-middle qb:text-fg",
         className,
       )}
       {...props}
@@ -39,5 +39,5 @@ export function Td({ className, ...props }: Readonly<TdHTMLAttributes<HTMLTableC
 
 /** Body row with a hover state. */
 export function Tr({ className, ...props }: Readonly<HTMLAttributes<HTMLTableRowElement>>) {
-  return <tr className={cn("qb:hover:bg-zinc-50", className)} {...props} />;
+  return <tr className={cn("qb:hover:bg-surface-muted", className)} {...props} />;
 }

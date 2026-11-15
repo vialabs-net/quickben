@@ -1,7 +1,9 @@
+import { englishI18n } from "@quickben/admin/i18n";
 import { describe, expect, it } from "vitest";
 
 import { REDACTED, redactKeys, redactSecrets, secretVariants } from "../src";
 import { kindLabel } from "../src/admin/describe";
+import { connectionsMessages } from "../src/admin/messages";
 import { normalizeBasePath } from "../src/admin/registry";
 
 describe("redaction", () => {
@@ -38,8 +40,9 @@ describe("redaction", () => {
 
 describe("admin helpers", () => {
   it("labels kinds and normalizes base paths", () => {
-    expect(kindLabel("basic")).toBe("Username and password");
-    expect(kindLabel("other")).toBe("other");
+    const { t } = englishI18n.scope(connectionsMessages);
+    expect(kindLabel("basic", t)).toBe("Username and password");
+    expect(kindLabel("other", t)).toBe("other");
     expect(normalizeBasePath("admin//")).toBe("/admin");
     expect(normalizeBasePath("/x")).toBe("/x");
   });

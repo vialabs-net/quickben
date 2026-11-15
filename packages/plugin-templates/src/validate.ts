@@ -1,3 +1,5 @@
+import { localize } from "@quickben/core";
+
 import {
   ALIGNMENTS,
   BLOCK_NODES,
@@ -70,7 +72,7 @@ class Validator {
     const variable = this.find(name);
     if (!variable) this.add(path, `Unknown variable "${name}"`);
     else if (variable.type === "list") {
-      this.add(path, `"${variable.label}" is a list: show it with a repeated list`);
+      this.add(path, `"${localize(variable.label)}" is a list: show it with a repeated list`);
     }
     const transform = node.attrs?.transform;
     if (transform !== undefined && transform !== null && !transforms.has(textAttr(transform))) {
@@ -132,14 +134,14 @@ class Validator {
     const name = textAttr(node.attrs?.list);
     const list = this.find(name);
     if (!list) this.add(path, `The repeated list uses "${name}", which is not a variable`);
-    else if (list.type !== "list") this.add(path, `"${list.label}" is not a list`);
+    else if (list.type !== "list") this.add(path, `"${localize(list.label)}" is not a list`);
     const columns = Array.isArray(node.attrs?.columns)
       ? (node.attrs.columns as { field?: unknown }[])
       : [];
     if (columns.length === 0) this.add(path, "The repeated list needs at least one column");
     for (const column of columns) {
       if (list?.fields && !list.fields.some((f) => f.key === column.field)) {
-        this.add(path, `"${list.label}" has no field "${textAttr(column.field)}"`);
+        this.add(path, `"${localize(list.label)}" has no field "${textAttr(column.field)}"`);
       }
     }
   }

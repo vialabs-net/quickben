@@ -1,0 +1,303 @@
+import { defineMessages } from "@quickben/admin/i18n";
+
+import type { Translator } from "@quickben/admin";
+import type { MessageKey } from "@quickben/admin/i18n";
+
+/**
+ * Messages of the connections admin, namespace `connections`. Override any of them with
+ * `admin.messages` in the config: `{ es: { "connections.list.title": "Integraciones" } }`.
+ *
+ * Provider texts are optional keys: `provider.<type>.label`, `provider.<type>.description`,
+ * `provider.<type>.field.<key>.label` and `provider.<type>.field.<key>.description`, and
+ * `category.<slug>` for picker groups (`AI models` → `category.ai-models`). Without a key the
+ * provider's own text is shown, so add overrides with those keys to translate a provider of
+ * your own.
+ */
+export const connectionsMessages = defineMessages("connections", {
+  en: {
+    "list.title": "Connections",
+    "list.description": "External providers and the credential each one uses.",
+    "list.new": "New connection",
+    "list.empty":
+      "No connections yet. A connection is an external provider (AI models, identity, any API) with the credential it uses.",
+    "column.name": "Name",
+    "column.provider": "Provider",
+    "column.credential": "Credential",
+    "column.status": "Status",
+    "column.lastTest": "Last test",
+    "column.actions": "Actions",
+    "column.kind": "Kind",
+    "column.secret": "Secret",
+    "column.usedBy": "Used by",
+    "value.disabled": "Disabled",
+    "value.none": "None",
+    "value.hidden": "Hidden",
+    "value.readOnly": "Read only",
+    "crumb.new": "New",
+    "picker.title": "New connection",
+    "picker.description": "Choose a provider.",
+    "connection.newTitle": "New {provider} connection",
+    "connection.create": "Create connection",
+    "connection.unknownProvider": "Unknown provider {type}",
+    "connection.notRegistered":
+      "The provider type “{type}” is not registered. Register it with defineProvider to edit this connection.",
+    "action.back": "Back",
+    "action.cancel": "Cancel",
+    "action.save": "Save changes",
+    "action.saving": "Saving…",
+    "status.title": "Status",
+    "detail.id": "ID",
+    "detail.created": "Created",
+    "detail.updated": "Updated",
+    "detail.secret": "Secret",
+    "state.active": "Working",
+    "state.failed": "Failed",
+    "state.untested": "Not tested",
+    "lastTest.never": "Never tested.",
+    "lastTest.latency": "{latency} ms",
+    "lastTest.modelLatency": "{model}, {latency} ms",
+    "credentials.title": "Credentials",
+    "credentials.description": "Secrets for connections. Encrypted at rest; never shown again.",
+    "credentials.new": "New credential",
+    "credentials.empty": "No credentials yet.",
+    "credentials.unused": "Unused",
+    "credentials.usedByCount": { one: "{count} connection", other: "{count} connections" },
+    "credential.newDescription": "An API key, a service account key or a username and password.",
+    "credential.create": "Create credential",
+    "credential.usedBy": "Used by",
+    "credential.usedByDescription": "A credential in use cannot be deleted.",
+    "credential.notUsed": "No connection uses this credential.",
+    "secret.none": "No secret stored",
+    "secret.stored": "Stored",
+    "kind.api_key": "API key",
+    "kind.service_account_json": "Service account (JSON)",
+    "kind.basic": "Username and password",
+    "field.name": "Name",
+    "field.baseUrl": "Base URL",
+    "field.baseUrlHint": "Leave it empty to use the provider's URL.",
+    "field.credential": "Credential",
+    "field.noCredential": "No credential of a kind this provider takes yet.",
+    "field.choose": "Choose…",
+    "field.none": "None",
+    "field.newCredential": "New credential",
+    "field.enabled": "Enabled",
+    "field.kind": "Kind",
+    "field.secret": "Secret",
+    "field.replaceSecret": "Replace secret",
+    "field.secretKeep": "{secret}. Leave it empty to keep it; it is never shown again.",
+    "field.secretNew": "Encrypted when saved and never shown again.",
+    "field.basicPlaceholder": "username:password",
+    "error.fixFields": "Check the highlighted fields.",
+    "error.unknownProvider": "Unknown provider type “{type}”",
+    "test.run": "Test",
+    "test.running": "Testing…",
+    "test.connectionWorks": "The connection works",
+    "test.credentialWorks": "The credential works",
+    "test.connectionFailed": "The connection failed",
+    "test.credentialFailed": "The credential failed",
+    "test.answered": "Answered in {latency} ms.",
+    "test.modelAnswered": "{model} answered in {latency} ms.",
+    "test.noDetail": "The provider gave no detail.",
+    "test.dialogTitle": "Test the credential",
+    "test.dialogDescription": "No connection uses it yet. Choose a provider to try it with.",
+    "test.provider": "Provider",
+    "test.baseUrl": "Base URL",
+    "test.baseUrlPlaceholder": "The provider's default",
+    "test.cancel": "Cancel",
+    "delete.connection": "Delete connection",
+    "delete.credential": "Delete credential",
+    "delete.confirm": "Delete “{title}”? This cannot be undone.",
+    "delete.submit": "Delete",
+    "delete.pending": "Deleting…",
+    "delete.cancel": "Cancel",
+    "category.ai-models": "AI models",
+    "category.other": "Other",
+    "provider.anthropic.description": "Claude models.",
+    "provider.anthropic.field.models.label": "Models",
+    "provider.anthropic.field.models.description":
+      'Models callers may use, e.g. [{ "id": "claude-haiku-4-5", "vision": true, "default": true }].',
+    "provider.openai_compatible.label": "OpenAI or compatible",
+    "provider.openai_compatible.description":
+      "OpenAI or any gateway with its API (llmgateway, OpenRouter, DeepSeek, …).",
+    "provider.openai_compatible.field.models.label": "Models",
+    "provider.openai_compatible.field.models.description":
+      'Models callers may use, e.g. [{ "id": "claude-haiku-4-5", "vision": true, "default": true }].',
+    "provider.google.description": "Gemini models with a Google AI Studio API key.",
+    "provider.google.field.models.label": "Models",
+    "provider.google.field.models.description":
+      'Models callers may use, e.g. [{ "id": "claude-haiku-4-5", "vision": true, "default": true }].',
+    "provider.vertex.description":
+      "Gemini in a Google Cloud project, with a service account or an API key.",
+    "provider.vertex.field.project.label": "Project",
+    "provider.vertex.field.project.description":
+      "Google Cloud project id. Default: the service account's project.",
+    "provider.vertex.field.location.label": "Location",
+    "provider.vertex.field.models.label": "Models",
+    "provider.vertex.field.models.description":
+      'Models callers may use, e.g. [{ "id": "gemini-2.5-flash", "default": true }].',
+    "provider.http.label": "HTTP API",
+    "provider.http.description": "Any HTTP API with an API key or a username and password.",
+    "provider.http.field.healthPath.label": "Test path",
+    "provider.http.field.healthPath.description": "GET on this path must answer 2xx.",
+    "provider.http.field.authHeader.label": "API key header",
+    "provider.http.field.authScheme.label": "API key scheme",
+    "provider.http.field.authScheme.description":
+      "Text before the key, e.g. Bearer. Empty sends the key alone.",
+  },
+  es: {
+    "list.title": "Conexiones",
+    "list.description": "Proveedores externos y la credencial que usa cada uno.",
+    "list.new": "Nueva conexión",
+    "list.empty":
+      "Aún no hay conexiones. Una conexión es un proveedor externo (modelos de IA, identidad, cualquier API) con la credencial que usa.",
+    "column.name": "Nombre",
+    "column.provider": "Proveedor",
+    "column.credential": "Credencial",
+    "column.status": "Estado",
+    "column.lastTest": "Última prueba",
+    "column.actions": "Acciones",
+    "column.kind": "Tipo",
+    "column.secret": "Secreto",
+    "column.usedBy": "Usada por",
+    "value.disabled": "Desactivada",
+    "value.none": "Ninguna",
+    "value.hidden": "Oculta",
+    "value.readOnly": "Solo lectura",
+    "crumb.new": "Nueva",
+    "picker.title": "Nueva conexión",
+    "picker.description": "Elige un proveedor.",
+    "connection.newTitle": "Nueva conexión: {provider}",
+    "connection.create": "Crear conexión",
+    "connection.unknownProvider": "Proveedor desconocido: {type}",
+    "connection.notRegistered":
+      "El tipo de proveedor “{type}” no está registrado. Regístralo con defineProvider para editar esta conexión.",
+    "action.back": "Volver",
+    "action.cancel": "Cancelar",
+    "action.save": "Guardar cambios",
+    "action.saving": "Guardando…",
+    "status.title": "Estado",
+    "detail.id": "ID",
+    "detail.created": "Creada",
+    "detail.updated": "Actualizada",
+    "detail.secret": "Secreto",
+    "state.active": "Funciona",
+    "state.failed": "Falló",
+    "state.untested": "Sin probar",
+    "lastTest.never": "Nunca se ha probado.",
+    "lastTest.latency": "{latency} ms",
+    "lastTest.modelLatency": "{model}, {latency} ms",
+    "credentials.title": "Credenciales",
+    "credentials.description":
+      "Secretos para las conexiones. Se guardan cifrados y no se vuelven a mostrar.",
+    "credentials.new": "Nueva credencial",
+    "credentials.empty": "Aún no hay credenciales.",
+    "credentials.unused": "Sin uso",
+    "credentials.usedByCount": { one: "{count} conexión", other: "{count} conexiones" },
+    "credential.newDescription":
+      "Una clave de API, una clave de cuenta de servicio o un usuario y contraseña.",
+    "credential.create": "Crear credencial",
+    "credential.usedBy": "Usada por",
+    "credential.usedByDescription": "No se puede eliminar una credencial en uso.",
+    "credential.notUsed": "Ninguna conexión usa esta credencial.",
+    "secret.none": "Sin secreto guardado",
+    "secret.stored": "Guardado",
+    "kind.api_key": "Clave de API",
+    "kind.service_account_json": "Cuenta de servicio (JSON)",
+    "kind.basic": "Usuario y contraseña",
+    "field.name": "Nombre",
+    "field.baseUrl": "URL base",
+    "field.baseUrlHint": "Déjala vacía para usar la URL del proveedor.",
+    "field.credential": "Credencial",
+    "field.noCredential": "Aún no hay credenciales de un tipo que acepte este proveedor.",
+    "field.choose": "Elige…",
+    "field.none": "Ninguna",
+    "field.newCredential": "Nueva credencial",
+    "field.enabled": "Activada",
+    "field.kind": "Tipo",
+    "field.secret": "Secreto",
+    "field.replaceSecret": "Reemplazar secreto",
+    "field.secretKeep": "{secret}. Déjalo vacío para conservarlo; no se vuelve a mostrar.",
+    "field.secretNew": "Se cifra al guardar y no se vuelve a mostrar.",
+    "field.basicPlaceholder": "usuario:contraseña",
+    "error.fixFields": "Revisa los campos marcados.",
+    "error.unknownProvider": "Tipo de proveedor desconocido: “{type}”",
+    "test.run": "Probar",
+    "test.running": "Probando…",
+    "test.connectionWorks": "La conexión funciona",
+    "test.credentialWorks": "La credencial funciona",
+    "test.connectionFailed": "La conexión falló",
+    "test.credentialFailed": "La credencial falló",
+    "test.answered": "Respondió en {latency} ms.",
+    "test.modelAnswered": "{model} respondió en {latency} ms.",
+    "test.noDetail": "El proveedor no dio detalles.",
+    "test.dialogTitle": "Probar la credencial",
+    "test.dialogDescription": "Ninguna conexión la usa todavía. Elige un proveedor para probarla.",
+    "test.provider": "Proveedor",
+    "test.baseUrl": "URL base",
+    "test.baseUrlPlaceholder": "La del proveedor",
+    "test.cancel": "Cancelar",
+    "delete.connection": "Eliminar conexión",
+    "delete.credential": "Eliminar credencial",
+    "delete.confirm": "¿Eliminar “{title}”? No se puede deshacer.",
+    "delete.submit": "Eliminar",
+    "delete.pending": "Eliminando…",
+    "delete.cancel": "Cancelar",
+    "category.ai-models": "Modelos de IA",
+    "category.other": "Otros",
+    "provider.anthropic.description": "Modelos Claude.",
+    "provider.anthropic.field.models.label": "Modelos",
+    "provider.anthropic.field.models.description":
+      'Modelos que pueden usar los clientes, p. ej. [{ "id": "claude-haiku-4-5", "vision": true, "default": true }].',
+    "provider.openai_compatible.label": "OpenAI o compatible",
+    "provider.openai_compatible.description":
+      "OpenAI o cualquier gateway con su API (llmgateway, OpenRouter, DeepSeek, …).",
+    "provider.openai_compatible.field.models.label": "Modelos",
+    "provider.openai_compatible.field.models.description":
+      'Modelos que pueden usar los clientes, p. ej. [{ "id": "claude-haiku-4-5", "vision": true, "default": true }].',
+    "provider.google.description": "Modelos Gemini con una clave de API de Google AI Studio.",
+    "provider.google.field.models.label": "Modelos",
+    "provider.google.field.models.description":
+      'Modelos que pueden usar los clientes, p. ej. [{ "id": "claude-haiku-4-5", "vision": true, "default": true }].',
+    "provider.vertex.description":
+      "Gemini en un proyecto de Google Cloud, con una cuenta de servicio o una clave de API.",
+    "provider.vertex.field.project.label": "Proyecto",
+    "provider.vertex.field.project.description":
+      "ID del proyecto de Google Cloud. Por defecto: el proyecto de la cuenta de servicio.",
+    "provider.vertex.field.location.label": "Ubicación",
+    "provider.vertex.field.models.label": "Modelos",
+    "provider.vertex.field.models.description":
+      'Modelos que pueden usar los clientes, p. ej. [{ "id": "gemini-2.5-flash", "default": true }].',
+    "provider.http.label": "API HTTP",
+    "provider.http.description":
+      "Cualquier API HTTP con una clave de API o un usuario y contraseña.",
+    "provider.http.field.healthPath.label": "Ruta de prueba",
+    "provider.http.field.healthPath.description": "Un GET a esta ruta debe responder 2xx.",
+    "provider.http.field.authHeader.label": "Encabezado de la clave de API",
+    "provider.http.field.authScheme.label": "Esquema de la clave de API",
+    "provider.http.field.authScheme.description":
+      "Texto antes de la clave, p. ej. Bearer. Vacío envía solo la clave.",
+  },
+});
+
+/** A key of {@link connectionsMessages}. */
+export type ConnectionsKey = MessageKey<typeof connectionsMessages>;
+
+/** The translator of the connections admin. */
+export type ConnectionsT = Translator<ConnectionsKey>["t"];
+
+/**
+ * The message for a key that may not exist (provider texts), or `fallback`. Overrides in
+ * `admin.messages` count, so apps can translate providers of their own.
+ */
+export function optionalMessage(t: ConnectionsT, key: string, fallback: string): string {
+  const message = t(key as ConnectionsKey);
+  return message === `${connectionsMessages.namespace}.${key}` ? fallback : message;
+}
+
+/** `AI models` → `ai-models`: the key of a picker group. */
+export function categoryKey(category: string): string {
+  return category
+    .toLowerCase()
+    .replaceAll(/[^\da-z]+/g, "-")
+    .replaceAll(/^-|-$/g, "");
+}

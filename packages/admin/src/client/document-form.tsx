@@ -12,6 +12,7 @@ import {
 } from "react";
 
 import { idleState } from "../form-state";
+import { useAdminI18n } from "../i18n/context";
 import { controlId, formScope } from "../ids";
 import { Button } from "../ui/button";
 
@@ -53,6 +54,7 @@ export function DocumentForm({
   children,
 }: Readonly<DocumentFormProps>) {
   const router = useRouter();
+  const i18n = useAdminI18n();
   const scope = formScope(slug, id);
   const [state, formAction, pending] = useActionState(
     async (_previous: FormState, formData: FormData): Promise<FormState> => {
@@ -109,16 +111,16 @@ export function DocumentForm({
           {state.status === "error" ? (
             <div
               role="alert"
-              className="qb:mx-5 qb:mt-5 qb:rounded-md qb:border qb:border-red-200 qb:bg-red-50 qb:px-4 qb:py-3 qb:text-sm qb:text-red-800"
+              className="qb:mx-5 qb:mt-5 qb:rounded-md qb:border qb:border-danger-line qb:bg-danger-soft qb:px-4 qb:py-3 qb:text-sm qb:text-danger-strong"
             >
               {state.message}
             </div>
           ) : null}
           <div className="qb:p-5">{children}</div>
           {readOnly ? null : (
-            <div className="qb:flex qb:items-center qb:gap-3 qb:border-t qb:border-zinc-200 qb:bg-zinc-50 qb:px-5 qb:py-3 qb:rounded-b-lg">
+            <div className="qb:flex qb:items-center qb:gap-3 qb:border-t qb:border-line qb:bg-surface-muted qb:px-5 qb:py-3 qb:rounded-b-lg">
               <Button type="submit" variant="primary" disabled={pending || !ready}>
-                {pending ? "Saving…" : submitLabel}
+                {pending ? i18n.t("edit.saving") : submitLabel}
               </Button>
               {secondary}
             </div>
@@ -136,7 +138,7 @@ export function FieldError({ name }: Readonly<{ name: string }>) {
   const message = state.status === "error" ? state.fieldErrors[name] : undefined;
   if (!message) return null;
   return (
-    <p id={`${controlId(scope, name)}-error`} className="qb:text-xs qb:font-medium qb:text-red-600">
+    <p id={`${controlId(scope, name)}-error`} className="qb:text-xs qb:font-medium qb:text-danger">
       {message}
     </p>
   );

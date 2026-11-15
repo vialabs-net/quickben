@@ -18,13 +18,8 @@ import {
   toDatetimeLocal,
   toJsonText,
 } from "../src/form-data";
-import {
-  columnLabel,
-  documentTitle,
-  formatCell,
-  formatDatetime,
-  relationTitle,
-} from "../src/format";
+import { columnLabel, documentTitle, formatCell, relationTitle } from "../src/format";
+import { englishI18n as en } from "../src/i18n/translator";
 import { controlId, formScope } from "../src/ids";
 import {
   columnsOf,
@@ -180,25 +175,27 @@ describe("form helpers", () => {
   it("turn errors into form states", () => {
     const names = ["title", "slug"];
     expect(
-      toFormState(new ValidationError([{ path: "title", message: "Too long" }]), names),
+      toFormState(new ValidationError([{ path: "title", message: "Too long" }]), names, en),
     ).toEqual({
       status: "error",
       message: "Check the highlighted fields.",
       fieldErrors: { title: "Too long" },
     });
-    expect(toFormState(new ConflictError("Taken", "slug"), names).fieldErrors).toEqual({
+    expect(toFormState(new ConflictError("Taken", "slug"), names, en).fieldErrors).toEqual({
       slug: "This value is already taken",
     });
-    expect(toFormState(new ConflictError("Id taken", "id"), names)).toMatchObject({
+    expect(toFormState(new ConflictError("Id taken", "id"), names, en)).toMatchObject({
       message: "Id taken",
       fieldErrors: {},
     });
-    expect(toFormState(new ForbiddenError("No"), names).message).toBe("No");
+    expect(toFormState(new ForbiddenError("No"), names, en).message).toBe("No");
     const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    expect(toFormState(new Error("boom"), names).message).toBe("Something went wrong. Try again.");
+    expect(toFormState(new Error("boom"), names, en).message).toBe(
+      "Something went wrong. Try again.",
+    );
     expect(log).toHaveBeenCalled();
     log.mockRestore();
-    expect(fieldErrorsState({ a: "b" })).toMatchObject({
+    expect(fieldErrorsState({ a: "b" }, en)).toMatchObject({
       status: "error",
       fieldErrors: { a: "b" },
     });
@@ -312,36 +309,43 @@ describe("format", () => {
   };
 
   it("formats cells per field type", () => {
-    const cell = (column: string) => formatCell(postsMeta, column, doc, metas);
+    const cell = (column: string) => formatCell(postsMeta, column, doc, metas, en);
     expect(cell("title")).toEqual({ kind: "text", text: "Hello" });
     expect(cell("slug")).toEqual({ kind: "empty" });
     expect(cell("status")).toEqual({ kind: "badges", items: ["draft"] });
     expect(cell("channels")).toEqual({ kind: "badges", items: ["web", "email"] });
     expect(cell("featured")).toEqual({ kind: "boolean", value: false });
     expect(cell("views")).toEqual({ kind: "text", text: "3" });
-    expect(cell("publishedAt")).toEqual({ kind: "text", text: "2026-01-02 10:30 UTC" });
-    expect(cell("createdAt")).toEqual({ kind: "text", text: "2026-01-01 00:00 UTC" });
+    expect(cell("publishedAt")).toEqual({
+      kind: "text",
+      text: en.dateTime("2026-01-02T10:30:00.000Z"),
+    });
+    expect((cell("publishedAt") as { text: string }).text).toMatch(/^Jan 2, 2026, 10:30\sAM UTC$/);
+    expect(cell("createdAt")).toEqual({
+      kind: "text",
+      text: en.dateTime("2026-01-01T00:00:00.000Z"),
+    });
     expect(cell("id")).toEqual({ kind: "text", text: "p1", mono: true });
     expect(cell("author")).toEqual({ kind: "text", text: "Ann" });
-    expect(cell("tags")).toEqual({ kind: "text", text: "t1, Two" });
+    expect(cell("tags")).toEqual({ kind: "text", text: "t1 and Two" });
     expect(cell("meta")).toMatchObject({ kind: "text", mono: true });
     expect((cell("meta") as { text: string }).text).toHaveLength(60);
     expect((cell("summary") as { text: string }).text.endsWith("…")).toBe(true);
-    expect(formatCell(postsMeta, "unknown", { unknown: 5 }, metas)).toEqual({
+    expect(formatCell(postsMeta, "unknown", { unknown: 5 }, metas, en)).toEqual({
       kind: "text",
       text: "5",
     });
   });
 
   it("formats labels and titles", () => {
-    expect(columnLabel(postsMeta, "createdAt")).toBe("Created");
-    expect(columnLabel(postsMeta, "publishedAt")).toBe("Published at");
-    expect(columnLabel(postsMeta, "nope")).toBe("nope");
+    expect(columnLabel(postsMeta, "createdAt", en)).toBe("Created");
+    expect(columnLabel(postsMeta, "publishedAt", en)).toBe("Published at");
+    expect(columnLabel(postsMeta, "nope", en)).toBe("nope");
     expect(documentTitle(postsMeta, { id: "x", title: "" })).toBe("x");
     expect(documentTitle(postsMeta, { id: "x", title: 7 })).toBe("7");
     expect(documentTitle(undefined, { id: 5 })).toBe("");
     expect(relationTitle(42, undefined)).toBe("");
-    expect(formatDatetime("garbage")).toBe("garbage");
+    expect(en.dateTime("garbage")).toBe("garbage");
   });
 });
 
@@ -356,37 +360,62 @@ describe("navigation", () => {
         { label: "Unknown", collection: "nope" },
       ],
     });
-    expect(buildNav(meta, extensions, "/admin")).toEqual([
+    expect(buildNav(meta, extensions, "/admin", en)).toEqual([
       {
         label: "Content",
         links: [
-          { label: "Posts", href: "/admin/posts", key: "posts", external: false },
-          { label: "Authors", href: "/admin/authors", key: "authors", external: false },
+          { label: "Posts", href: "/admin/posts", key: "posts", external: false, active: false },
+          {
+            label: "Authors",
+            href: "/admin/authors",
+            key: "authors",
+            external: false,
+            active: false,
+          },
         ],
       },
       {
         label: "Vault",
         links: [
-          { label: "Secrets", href: "/admin/secrets", key: "secrets", external: false },
+          {
+            label: "Secrets",
+            href: "/admin/secrets",
+            key: "secrets",
+            external: false,
+            active: false,
+          },
           {
             label: "Help",
             href: "https://example.com/help",
             key: "https://example.com/help",
             external: true,
+            active: false,
           },
         ],
       },
       {
         label: "Taxonomy",
-        links: [{ label: "Tags", href: "/admin/tags", key: "tags", external: false }],
+        links: [
+          { label: "Tags", href: "/admin/tags", key: "tags", external: false, active: false },
+        ],
       },
       {
         label: "Collections",
-        links: [{ label: "Notes", href: "/admin/notes", key: "notes", external: false }],
+        links: [
+          { label: "Notes", href: "/admin/notes", key: "notes", external: false, active: false },
+        ],
       },
       {
         label: "Pages",
-        links: [{ label: "Reports", href: "/admin/reports", key: "reports", external: false }],
+        links: [
+          {
+            label: "Reports",
+            href: "/admin/reports",
+            key: "reports",
+            external: false,
+            active: false,
+          },
+        ],
       },
       {
         label: "Links",
@@ -396,8 +425,15 @@ describe("navigation", () => {
             href: "https://example.com",
             key: "https://example.com",
             external: true,
+            active: false,
           },
-          { label: "Local", href: "/admin/settings", key: "settings", external: false },
+          {
+            label: "Local",
+            href: "/admin/settings",
+            key: "settings",
+            external: false,
+            active: false,
+          },
         ],
       },
     ]);
@@ -406,7 +442,7 @@ describe("navigation", () => {
   it("leaves out collections the user cannot read", async () => {
     const qb = await getQuickben(makeConfig());
     const anonymous = await getMeta(qb, { user: null });
-    const labels = buildNav(anonymous, resolveExtensions({}), "/admin").map((g) => g.label);
+    const labels = buildNav(anonymous, resolveExtensions({}), "/admin", en).map((g) => g.label);
     expect(labels).toEqual(["Content", "Vault", "Taxonomy", "Collections"]);
   });
 });

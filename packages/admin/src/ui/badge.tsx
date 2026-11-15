@@ -6,11 +6,11 @@ import type { HTMLAttributes } from "react";
 export type BadgeTone = "neutral" | "green" | "amber" | "red" | "blue";
 
 const tones: Record<BadgeTone, string> = {
-  neutral: "qb:bg-zinc-100 qb:text-zinc-700 qb:ring-zinc-200",
-  green: "qb:bg-emerald-50 qb:text-emerald-700 qb:ring-emerald-200",
-  amber: "qb:bg-amber-50 qb:text-amber-800 qb:ring-amber-200",
-  red: "qb:bg-red-50 qb:text-red-700 qb:ring-red-200",
-  blue: "qb:bg-blue-50 qb:text-blue-700 qb:ring-blue-200",
+  neutral: "qb:bg-surface-strong qb:text-fg qb:ring-line",
+  green: "qb:bg-success-soft qb:text-success qb:ring-success-line",
+  amber: "qb:bg-warning-soft qb:text-warning qb:ring-warning-line",
+  red: "qb:bg-danger-soft qb:text-danger-strong qb:ring-danger-line",
+  blue: "qb:bg-info-soft qb:text-info qb:ring-info-line",
 };
 
 /** Props of {@link Badge}. */

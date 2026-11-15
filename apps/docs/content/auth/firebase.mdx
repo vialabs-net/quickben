@@ -195,3 +195,7 @@ export default function SignIn() {
 ```
 
 It uses the admin's styles. After sign-in it loads `?next=` when that is a path on your site, else `redirectTo` (`/admin`). Pass `signInHref: "/sign-in"` to `createAdminPage`.
+
+## Admin languages
+
+The admin pages ship English and Spanish messages in the `auth-firebase` namespace (`firebaseAuthMessages` from `@quickben/auth-firebase/admin`). They follow the admin locale. Override a message with `admin.messages`, for example `{ es: { "auth-firebase.<key>": "…" } }`. See [Languages](/docs/nextjs/admin#languages).

@@ -22,10 +22,11 @@ import { validateContent } from "../validate";
 
 import { brandInput } from "./brand-input";
 import { editorContent } from "./editor-content";
-import { errorCode, errorMessage, issuesOf } from "./feedback";
+import { errorCode, issuesOf } from "./feedback";
 import { getTemplatesAdmin } from "./registry";
 
 import type { TemplateContent, TemplateIssue } from "../content";
+import type { FeedbackErrorCode } from "./feedback";
 import type { Quickben, RequestContext } from "@quickben/core";
 
 interface Scope {
@@ -43,9 +44,12 @@ async function scopeFor(key: unknown): Promise<Scope> {
   return { qb, ctx, basePath: instance.basePath };
 }
 
-/** Result of a template action. Errors carry a fixed message and, for a refused publish, the issues. */
+/**
+ * Result of a template action. Errors carry a fixed code (the admin shows the message
+ * `templates.error.<code>`) and, for a refused publish, the issues.
+ */
 export type ActionResult<T> =
-  { ok: true; value: T } | { ok: false; message: string; issues: TemplateIssue[] };
+  { ok: true; value: T } | { ok: false; code: FeedbackErrorCode; issues: TemplateIssue[] };
 
 async function attempt<T>(run: () => Promise<T>): Promise<ActionResult<T>> {
   try {
@@ -54,8 +58,7 @@ async function attempt<T>(run: () => Promise<T>): Promise<ActionResult<T>> {
     if (!(error instanceof QuickbenError) && !(error instanceof RendererUnavailableError)) {
       throw error;
     }
-    const code = errorCode(error);
-    return { ok: false, message: errorMessage(code) ?? "Failed", issues: issuesOf(error) };
+    return { ok: false, code: errorCode(error), issues: issuesOf(error) };
   }
 }
 
@@ -119,11 +122,22 @@ export async function restoreAction(
   });
 }
 
-/** Issues and preview HTML of unsaved content, rendered with the kind's sample data. */
+/** The reference printed on a preview: the admin's translation of "Preview". */
+function previewReference(reference: unknown): string {
+  return typeof reference === "string" && reference.trim() !== ""
+    ? reference.trim().slice(0, 40)
+    : "Preview";
+}
+
+/**
+ * Issues and preview HTML of unsaved content, rendered with the kind's sample data.
+ * `reference` is printed as the document reference (default `Preview`).
+ */
 export async function previewAction(
   key: string,
   kind: string,
   content: unknown,
+  reference?: unknown,
 ): Promise<ActionResult<{ html: string; issues: TemplateIssue[] }>> {
   const { qb, ctx } = await scopeFor(key);
   return attempt(async () => {
@@ -131,7 +145,12 @@ export async function previewAction(
     const doc = asContent(content);
     const rendered = await renderTemplate(
       qb,
-      { kind, data: resolved.sampleData, source: { content: doc }, reference: "Preview" },
+      {
+        kind,
+        data: resolved.sampleData,
+        source: { content: doc },
+        reference: previewReference(reference),
+      },
       ctx,
     );
     return { html: rendered.preview, issues: validateContent(doc, resolved) };
@@ -143,13 +162,19 @@ export async function pdfAction(
   key: string,
   kind: string,
   content: unknown,
+  reference?: unknown,
 ): Promise<ActionResult<{ base64: string; fileName: string }>> {
   const { qb, ctx } = await scopeFor(key);
   return attempt(async () => {
     const resolved = getTemplateKind(qb, kind);
     const result = await renderPdf(
       qb,
-      { kind, data: resolved.sampleData, source: { content }, reference: "Preview" },
+      {
+        kind,
+        data: resolved.sampleData,
+        source: { content },
+        reference: previewReference(reference),
+      },
       ctx,
     );
     return { base64: toBase64(result.pdf), fileName: `${kind}-preview.pdf` };

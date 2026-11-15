@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { useAdminI18n } from "../i18n/context";
+
 import { cn, focusRing } from "./cn";
 
 /** Props of {@link Toast}. */
@@ -17,6 +19,7 @@ export interface ToastProps {
 /** A short notice in the corner of the screen. Announced to screen readers. */
 export function Toast({ message, tone = "success", duration = 4000, param }: Readonly<ToastProps>) {
   const [open, setOpen] = useState(true);
+  const i18n = useAdminI18n();
 
   useEffect(() => {
     if (param) {
@@ -40,14 +43,14 @@ export function Toast({ message, tone = "success", duration = 4000, param }: Rea
       role={tone === "error" ? "alert" : "status"}
       className={cn(
         "qb:fixed qb:right-4 qb:bottom-4 qb:z-50 qb:flex qb:max-w-sm qb:items-center qb:gap-3 qb:rounded-lg qb:px-4 qb:py-3 qb:text-sm qb:shadow-lg",
-        tone === "error" ? "qb:bg-red-600 qb:text-white" : "qb:bg-zinc-900 qb:text-white",
+        tone === "error" ? "qb:bg-danger qb:text-danger-fg" : "qb:bg-accent qb:text-accent-fg",
       )}
     >
       <span>{message}</span>
       <button
         type="button"
-        aria-label="Dismiss"
-        className={cn("qb:rounded qb:px-1 qb:text-white/70 qb:hover:text-white", focusRing)}
+        aria-label={i18n.t("toast.dismiss")}
+        className={cn("qb:rounded qb:px-1 qb:opacity-70 qb:hover:opacity-100", focusRing)}
         onClick={() => {
           setOpen(false);
         }}

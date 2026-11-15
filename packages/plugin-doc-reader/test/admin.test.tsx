@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { createAdminI18n, englishI18n } from "@quickben/admin/i18n";
 import { getQuickben } from "@quickben/core";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -35,7 +36,7 @@ import {
 } from "./helpers";
 import { actAs, navigation } from "./next-mocks";
 
-import type { AdminExtension, PageProps } from "@quickben/admin";
+import type { AdminExtension, AdminI18n, AdminText, PageProps } from "@quickben/admin";
 import type { ReactElement } from "react";
 
 let made: ReturnType<typeof makeConfig>;
@@ -73,11 +74,18 @@ async function renderPage(
   path: string,
   segments: string[] = [],
   searchParams: PageProps["searchParams"] = {},
+  i18n: AdminI18n = englishI18n,
 ) {
   const page = extension.pages?.find((p) => p.path === path);
   if (!page) throw new Error(`no page ${path}`);
   const Page = page.component as unknown as (props: PageProps) => Promise<ReactElement>;
-  return render(await Page({ user: null, basePath: "/admin", segments, searchParams }));
+  return render(await Page({ user: null, basePath: "/admin", segments, searchParams, i18n }));
+}
+
+const spanish = createAdminI18n({ locale: "es", timeZone: "UTC", overrides: {} });
+
+function text(value: AdminText | undefined, i18n: AdminI18n = englishI18n): string | undefined {
+  return typeof value === "function" ? value(i18n) : i18n.text(value);
 }
 
 function form(entries: Record<string, string | string[] | File>): FormData {
@@ -106,11 +114,17 @@ function formOf(element: HTMLElement): FormData {
 
 describe("docReaderAdmin", () => {
   it("adds three pages in a Documents group", () => {
-    expect(extension.pages?.map((p) => [p.path, p.label, p.group])).toEqual([
+    expect(extension.pages?.map((p) => [p.path, text(p.label), text(p.group)])).toEqual([
       ["document-types", "Document types", "Documents"],
       ["document-queue", "Readings", "Documents"],
       ["document-usage", "Usage", "Documents"],
     ]);
+    expect(extension.pages?.map((p) => text(p.label, spanish))).toEqual([
+      "Tipos de documento",
+      "Lecturas",
+      "Uso",
+    ]);
+    expect(extension.catalogs?.map((bundle) => bundle.namespace)).toEqual(["doc-reader"]);
     expect(docReaderAdmin(made.config, { group: "Docs" }).pages?.[0]?.group).toBe("Docs");
   });
 
@@ -125,6 +139,30 @@ describe("docReaderAdmin", () => {
     actAs(null);
     await renderPage("document-queue");
     expect(screen.getByText("Sign in to see document readings.")).toBeTruthy();
+    cleanup();
+    await renderPage("document-queue", [], {}, spanish);
+    expect(screen.getByText("Inicia sesión para ver las lecturas de documentos.")).toBeTruthy();
+  });
+
+  it("renders the studio and the usage page in Spanish", async () => {
+    actAs(staff);
+    await getQuickben(made.config);
+    await renderPage("document-types", [], { error: "invalid", issue: "fields.0.key" }, spanish);
+    expect(screen.getByRole("heading", { level: 1, name: "Tipos de documento" })).toBeTruthy();
+    expect(screen.getByRole("alert").textContent).toContain("Revisa: Campo 1 key.");
+    cleanup();
+    await renderPage("document-types", ["invoice"], {}, spanish);
+    expect(screen.getByRole("link", { name: "Definición" })).toBeTruthy();
+    expect(screen.getByRole("navigation", { name: "Versiones" }).textContent).toContain(
+      "publicada",
+    );
+    expect(screen.getAllByRole("option", { name: "fecha" }).length).toBeGreaterThan(0);
+    cleanup();
+    await renderPage("document-usage", [], {}, spanish);
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Uso de la lectura de documentos" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("list", { name: "Gasto por mes" })).toBeTruthy();
   });
 });
 
@@ -337,7 +375,7 @@ describe("usage", () => {
       "/admin/document-usage?toast=cap-saved",
     );
     await renderPage("document-usage", [], { month: "bad" });
-    expect(screen.getByText("US$4.00", { selector: "p" })).toBeTruthy();
+    expect(screen.getByText("$4.00", { selector: "p" })).toBeTruthy();
     expect(
       screen.getByRole("meter", { name: "Budget used by acme" }).getAttribute("aria-valuenow"),
     ).toBe("80");

@@ -1,5 +1,6 @@
 "use server";
 
+import { englishI18n } from "./i18n/translator";
 import { getAdmin } from "./registry";
 import { handleAdminRequest } from "./server-function";
 
@@ -20,9 +21,9 @@ export async function defaultServerFunction(
   if (!instance) {
     return {
       status: "error",
-      message: "The admin is not ready on this server yet. Reload the page and try again.",
+      message: englishI18n.t("error.notReady"),
       fieldErrors: {},
     };
   }
-  return handleAdminRequest(instance.config, request);
+  return handleAdminRequest(instance.config, request, instance.i18n);
 }

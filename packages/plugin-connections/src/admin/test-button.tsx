@@ -1,23 +1,25 @@
 "use client";
 
+import { useAdminI18n } from "@quickben/admin/i18n";
 import { Button, Input, Label, Select, Toast } from "@quickben/admin/ui";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 
+import { connectionsMessages } from "./messages";
+import { testMessage } from "./state";
+
+import type { ConnectionsT } from "./messages";
 import type { TestView } from "./state";
 
 type Notice = { key: number; message: string; tone: "success" | "error" };
 
-function useNotice() {
+function useNotice(t: ConnectionsT) {
   const [notice, setNotice] = useState<Notice | null>(null);
   const show = (view: TestView) => {
     const key = (notice?.key ?? 0) + 1;
     if (view.status === "done") {
-      setNotice({
-        key,
-        message: `${view.title}. ${view.message}`,
-        tone: view.ok ? "success" : "error",
-      });
+      const { title, message } = testMessage(t, view);
+      setNotice({ key, message: `${title}. ${message}`, tone: view.ok ? "success" : "error" });
     } else {
       setNotice({ key, message: view.message, tone: "error" });
     }
@@ -38,9 +40,10 @@ export function TestConnectionButton({
   action,
   size = "md",
 }: Readonly<{ action: () => Promise<TestView>; size?: "sm" | "md" }>) {
+  const { t } = useAdminI18n().scope(connectionsMessages);
   const router = useRouter();
   const [pending, startTest] = useTransition();
-  const { show, element } = useNotice();
+  const { show, element } = useNotice(t);
   return (
     <>
       <Button
@@ -54,7 +57,7 @@ export function TestConnectionButton({
           });
         }}
       >
-        {pending ? "Testing…" : "Test"}
+        {pending ? t("test.running") : t("test.run")}
       </Button>
       {element}
     </>
@@ -79,10 +82,11 @@ export function TestCredentialButton({
   providers,
   used,
 }: Readonly<TestCredentialButtonProps>) {
+  const { t } = useAdminI18n().scope(connectionsMessages);
   const router = useRouter();
   const [pending, startTest] = useTransition();
   const [asking, setAsking] = useState(false);
-  const { show, element } = useNotice();
+  const { show, element } = useNotice(t);
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const node = dialog.current;
@@ -112,7 +116,7 @@ export function TestCredentialButton({
           else setAsking(true);
         }}
       >
-        {pending && !asking ? "Testing…" : "Test"}
+        {pending && !asking ? t("test.running") : t("test.run")}
       </Button>
       <dialog
         ref={dialog}
@@ -120,7 +124,7 @@ export function TestCredentialButton({
         onClose={() => {
           setAsking(false);
         }}
-        className="qb:w-full qb:max-w-sm qb:rounded-lg qb:border qb:border-zinc-200 qb:bg-white qb:p-5 qb:shadow-lg"
+        className="qb:w-full qb:max-w-sm qb:rounded-lg qb:border qb:border-line qb:bg-surface qb:p-5 qb:shadow-lg"
         style={{ margin: "auto" }}
       >
         <form
@@ -138,18 +142,13 @@ export function TestCredentialButton({
           }}
         >
           <div>
-            <h2
-              id="qb-test-credential-title"
-              className="qb:text-sm qb:font-semibold qb:text-zinc-900"
-            >
-              Test the credential
+            <h2 id="qb-test-credential-title" className="qb:text-sm qb:font-semibold qb:text-fg">
+              {t("test.dialogTitle")}
             </h2>
-            <p className="qb:mt-1 qb:text-sm qb:text-zinc-500">
-              No connection uses it yet. Choose a provider to try it with.
-            </p>
+            <p className="qb:mt-1 qb:text-sm qb:text-fg-muted">{t("test.dialogDescription")}</p>
           </div>
           <div className="qb:space-y-1.5">
-            <Label htmlFor="qb-test-provider">Provider</Label>
+            <Label htmlFor="qb-test-provider">{t("test.provider")}</Label>
             <Select id="qb-test-provider" name="providerType" required>
               {providers.map((provider) => (
                 <option key={provider.type} value={provider.type}>
@@ -159,17 +158,17 @@ export function TestCredentialButton({
             </Select>
           </div>
           <div className="qb:space-y-1.5">
-            <Label htmlFor="qb-test-url">Base URL</Label>
+            <Label htmlFor="qb-test-url">{t("test.baseUrl")}</Label>
             <Input
               id="qb-test-url"
               name="baseUrl"
               type="url"
-              placeholder="The provider's default"
+              placeholder={t("test.baseUrlPlaceholder")}
             />
           </div>
           <div className="qb:flex qb:gap-2">
             <Button type="submit" disabled={pending || providers.length === 0}>
-              {pending ? "Testing…" : "Test"}
+              {pending ? t("test.running") : t("test.run")}
             </Button>
             <Button
               variant="secondary"
@@ -177,7 +176,7 @@ export function TestCredentialButton({
                 setAsking(false);
               }}
             >
-              Cancel
+              {t("test.cancel")}
             </Button>
           </div>
         </form>

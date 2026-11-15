@@ -96,16 +96,113 @@ export default createAdminPage(config, {
 });
 ```
 
-| Option       | Props                                                                                        |
-| ------------ | -------------------------------------------------------------------------------------------- |
-| `components` | `FieldComponentProps`: `field`, `name`, `id`, `value`, `required`, `disabled`, `describedBy` |
-| `views`      | `ViewProps`: `collection`, `user`, `basePath`, `searchParams`, `id?`                         |
-| `pages`      | `PageProps`: `user`, `basePath`, `segments`, `searchParams`                                  |
-| `sidebar`    | `SidebarProps`: `user`, `basePath`                                                           |
+| Option       | Props                                                                                                |
+| ------------ | ---------------------------------------------------------------------------------------------------- |
+| `components` | `FieldComponentProps`: `field`, `name`, `id`, `value`, `required`, `disabled`, `describedBy`, `i18n` |
+| `views`      | `ViewProps`: `collection`, `user`, `basePath`, `searchParams`, `id?`, `i18n`                         |
+| `pages`      | `PageProps`: `user`, `basePath`, `segments`, `searchParams`, `i18n`                                  |
+| `sidebar`    | `SidebarProps`: `user`, `basePath`, `i18n`                                                           |
+| `catalogs`   | Message bundles from `defineMessages`, one namespace each.                                           |
+
+`i18n` is the translator (`AdminI18n`) in server components. Field components get its plain data (`AdminI18nData`). Page labels and groups accept a string, a per-locale record or `(i18n) => string`.
 
 Props are plain data, so components can be server or client components. A custom field component renders controls named `name`; the value is read like the built-in input of that field type (JSON text for `json`).
 
 Sidebar order: modules (their `nav`, or their collections), then other collections by `admin.group` (default "Collections"), then custom pages, then `nav` links.
+
+## Languages
+
+English is the default. A complete Spanish catalog (`es`) ships with the admin and every plugin.
+
+```ts
+defineConfig({
+  // …
+  admin: {
+    locale: "es", // or a function of the request, see below
+    messages: { es: { "admin.nav.dashboard": "Inicio" } }, // overrides by locale and key
+    timeZone: "America/Santiago", // dates and times; default UTC
+  },
+});
+```
+
+| Setting    | Where                                       | Default |
+| ---------- | ------------------------------------------- | ------- |
+| `locale`   | `admin.locale` or `createAdminPage` options | `en`    |
+| `messages` | same                                        | none    |
+| `timeZone` | same                                        | `UTC`   |
+
+- `locale` is a BCP 47 tag or `(req) => tag`. `localeFromRequest({ supported: ["en", "es"], cookie: "locale" })` from `@quickben/core` reads the cookie, then `Accept-Language`.
+- Messages fall back from `es-CL` to `es` to English. Unknown keys show the key.
+- Dates, numbers, lists and relative times use `Intl` with the active locale.
+- Labels of collections, fields, modules and nav items can be per-locale records: `labels: { plural: { en: "Posts", es: "Entradas" } }`.
+- `?toast=` and `?error=` codes in URLs map to catalog keys.
+- `.qb-root` gets `lang`. For `<html lang>`, call `await getAdminLocale(config)` in a dynamic root layout, or set it from the same setting you pass to `admin.locale`.
+- `handleAdminRequest(config, request, { locale, messages, timeZone })` takes the same options for error messages of saves.
+
+**Your own messages** (custom pages, plugins):
+
+```ts
+import { defineMessages, missingMessages, useAdminI18n } from "@quickben/admin/i18n";
+
+export const messages = defineMessages("reports", {
+  en: { title: "Reports", count: { one: "{count} report", other: "{count} reports" } },
+  es: { title: "Informes", count: { one: "{count} informe", other: "{count} informes" } },
+});
+
+// Server component: props.i18n.scope(messages).t("count", { count: 3 })
+// Client component: useAdminI18n().scope(messages).t("title")
+// Test: expect(missingMessages(messages)).toEqual([])
+```
+
+Every locale in `defineMessages` must have all English keys; the type checks it. Register the bundle with `catalogs: [messages]`. Admin keys are listed in `adminMessages` (`@quickben/admin/i18n`), namespace `admin`.
+
+| Translator method                    | Output                                 |
+| ------------------------------------ | -------------------------------------- |
+| `t(key, values)`                     | message with `{name}` and plural forms |
+| `text(label)`                        | a string or per-locale label           |
+| `number`, `date`, `dateTime`, `list` | `Intl` formats                         |
+| `relativeTime(value, now?)`          | `yesterday`, `in 2 hours`              |
+
+## Embedded mode
+
+`chrome: "none"` renders only the page, without sidebar and header, so admin and plugin pages sit inside your own layout at any `basePath`.
+
+```tsx
+// app/(app)/data/[[...segments]]/page.tsx
+export default createAdminPage(config, { basePath: "/data", chrome: "none", serverFunction });
+
+// app/(app)/layout.tsx: your header and navigation
+const nav = await getAdminNav(config, { basePath: "/data" }, { pathname });
+```
+
+`getAdminNav` returns `{ title, basePath, dashboard, groups, current }`. Each link has `label`, `href`, `key`, `external` and `active`. Pass the same options as to `createAdminPage` so custom and plugin pages appear. Without `pathname`, mark the active link on the client (`usePathname()`). The organization switcher is `createOrganizationSwitcher` from `@quickben/plugin-tenancy/admin`.
+
+## Theme tokens
+
+The admin and plugin pages read only these custom properties. Override them on `.qb-root` from unlayered CSS:
+
+```css
+.qb-root {
+  --qb-accent: var(--brand-600);
+  --qb-radius: 0.5rem;
+  --qb-font-sans: "Inter", sans-serif;
+}
+```
+
+| Token                                       | Use                                |
+| ------------------------------------------- | ---------------------------------- |
+| `--qb-surface`                              | cards, inputs, sidebar             |
+| `--qb-surface-muted`                        | page background, table headers     |
+| `--qb-text`, `--qb-text-muted`              | text, secondary text               |
+| `--qb-border`                               | borders, dividers                  |
+| `--qb-accent`, `--qb-accent-text`           | primary buttons, toasts            |
+| `--qb-danger`, `--qb-danger-text`           | errors, delete buttons             |
+| `--qb-success`, `--qb-warning`, `--qb-info` | badges and notices                 |
+| `--qb-focus-ring`                           | focus outline                      |
+| `--qb-radius`                               | control radius; cards use it + 2px |
+| `--qb-font-sans`, `--qb-font-mono`          | fonts                              |
+
+Hover and soft shades are mixed from these with `color-mix()`. Defaults use `light-dark()`. `.qb-root` does not set `color-scheme`: it inherits the page's, so `:root { color-scheme: light dark }` follows the system.
 
 ## Styles
 
@@ -115,10 +212,12 @@ Sidebar order: modules (their `nav`, or their collections), then other collectio
 - There is no global reset. Base styles apply inside `.qb-root`, the element that wraps the admin, in `@layer base`.
 - Utilities are not in a layer, so an unlayered reset in your app (`* { margin: 0; padding: 0 }`) does not override them.
 - If your app uses Tailwind v4 too, nothing needs to change. Its `@source` does not need to scan this package.
+- Colors are semantic utilities that read the theme tokens: `qb:bg-surface`, `qb:text-fg-muted`, `qb:border-line`, `qb:bg-accent`, `qb:text-danger`, `qb:bg-success-soft`. They are all compiled, so custom components can use them.
 
 The component kit is exported from `@quickben/admin/ui`: `Button`, `ButtonLink`, `Input`, `Textarea`, `Select`, `Checkbox`, `Label` (requires `htmlFor`), `Card`, `Badge`, `Table`, `Toast`. Use it in custom components to match the admin.
 
 ## Limits
 
 - A document with the id `new` cannot be opened (the path is the create form).
-- Datetimes are edited in UTC.
+- Datetimes are edited in UTC. `timeZone` changes how they are shown.
+- Validation messages from `@quickben/core` and from your `validate` functions are not translated.

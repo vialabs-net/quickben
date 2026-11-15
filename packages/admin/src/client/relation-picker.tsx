@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 
+import { useAdminI18n } from "../i18n/context";
 import { cn, focusRing } from "../ui/cn";
 import { Input } from "../ui/input";
 
@@ -36,6 +37,8 @@ export function RelationPicker(props: Readonly<RelationPickerProps>) {
   const { id, name, many, required, disabled, describedBy, initial, relatedLabel } = props;
   const { serverFunction, relatedSlug } = props;
   const listId = useId();
+  const i18n = useAdminI18n();
+  const plural = i18n.lower(relatedLabel);
   const [selected, setSelected] = useState<RelationOption[]>(initial);
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -110,23 +113,23 @@ export function RelationPicker(props: Readonly<RelationPickerProps>) {
           className={cn(
             "qb:flex qb:flex-wrap qb:items-center qb:gap-1.5",
             !many &&
-              "qb:min-h-9 qb:rounded-md qb:border qb:border-zinc-300 qb:bg-white qb:px-2 qb:shadow-xs",
-            !many && disabled && "qb:bg-zinc-50",
+              "qb:min-h-9 qb:rounded-md qb:border qb:border-line-strong qb:bg-surface qb:px-2 qb:shadow-xs",
+            !many && disabled && "qb:bg-surface-muted",
           )}
-          aria-label={`Selected ${relatedLabel.toLowerCase()}`}
+          aria-label={i18n.t("relation.selected", { plural })}
         >
           {selected.map((option) => (
             <li
               key={option.id}
-              className="qb:inline-flex qb:items-center qb:gap-1 qb:rounded-md qb:bg-zinc-100 qb:py-0.5 qb:pr-1 qb:pl-2 qb:text-sm qb:text-zinc-800"
+              className="qb:inline-flex qb:items-center qb:gap-1 qb:rounded-md qb:bg-surface-strong qb:py-0.5 qb:pr-1 qb:pl-2 qb:text-sm qb:text-fg"
             >
               {option.label}
               {disabled ? null : (
                 <button
                   type="button"
-                  aria-label={`Remove ${option.label}`}
+                  aria-label={i18n.t("relation.remove", { label: option.label })}
                   className={cn(
-                    "qb:rounded qb:px-1 qb:text-zinc-500 qb:hover:bg-zinc-200 qb:hover:text-zinc-900",
+                    "qb:rounded qb:px-1 qb:text-fg-muted qb:hover:bg-surface-stronger qb:hover:text-fg",
                     focusRing,
                   )}
                   onClick={() => {
@@ -151,7 +154,7 @@ export function RelationPicker(props: Readonly<RelationPickerProps>) {
           aria-activedescendant={activeOption ? `${listId}-${activeOption.id}` : undefined}
           aria-describedby={describedBy}
           required={required && selected.length === 0}
-          placeholder={`Search ${relatedLabel.toLowerCase()}…`}
+          placeholder={i18n.t("relation.search", { plural })}
           value={query}
           onChange={(event) => {
             setQuery(event.currentTarget.value);
@@ -174,7 +177,7 @@ export function RelationPicker(props: Readonly<RelationPickerProps>) {
         <ul
           id={listId}
           role="listbox"
-          className="qb:absolute qb:z-20 qb:mt-1 qb:max-h-64 qb:w-full qb:overflow-y-auto qb:rounded-md qb:border qb:border-zinc-200 qb:bg-white qb:py-1 qb:text-sm qb:shadow-lg"
+          className="qb:absolute qb:z-20 qb:mt-1 qb:max-h-64 qb:w-full qb:overflow-y-auto qb:rounded-md qb:border qb:border-line qb:bg-surface qb:py-1 qb:text-sm qb:shadow-lg"
         >
           {visible.map((option, index) => (
             <li
@@ -184,7 +187,7 @@ export function RelationPicker(props: Readonly<RelationPickerProps>) {
               aria-selected={index === active}
               className={cn(
                 "qb:cursor-pointer qb:px-3 qb:py-2",
-                index === active ? "qb:bg-zinc-100 qb:text-zinc-900" : "qb:text-zinc-700",
+                index === active ? "qb:bg-surface-strong qb:text-fg" : "qb:text-fg",
               )}
               onMouseDown={(event) => {
                 event.preventDefault();
@@ -195,8 +198,8 @@ export function RelationPicker(props: Readonly<RelationPickerProps>) {
             </li>
           ))}
           {visible.length === 0 ? (
-            <li className="qb:px-3 qb:py-2 qb:text-zinc-500">
-              {loading ? "Searching…" : "No matches"}
+            <li className="qb:px-3 qb:py-2 qb:text-fg-muted">
+              {loading ? i18n.t("relation.searching") : i18n.t("relation.none")}
             </li>
           ) : null}
         </ul>
