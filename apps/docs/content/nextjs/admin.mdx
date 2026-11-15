@@ -285,9 +285,13 @@ Pass `PageProps.serverFunction` to `loadFieldContext` so relation inputs can sea
 
 English is the default. A complete Spanish catalog (`es`) ships with the admin and every plugin.
 
-```ts nocheck
+```ts
+import { defineConfig } from "@quickben/core";
+import { memoryAdapter } from "@quickben/db-memory";
+
 defineConfig({
-  // …
+  db: memoryAdapter(),
+  collections: [],
   admin: {
     locale: "es", // or a function of the request, see below
     messages: { es: { "admin.nav.dashboard": "Inicio" } }, // overrides by locale and key
@@ -338,12 +342,36 @@ Every locale in `defineMessages` must have all English keys; the type checks it.
 
 `chrome: "none"` renders only the page, without sidebar and header, so admin and plugin pages sit inside your own layout at any `basePath`.
 
-```tsx nocheck
-// app/(app)/data/[[...segments]]/page.tsx
-export default createAdminPage(config, { basePath: "/data", chrome: "none", serverFunction });
+```tsx filename="app/(app)/data/[[...segments]]/page.tsx"
+import { createAdminPage, handleAdminRequest } from "@quickben/admin";
 
-// app/(app)/layout.tsx: your header and navigation
-const nav = await getAdminNav(config, { basePath: "/data" }, { pathname });
+import type { AdminRequest } from "@quickben/admin";
+
+async function serverFunction(request: AdminRequest) {
+  "use server";
+  return handleAdminRequest(config, request);
+}
+
+export default createAdminPage(config, { basePath: "/data", chrome: "none", serverFunction });
+```
+
+```tsx filename="app/(app)/layout.tsx"
+import { getAdminNav } from "@quickben/admin";
+import { headers } from "next/headers";
+
+import type { ReactNode } from "react";
+
+export default async function Layout({ children }: { children: ReactNode }) {
+  // Your proxy (middleware) sets x-pathname; omit it and mark the active link on the client.
+  const pathname = (await headers()).get("x-pathname") ?? undefined;
+  const nav = await getAdminNav(config, { basePath: "/data" }, { pathname });
+  return (
+    <>
+      <nav aria-label={nav.title}>{/* your links from nav.groups */}</nav>
+      {children}
+    </>
+  );
+}
 ```
 
 `getAdminNav` returns `{ title, basePath, dashboard, groups, current }`. Each link has `label`, `href`, `key`, `external` and `active`. Pass the same options as to `createAdminPage` so custom and plugin pages appear. Without `pathname`, mark the active link on the client (`usePathname()`). The organization switcher is `createOrganizationSwitcher` from `@quickben/plugin-tenancy/admin`.
