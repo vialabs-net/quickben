@@ -9,6 +9,7 @@ const meta: MetaRecord = {
   "local-api": "Local API",
   "query-model": "Query model",
   endpoints: "Endpoints",
+  openapi: "OpenAPI",
   errors: "Errors",
   "plugins-and-modules": "Plugins and modules",
   "auth-adapters": "Auth adapters",

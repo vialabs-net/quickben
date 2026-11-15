@@ -1,0 +1,131 @@
+---
+title: OpenAPI
+description: Generate an OpenAPI 3.1 document from endpoints and collections, serve it, and check the API contract in CI.
+---
+
+# OpenAPI
+
+`@quickben/openapi` builds an OpenAPI 3.1 document from your config: the [custom endpoints](/docs/concepts/endpoints) and, opt-in, the CRUD routes of collections. Commit the document, and CI tells you when a change breaks clients.
+
+```sh
+pnpm add -D @quickben/openapi
+```
+
+## Generate
+
+```ts filename="scripts/openapi.ts"
+import { writeFile } from "node:fs/promises";
+
+import { generateOpenApi, stringifyOpenApi } from "@quickben/openapi";
+
+import config from "./quickben.config";
+
+const doc = generateOpenApi(config, {
+  info: { title: "Shop API", version: "1.0.0" },
+  servers: [{ url: "https://shop.example.com/api" }],
+});
+await writeFile("openapi.json", stringifyOpenApi(doc));
+```
+
+Or with the CLI. It reads the config's default export, and its `openapi` export as options:
+
+```sh
+quickben-openapi generate --config quickben.config.ts --out openapi.json
+```
+
+| Option            | Default                                                                 |
+| ----------------- | ----------------------------------------------------------------------- |
+| `info`            | `{ title: <admin title>, version: "0.0.0" }`                            |
+| `servers`         | `[{ url: basePath }]`                                                   |
+| `basePath`        | `/api`                                                                  |
+| `include`         | Every endpoint, and the collections with `api: { openapi: true }`.      |
+| `securitySchemes` | From the auth adapter (`firebaseAuth`, `betterAuthAdapter`, `devAuth`). |
+| `security`        | Any one of the schemes.                                                 |
+| `maxLimit`        | `100`, the largest `limit` of list routes.                              |
+
+`include: { collections: ["posts"] }` documents exactly those collections; `false` none. `include: { endpoints: (e) => e.version !== undefined }` filters endpoints. The output is deterministic, so it can be committed.
+
+## What goes in the document
+
+| From                                        | In the document                                                                        |
+| ------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `input.params`, `input.query`, `input.body` | Path and query parameters, JSON request body (`z.toJSONSchema`).                       |
+| `output`                                    | One response per status. A single schema is `200`.                                     |
+| `.meta({ id: "Tag" })` on a Zod schema      | `components/schemas/Tag`. `TagInput` too when the request form differs.                |
+| `summary`, `description`, `tags`            | Same keys.                                                                             |
+| `operationId`                               | Same key. Default: method and path, `postV1PurchasesByIdStart`.                        |
+| `deprecated`, `sunset`, `version`           | `deprecated: true`, `x-deprecated-at`, `x-sunset`, `x-quickben-version`.               |
+| `access: true`                              | Credentials optional. Other endpoints list `401` and `403`.                            |
+| Errors                                      | `400`, `401`, `403`, `413`, `415`, `500` with `{ error: { code, message, details } }`. |
+| Collections with `api: { openapi: true }`   | List, create, read, update, delete and file downloads, with schemas from the fields.   |
+
+```ts filename="collections.ts"
+import { defineCollection, fields as f } from "@quickben/core";
+
+export const products = defineCollection({
+  slug: "products",
+  fields: {
+    name: f.text({ required: true }),
+    price: f.number({ min: 0 }),
+  },
+  access: { read: () => true },
+  api: { openapi: true },
+});
+```
+
+List routes document `where` (JSON, with the operators each field allows), `sort`, `limit`, `page`, `cursor`, `select` and `depth`. Schemas: `Product`, `ProductCreateInput`, `ProductUpdateInput`, `ProductWhere`, `ProductList`.
+
+## Serve
+
+```ts filename="app/api/[...quickben]/route.ts"
+import { createRouteHandlers } from "@quickben/next";
+
+import config from "./quickben.config";
+
+export const { GET, POST, PATCH, PUT, DELETE } = createRouteHandlers(config, {
+  openapi: { serve: true, info: { title: "Shop API", version: "1.0.0" } },
+});
+```
+
+`GET /api/openapi.json` returns the document. Off by default. Signed-in users only, unless `access` says otherwise: `access: true` for a public API, or a function of `{ user, req }`. Other servers use `createOpenApiHandler(config, options)`.
+
+## Check the contract in CI
+
+```sh
+quickben-openapi generate --config quickben.config.ts --out openapi.json --check
+quickben-openapi diff base.json openapi.json
+```
+
+| Step                       | Fails when                                                    |
+| -------------------------- | ------------------------------------------------------------- |
+| `generate --check`         | The committed `openapi.json` differs from the config (stale). |
+| `diff base.json head.json` | There is a breaking change. `--json` prints it as JSON.       |
+
+A GitHub Actions job, after `pnpm install` and the build:
+
+```yaml nocheck
+- run: pnpm quickben-openapi generate --config quickben.config.ts --out openapi.json --check
+- run: |
+    git fetch --depth=1 origin main
+    git show origin/main:openapi.json > "$RUNNER_TEMP/base.json"
+    pnpm quickben-openapi diff "$RUNNER_TEMP/base.json" openapi.json
+```
+
+This repository runs the same check on the playground (`pnpm --filter @quickben/playground openapi:check`), and skips the diff on pull requests labeled `api-breaking`.
+
+| Breaking                                                         | Not breaking                     |
+| ---------------------------------------------------------------- | -------------------------------- |
+| Removed path, operation or version                               | Added path, operation or version |
+| New required parameter, body or request field                    | New optional parameter or field  |
+| Removed or retyped response field, field that may now be missing | New response field               |
+| Narrowed request enum, widened response enum                     | Widened request enum             |
+| Removed status code, new success status code                     | New error status code            |
+
+## Versioning policy
+
+| Change                             | Do                                                                                |
+| ---------------------------------- | --------------------------------------------------------------------------------- |
+| Add a field, parameter or endpoint | Ship it in the same version.                                                      |
+| Break a version's contract         | Add `version: 2` and keep `version: 1`. `diff` compares v2 with v1 and allows it. |
+| Retire a version                   | Set `deprecated` and `sunset`. After the sunset date, `diff` allows removing it.  |
+| Unversioned endpoints, CRUD routes | Not a stable contract. Do not give them to external clients.                      |

@@ -73,4 +73,6 @@ The config module's default export is the config. An `openapi` export holds the 
 | Narrowed request enum, widened response enum                     | Widened request enum             |
 | Removed status code, new success status code                     | New error status code            |
 
+Docs: [OpenAPI](https://quickben.vialabs.net/docs/concepts/openapi).
+
 Allowed (reported, exit `0`): breaking changes of a new version of a route compared with the previous version, and removing a deprecated operation after its `x-sunset` date.
