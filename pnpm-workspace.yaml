@@ -19,6 +19,9 @@ allowBuilds:
   # firebase / firebase-admin: postinstall scripts only print notices.
   "@firebase/util": false
   protobufjs: false
+  # prisma (db-drizzle, dev only): `prisma validate` runs without the downloaded engines.
+  "@prisma/engines": false
+  prisma: false
 overrides:
   # Nextra 4.6 schemas break on zod >= 4.4 (missing `children` key fails z.custom).
   nextra>zod: 4.3.6

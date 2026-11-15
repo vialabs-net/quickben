@@ -21,13 +21,28 @@ export interface CommonOptions {
    * `false` otherwise. Use migrations for databases that hold real data.
    */
   push?: boolean;
+  /**
+   * Check in `init` that every table, column, type, nullability, unique index and index the
+   * collections need exists. `true` throws a `ConfigError` that lists every mismatch, `"warn"`
+   * logs them with `console.warn`. Extra tables and columns are allowed. Default: off.
+   */
+  verify?: boolean | "warn";
+}
+
+/** Options of the Postgres dialects (`postgres`, `pglite`). */
+export interface PgSchemaOptions {
+  /**
+   * Postgres schema of the tables, e.g. `"quickben"`. Push, verify and the schema tools use it.
+   * Default: the connection's current schema (usually `public`).
+   */
+  schema?: string;
 }
 
 /**
  * Postgres through node-postgres (`pg`). Pass `url` or your own `client` (a `pg.Pool`).
  * The adapter closes only a pool it created.
  */
-export interface PostgresOptions extends CommonOptions {
+export interface PostgresOptions extends CommonOptions, PgSchemaOptions {
   dialect: "postgres";
   /** Connection string, e.g. `postgres://user:pass@localhost:5432/app`. */
   url?: string;
@@ -41,7 +56,7 @@ export interface PostgresOptions extends CommonOptions {
  * PGlite: Postgres compiled to WebAssembly, in process. No server to run.
  * Without `dataDir` the data lives in memory.
  */
-export interface PgliteOptions extends CommonOptions {
+export interface PgliteOptions extends CommonOptions, PgSchemaOptions {
   dialect: "pglite";
   /** Directory for the data, e.g. `./.pglite`. Omit for an in-memory database. */
   dataDir?: string;

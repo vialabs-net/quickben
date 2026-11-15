@@ -1,0 +1,99 @@
+---
+title: Adopt in an existing app
+description: Run Quickben on a database that another tool migrates, such as Prisma Migrate. Share the pool, turn off push, generate the SQL and verify in CI.
+---
+
+# Adopt in an existing app
+
+Your app already has a Postgres database and a migration tool, for example Prisma Migrate. Quickben can use the same database. Your tool keeps all DDL, including the Quickben tables. Quickben only reads and writes rows.
+
+| Step | What you do                                                |
+| ---- | ---------------------------------------------------------- |
+| 1    | Share your `pg.Pool` with the adapter, with `push: false`. |
+| 2    | Generate the SQL (or Prisma models) into your migrations.  |
+| 3    | Check the database with `verify`, at startup and in CI.    |
+
+## 1. Share the pool
+
+```ts filename="quickben.config.ts" nocheck
+import { defineConfig } from "@quickben/core";
+import { drizzleAdapter } from "@quickben/db-drizzle/postgres";
+
+import { pool } from "./db/pool"; // your existing pg.Pool
+import { contacts, templates } from "./collections";
+
+export default defineConfig({
+  db: drizzleAdapter({ client: pool, schema: "quickben", push: false, verify: true }),
+  collections: [contacts, templates],
+});
+```
+
+| Option   | Value        | Effect                                                                  |
+| -------- | ------------ | ----------------------------------------------------------------------- |
+| `client` | a `pg.Pool`  | Quickben uses your pool. It does not close it.                          |
+| `push`   | `false`      | Quickben never runs DDL. This is the default for Postgres.              |
+| `schema` | `"quickben"` | Tables live in that Postgres schema. Omit it to use the current schema. |
+| `verify` | `true`       | `createQuickben` throws a `ConfigError` that lists what is missing.     |
+|          | `"warn"`     | Logs the list with `console.warn` and starts.                           |
+
+Extra tables and columns in the database are allowed. `verify` only checks what Quickben needs.
+
+## 2. Generate the SQL
+
+Print the DDL for every collection and paste it into a new migration:
+
+```sh
+pnpm quickben-drizzle sql > prisma/migrations/20260101000000_quickben/migration.sql
+```
+
+For a database that already has some Quickben tables, print only the missing statements:
+
+```sh
+pnpm quickben-drizzle sql --diff --url "$DATABASE_URL"
+```
+
+`--diff` adds missing schemas, tables, columns and indexes. It cannot fix a wrong type, nullability or primary key; it lists those on stderr. Fix them by hand.
+
+**Prisma models**
+
+If Prisma owns the schema file, generate models instead of SQL:
+
+```sh
+pnpm quickben-drizzle sql --format prisma
+```
+
+Paste the models into `schema.prisma` and run `prisma migrate dev`. The models use `@@map`, `@db.Timestamptz(3)`, `@db.JsonB`, `String[]` and named indexes, so Prisma creates the columns Quickben expects. With `schema`, add it to the datasource: `schemas = ["quickben"]`. You can rename a model; keep its `@@map`.
+
+| `quickben-drizzle sql` option | Default                                 |
+| ----------------------------- | --------------------------------------- |
+| `--config <path>`             | `quickben.config.ts`                    |
+| `--dialect <name>`            | From `drizzleAdapter` in the config     |
+| `--schema <name>`             | From `drizzleAdapter` in the config     |
+| `--format <name>`             | `sql` (or `prisma`)                     |
+| `--diff --url <url>`          | Off. Prints only the missing statements |
+| `--out <path>`                | stdout                                  |
+
+From code: `generateSql(config, { dialect, schema, format })` returns the same text.
+
+## 3. Verify in CI
+
+Run the check after your migrations, against the migrated database:
+
+```yaml filename=".github/workflows/ci.yml"
+- run: pnpm prisma migrate deploy
+- run: pnpm quickben-drizzle verify --url "$DATABASE_URL"
+```
+
+It prints one line per mismatch and exits with code 1. It checks:
+
+| Check       | Passes when                                                           |
+| ----------- | --------------------------------------------------------------------- |
+| Table       | It exists in the schema.                                              |
+| Column      | It exists, with the same type (`format_type`) and nullability.        |
+| Primary key | It is `(id)`.                                                         |
+| `unique`    | A unique index on that one column exists, with any name.              |
+| `index`     | An index that starts with that column exists (GIN for `many` fields). |
+
+`many` columns may be nullable: Quickben reads `null` as `[]`. On SQLite, types are compared by affinity, so `BOOLEAN` or `BIGINT` pass.
+
+From code, `await adapter.checkSchema()` (after `createQuickben`) returns `{ issues, statements }`.

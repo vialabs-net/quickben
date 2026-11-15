@@ -7,6 +7,9 @@ import { drizzleAdapter as sqliteAdapter } from "../src/sqlite";
 import type {
   PgDrizzleDatabase,
   PgGeneratedTable,
+  SchemaIssue,
+  SchemaProblem,
+  SchemaReport,
   SQLiteDrizzleDatabase,
   SQLiteGeneratedTable,
 } from "../src";
@@ -28,6 +31,19 @@ it("types raw by dialect", () => {
   const postgres = postgresAdapter({ dialect: "postgres", url: "postgres://localhost/app" });
   expectTypeOf(postgres.raw.db).toEqualTypeOf<PgDrizzleDatabase>();
   expectTypeOf(postgres).toExtend<DatabaseAdapter>();
+});
+
+it("types the schema and verify options", () => {
+  const pglite = pgliteAdapter({ schema: "quickben", verify: "warn" });
+  expectTypeOf(pglite.schema).toEqualTypeOf<string | undefined>();
+  expectTypeOf(pglite.checkSchema()).resolves.toEqualTypeOf<SchemaReport>();
+  expectTypeOf<SchemaIssue["problem"]>().toEqualTypeOf<SchemaProblem>();
+  postgresAdapter({ url: "postgres://localhost/app", schema: "quickben", verify: true });
+  sqliteAdapter({ verify: true });
+  // @ts-expect-error `schema` is a Postgres option.
+  sqliteAdapter({ schema: "quickben" });
+  // @ts-expect-error `verify` is a boolean or "warn".
+  pgliteAdapter({ verify: "error" });
 });
 
 it("rejects options of another dialect", () => {
