@@ -67,6 +67,18 @@ function describeTable(table: PgTable | SQLiteTable, dialect: Dialect) {
   };
 }
 
+it("describes tables in a Postgres schema", async () => {
+  const file = join(dir, "schema-in-schema.ts");
+  await writeFile(file, schemaSource(fullSchema, "postgres", "quickben"));
+  const generated = (await import(file)) as Record<string, unknown>;
+  for (const spec of tableSpecs(fullSchema)) {
+    const table = generated[tableExportName(spec.slug)] as PgTable;
+    const built = buildTable(spec, "postgres", "quickben").table as PgTable;
+    expect(pgTableConfig(table).schema).toBe("quickben");
+    expect(describeTable(table, "postgres")).toEqual(describeTable(built, "postgres"));
+  }
+});
+
 describe.each(["postgres", "sqlite"] as const)("schemaSource (%s)", (dialect) => {
   it("describes the same tables the adapter builds", async () => {
     const generated = await importSchema(dialect);
