@@ -15,8 +15,8 @@ export interface RuntimeTable {
   spec: TableSpec;
   table: DrizzleTable;
   columns: ReadonlyMap<string, { spec: ColumnSpec; column: Column }>;
-  /** Field name of each unique index name, plus the primary key. */
-  constraints: ReadonlyMap<string, string>;
+  /** Field name of each unique index name, plus the primary key. `verify` adds the real names. */
+  constraints: Map<string, string>;
 }
 
 function pgColumn(spec: ColumnSpec): pg.PgColumnBuilderBase {
@@ -80,11 +80,20 @@ function sqliteColumn(spec: ColumnSpec): sqlite.SQLiteColumnBuilderBase {
 
 type ColumnsOf = Record<string, Column>;
 
-function pgTable(spec: TableSpec): pg.PgTable {
+/**
+ * Drizzle schema for a schema name. `pgSchema("public")` throws, but the class takes any name,
+ * so queries name `"public"` explicitly instead of following `search_path`.
+ */
+function pgSchemaOf(schema: string | undefined): pg.PgSchema | undefined {
+  return schema === undefined ? undefined : new pg.PgSchema(schema);
+}
+
+function pgTable(spec: TableSpec, schema: string | undefined): pg.PgTable {
   const builders = Object.fromEntries(
     spec.columns.map((column) => [column.name, pgColumn(column)]),
   );
-  return pg.pgTable(spec.slug, builders, (t) => {
+  const define = (pgSchemaOf(schema)?.table ?? pg.pgTable) as typeof pg.pgTable;
+  return define(spec.slug, builders, (t) => {
     const columns = t as unknown as Record<string, pg.AnyPgColumn>;
     const indexes: pg.IndexBuilder[] = [];
     for (const column of spec.columns) {
@@ -119,9 +128,10 @@ function sqliteTable(spec: TableSpec): sqlite.SQLiteTable {
   });
 }
 
-/** Build the Drizzle table of a collection for a dialect. */
-export function buildTable(spec: TableSpec, dialect: Dialect): RuntimeTable {
-  const table: DrizzleTable = familyOf(dialect) === "pg" ? pgTable(spec) : sqliteTable(spec);
+/** Build the Drizzle table of a collection for a dialect, in a Postgres `schema` if given. */
+export function buildTable(spec: TableSpec, dialect: Dialect, schema?: string): RuntimeTable {
+  const table: DrizzleTable =
+    familyOf(dialect) === "pg" ? pgTable(spec, schema) : sqliteTable(spec);
   const all = table as unknown as ColumnsOf;
   const columns = new Map<string, { spec: ColumnSpec; column: Column }>();
   const constraints = new Map<string, string>([[`${spec.slug}_pkey`, "id"]]);
