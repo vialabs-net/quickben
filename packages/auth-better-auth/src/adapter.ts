@@ -58,6 +58,11 @@ export interface BetterAuthAdapterOptions {
     session: BetterAuthSession,
     user: QuickbenUser,
   ) => QuickbenUser | null | Promise<QuickbenUser | null>;
+  /**
+   * Name of the session cookie, for generated API documents only. Default
+   * `better-auth.session_token` (Better Auth's default).
+   */
+  cookieName?: string;
 }
 
 /** Split a comma-separated role string. */
@@ -98,6 +103,14 @@ async function memberRolesOf(auth: BetterAuthInstance, headers: Headers): Promis
 export function betterAuthAdapter(options: BetterAuthAdapterOptions): AuthAdapter {
   const { auth } = options;
   return {
+    securitySchemes: {
+      session: {
+        type: "apiKey",
+        in: "cookie",
+        name: options.cookieName ?? "better-auth.session_token",
+        description: "Better Auth session cookie.",
+      },
+    },
     async getUser(req) {
       const session = await auth.api.getSession({ headers: req.headers });
       if (!isSession(session)) return null;
