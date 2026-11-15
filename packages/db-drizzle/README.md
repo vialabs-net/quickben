@@ -29,12 +29,14 @@ drizzleAdapter({ url: "file:./app.db" });
 drizzleAdapter({ url: "libsql://app.turso.io", authToken });
 ```
 
-| Entry point | Driver                 | Options                                                         |
-| ----------- | ---------------------- | --------------------------------------------------------------- |
-| `/postgres` | `pg` (node-postgres)   | `url`, `pool` (extra `pg.Pool` options), or `client` (a `Pool`) |
-| `/pglite`   | `@electric-sql/pglite` | `dataDir` (omit for memory), or `client` (a `PGlite`)           |
-| `/sqlite`   | `@libsql/client`       | `url` (default `:memory:`), `authToken`, or `client`            |
-| all         |                        | `push`: create missing tables at startup (see below)            |
+| Entry point            | Driver                 | Options                                                           |
+| ---------------------- | ---------------------- | ----------------------------------------------------------------- |
+| `/postgres`            | `pg` (node-postgres)   | `url`, `pool` (extra `pg.Pool` options), or `client` (a `Pool`)   |
+| `/pglite`              | `@electric-sql/pglite` | `dataDir` (omit for memory), or `client` (a `PGlite`)             |
+| `/sqlite`              | `@libsql/client`       | `url` (default `:memory:`), `authToken`, or `client`              |
+| `/postgres`, `/pglite` |                        | `schema`: Postgres schema of the tables (default: current)        |
+| all                    |                        | `push`: create missing tables at startup (see below)              |
+| all                    |                        | `verify`: check the tables at startup, `true` (throw) or `"warn"` |
 
 `dialect` is optional; when given it must match the entry point. The main entry (`@quickben/db-drizzle`) has the types and schema tools. In Next.js, add `serverExternalPackages: ["@electric-sql/pglite"]` for PGlite; Postgres and SQLite need nothing.
 
@@ -129,6 +131,25 @@ Run step 1 and 3 again after you change collections. Commit the schema file and 
 
 From code, `generateDrizzleSchema(config, { out })` writes the same file and returns its source.
 
+## Another tool owns the DDL
+
+Run the adapter with `push: false` and give the SQL to your migration tool (Prisma Migrate, plain SQL files, …).
+
+| Command                                   | Output                                                   |
+| ----------------------------------------- | -------------------------------------------------------- |
+| `quickben-drizzle sql`                    | SQL DDL: `create table` and indexes for every collection |
+| `quickben-drizzle sql --format prisma`    | Prisma models with `@@map`, `@db.*` and index names      |
+| `quickben-drizzle sql --diff --url <url>` | Only the statements the database is missing              |
+| `quickben-drizzle verify --url <url>`     | One line per mismatch; exit code 1 if any                |
+
+Options: `--config`, `--dialect`, `--schema`, `--out`. For PGlite, `--url` is the data directory.
+
+`verify: true` on the adapter runs the same check in `init` and throws a `ConfigError` with every mismatch. `"warn"` logs them. It checks tables, columns, types, nullability, the primary key, unique indexes and indexes. Extra tables and columns are allowed. Index names may differ.
+
+From code: `generateSql(config, { dialect, schema, format })` and `adapter.checkSchema()` (`{ issues, statements }`).
+
+`schema: "quickben"` (Postgres and PGlite) puts the tables in that Postgres schema. `push`, `generate`, `sql` and `verify` use it.
+
 ## Tests
 
 The contract suite runs against PGlite and SQLite in memory. To also run it against a Postgres server:
@@ -137,4 +158,4 @@ The contract suite runs against PGlite and SQLite in memory. To also run it agai
 QUICKBEN_TEST_POSTGRES_URL=postgres://postgres:postgres@localhost:5432/postgres pnpm test
 ```
 
-The suite drops and recreates the `public` schema of that database. Use a throwaway database.
+The suite drops and recreates the `public` and `quickben` schemas of that database. Use a throwaway database.

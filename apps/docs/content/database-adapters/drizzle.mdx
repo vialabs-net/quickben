@@ -25,7 +25,9 @@ Each dialect has its own entry point. Each one exports `drizzleAdapter`. Import 
 | `@quickben/db-drizzle/postgres` | `pg` (node-postgres)   | `url`, `pool` (extra `pg.Pool` options), or `client` (a `Pool`) |
 | `@quickben/db-drizzle/pglite`   | `@electric-sql/pglite` | `dataDir` (omit for memory), or `client` (a `PGlite`)           |
 | `@quickben/db-drizzle/sqlite`   | `@libsql/client`       | `url` (default `:memory:`), `authToken`, or `client`            |
+| `/postgres`, `/pglite`          |                        | `schema`: Postgres schema of the tables (default: current)      |
 | all                             |                        | `push`: create missing tables at startup                        |
+| all                             |                        | `verify`: check the tables at startup (`true` or `"warn"`)      |
 
 **Postgres**
 
@@ -112,10 +114,13 @@ The adapter follows the [query model](/docs/concepts/query-model) and passes the
 
 ## Schema changes
 
-| Way        | Command or option                             | Use                                 |
-| ---------- | --------------------------------------------- | ----------------------------------- |
-| `push`     | `drizzleAdapter({ ..., push: true })`         | Development, tests, in-memory data. |
-| Migrations | `quickben-drizzle generate`, then drizzle-kit | Databases with real data.           |
+| Way          | Command or option                             | Use                                   |
+| ------------ | --------------------------------------------- | ------------------------------------- |
+| `push`       | `drizzleAdapter({ ..., push: true })`         | Development, tests, in-memory data.   |
+| Migrations   | `quickben-drizzle generate`, then drizzle-kit | Databases with real data.             |
+| Another tool | `quickben-drizzle sql`, then `verify`         | Prisma Migrate or any SQL migrations. |
+
+For the last row, see [Adopt in an existing app](/docs/recipes/existing-app).
 
 ### Push
 
@@ -158,9 +163,25 @@ Run steps 1 and 3 again after you change collections. Commit the schema file and
 | `--config <path>`                  | `quickben.config.ts`            |
 | `--out <path>`                     | `drizzle/schema.ts`             |
 | `--dialect <name>`                 | From `drizzleAdapter` in config |
+| `--schema <name>`                  | From `drizzleAdapter` in config |
 
 - The CLI loads the config with jiti. Use relative imports in the config. tsconfig path aliases (`@/…`) are not resolved.
 - From code, `generateDrizzleSchema(config, { out })` writes the same file and returns its source.
+
+### SQL and verify
+
+| Command                                   | Output                                                   |
+| ----------------------------------------- | -------------------------------------------------------- |
+| `quickben-drizzle sql`                    | SQL DDL: `create table` and indexes for every collection |
+| `quickben-drizzle sql --format prisma`    | Prisma models with `@@map`, `@db.*` and index names      |
+| `quickben-drizzle sql --diff --url <url>` | Only the statements the database is missing              |
+| `quickben-drizzle verify --url <url>`     | One line per mismatch. Exit code 1 if any.               |
+
+For PGlite, `--url` is the `dataDir`. From code: `generateSql(config, { dialect, schema, format })`, and `adapter.checkSchema()` after `init`, which returns `{ issues, statements }`.
+
+### Postgres schema
+
+`schema: "quickben"` puts every table in that Postgres schema. `push` creates the schema. `generate`, `sql` and `verify` use it. Index names do not change.
 
 ## Custom queries
 

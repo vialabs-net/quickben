@@ -286,6 +286,9 @@ drizzleAdapter({ url }); // /sqlite: libSQL; :memory: by default
 
 - `init` builds one Drizzle table per collection (table = slug, column = field name). `push` creates missing tables, columns and indexes; it is on by default for in-memory databases.
 - `quickben-drizzle generate` (or `generateDrizzleSchema(config, { out })`) writes the same tables as a TypeScript schema file for drizzle-kit migrations.
+- `quickben-drizzle sql` (or `generateSql`) prints the same tables as SQL DDL, or as Prisma models with `--format prisma`, for apps whose own tool owns the DDL. `sql --diff --url` prints only what a database is missing.
+- `verify: true | "warn"` checks in `init` that every table, column, type, nullability, primary key, unique index and index exists (extra ones are allowed). `quickben-drizzle verify --url` runs the same check for CI. `adapter.checkSchema()` returns `{ issues, statements }`.
+- `schema` (Postgres, PGlite) puts the tables in a Postgres schema. Push, generate, sql and verify use it.
 - `raw` is `{ dialect, db, tables, table(slug) }`. Inside a transaction `db` is the Drizzle transaction.
 - Postgres stores datetimes as `timestamp(3) with time zone` and `many` fields as `text[]`. SQLite stores datetimes as ISO text and `many` fields as JSON arrays.
 - PGlite and local SQLite have one connection, so operations run one at a time.
