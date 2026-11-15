@@ -365,5 +365,5 @@ export default createAdminPage(config, { serverFunction }); // async server comp
 - TypeScript strict, no `any` in public types, no circular imports.
 - Each package: Vitest unit tests, at least 85 % line coverage (enforced), builds to `dist`.
 - CI (`.github/workflows/ci.yml`): format, lint, typecheck, tests with coverage, build on Node 22 and 24.
-- SonarCloud (`.github/workflows/sonar.yml`, project `vialabs-net_quickben`): lcov from every package; the quality gate must pass.
+- SonarCloud (job `SonarCloud` in `ci.yml`, project `vialabs-net_quickben`): it reuses the lcov reports of the Node 24 job, so the tests run once per Node version; the quality gate must pass.
 - Changesets for versions. `.github/workflows/release.yml` publishes to npm only when the `NPM_TOKEN` secret exists.

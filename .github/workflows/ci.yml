@@ -71,6 +71,42 @@ jobs:
       - run: pnpm test:coverage
       - run: pnpm build
 
+      # The SonarCloud job reuses these reports instead of running the tests a third time.
+      - name: Upload coverage
+        if: matrix.node == 24
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage
+          path: packages/*/coverage/lcov.info
+          retention-days: 1
+          if-no-files-found: error
+
+  sonar:
+    name: SonarCloud
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full history for blame data and new-code detection.
+          fetch-depth: 0
+
+      - name: Download coverage
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: coverage
+          path: packages
+
+      # Pull requests from forks have no access to the token.
+      - name: SonarCloud scan
+        if: env.SONAR_TOKEN != ''
+        uses: SonarSource/sonarqube-scan-action@e805d875275f728fac1885b413934be6d7c63f65 # v8.4.1
+
   postgres:
     name: Postgres adapter tests
     runs-on: ubuntu-latest
