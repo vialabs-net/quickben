@@ -7,6 +7,7 @@ import { playgroundAuth } from "./lib/auth";
 import { connectionsEnabled, demoMasterKey } from "./lib/connections";
 import { createDb } from "./lib/db";
 import { docReaderEnabled, playgroundDocReader } from "./lib/doc-reader";
+import { playgroundEndpoints } from "./lib/endpoints";
 import { playgroundLocale } from "./lib/locale";
 import { seedIfEmpty } from "./lib/seed";
 import { playgroundStorage } from "./lib/storage";
@@ -214,6 +215,8 @@ const config = defineConfig({
   // Local files for `file` fields, the brand logo and the doc reader.
   storage: playgroundStorage,
   collections: [authors, tags, posts, settings],
+  // Custom HTTP endpoints under /api/v1 (lib/endpoints.ts).
+  endpoints: playgroundEndpoints,
   plugins: [
     demo,
     // With QUICKBEN_DOC_READER=1: document types, readings and usage, with a fake model.
