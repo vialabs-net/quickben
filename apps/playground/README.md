@@ -32,6 +32,15 @@ pnpm dev          # builds the packages, then http://localhost:3000
 
 An empty database is seeded on start. `pnpm seed` seeds it from the command line, `pnpm db:reset` deletes `./.pglite` and the uploaded files.
 
+## OpenAPI
+
+`openapi.json` documents the custom endpoints (`lib/endpoints.ts`) and the CRUD routes of posts, authors and tags (`api: { openapi: true }`). Signed-in users get it at `/api/openapi.json`.
+
+| Command              | What it does                                   |
+| -------------------- | ---------------------------------------------- |
+| `pnpm openapi`       | Regenerate `openapi.json`. Commit the result.  |
+| `pnpm openapi:check` | Fail when `openapi.json` is stale. CI runs it. |
+
 ## Files
 
 The config `storage` is `localFileStorage({ root: "./.uploads" })`. Authors have a `photo` file field: the admin shows a preview and `/api/authors/:id/photo` serves it with the author's read access. The brand logo and the doc reader use the same storage. `pnpm db:reset` deletes `./.uploads` too. `e2e/files.spec.ts` covers uploads.
