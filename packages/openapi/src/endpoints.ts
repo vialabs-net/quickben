@@ -45,12 +45,27 @@ function defaultOperationId(endpoint: AnyEndpoint): string {
   return `${endpoint.method.toLowerCase()}${words.join("")}`;
 }
 
-/** Properties and required names of an object schema (following one `$ref`). */
-function objectParts(
-  registry: SchemaRegistry,
-  schema: JsonSchema,
-): { properties: Record<string, JsonSchema>; required: readonly string[] } {
+interface ObjectParts {
+  properties: Record<string, JsonSchema>;
+  required: readonly string[];
+}
+
+/**
+ * Properties and required names of an object schema, following `$ref`s. For a union of
+ * objects: every property, required when every branch requires it.
+ */
+function objectParts(registry: SchemaRegistry, schema: JsonSchema): ObjectParts {
   const resolved = registry.resolve(schema);
+  const list = resolved.anyOf ?? resolved.oneOf;
+  if (Array.isArray(list)) {
+    const parts = list.filter(isObject).map((branch) => objectParts(registry, branch));
+    const properties: Record<string, JsonSchema> = {};
+    for (const part of parts) Object.assign(properties, part.properties);
+    const required = Object.keys(properties).filter((name) =>
+      parts.every((part) => part.required.includes(name)),
+    );
+    return { properties, required };
+  }
   const properties = isObject(resolved.properties)
     ? (resolved.properties as Record<string, JsonSchema>)
     : {};

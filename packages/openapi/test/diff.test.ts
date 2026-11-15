@@ -407,6 +407,92 @@ describe("diffOpenApi", () => {
     });
   });
 
+  describe("security", () => {
+    const secured = (
+      security: OpenApiOperation["security"],
+      schemes: Record<string, unknown> = { session: { type: "apiKey", in: "cookie", name: "sid" } },
+    ): OpenApiDocument => ({
+      ...doc({ "/x": { get: op(security ? { security } : {}) } }),
+      components: { securitySchemes: schemes as never },
+      security: [{ session: [] }],
+    });
+
+    it("treats credentials that become required as breaking", () => {
+      expect(kinds(secured([{}, { session: [] }]), secured(undefined))).toEqual([
+        ["security-required", true],
+      ]);
+      expect(kinds(doc({ "/x": { get: op() } }), secured(undefined))).toEqual([
+        ["security-required", true],
+      ]);
+      expect(kinds(secured(undefined), secured([{}, { session: [] }]))).toEqual([]);
+    });
+
+    it("treats removed or changed schemes as breaking", () => {
+      const both = secured([{ session: [] }, { bearer: [] }]);
+      expect(kinds(both, secured([{ session: [] }]))).toEqual([["removed-security", true]]);
+      const renamed = secured(undefined, { session: { type: "apiKey", in: "cookie", name: "x" } });
+      expect(diffOpenApi(secured(undefined), renamed).changes.map((c) => c.message)).toEqual([
+        'security scheme "session" changed',
+      ]);
+      expect(kinds(secured(undefined), secured(undefined))).toEqual([]);
+    });
+  });
+
+  describe("constraints", () => {
+    it("treats narrower request bounds as breaking", () => {
+      const limit = (schema: JsonSchema) =>
+        doc({ "/a": { get: op({ parameters: [{ name: "limit", in: "query", schema }] }) } });
+      expect(
+        kinds(limit({ type: "integer", maximum: 100 }), limit({ type: "integer", maximum: 25 })),
+      ).toEqual([["narrowed-constraint", true]]);
+      expect(kinds(limit({ type: "integer", maximum: 25 }), limit({ type: "integer" }))).toEqual([
+        ["widened-constraint", false],
+      ]);
+      expect(kinds(limit({ type: "integer" }), limit({ type: "integer", minimum: 1 }))).toEqual([
+        ["narrowed-constraint", true],
+      ]);
+      const text = (maxLength: number) => withBody(object({ s: { type: "string", maxLength } }));
+      expect(diffOpenApi(text(100), text(10)).changes.map((c) => c.message)).toEqual([
+        'request field "s" maxLength changed from 100 to 10',
+      ]);
+    });
+
+    it("treats wider response bounds and changed patterns as breaking", () => {
+      const count = (schema: JsonSchema) => withResponse(object({ n: schema }));
+      expect(
+        kinds(count({ type: "integer", maximum: 5 }), count({ type: "integer", maximum: 9 })),
+      ).toEqual([["widened-constraint", true]]);
+      expect(
+        kinds(count({ type: "integer", minimum: 0 }), count({ type: "integer", minimum: 1 })),
+      ).toEqual([["narrowed-constraint", false]]);
+      const code = (pattern?: string) =>
+        withBody(object({ c: pattern ? { type: "string", pattern } : { type: "string" } }));
+      expect(kinds(code("^a"), code("^b"))).toEqual([["narrowed-constraint", true]]);
+      expect(kinds(code(), code("^b"))).toEqual([["narrowed-constraint", true]]);
+      expect(kinds(code("^a"), code())).toEqual([["widened-constraint", false]]);
+    });
+  });
+
+  describe("unions and maps", () => {
+    it("compares union branches one by one", () => {
+      const union = (type: string) =>
+        withResponse({
+          anyOf: [object({ kind: { const: "a" }, n: { type } }), object({ kind: { const: "b" } })],
+        });
+      expect(diffOpenApi(union("string"), union("number")).changes.map((c) => c.message)).toEqual([
+        'response 200 field "<1>.n" changed type from string to number',
+      ]);
+    });
+
+    it("compares the values of maps", () => {
+      const map = (type: string) =>
+        withResponse({ type: "object", additionalProperties: { type } });
+      expect(diffOpenApi(map("string"), map("number")).changes.map((c) => c.message)).toEqual([
+        'response 200 field "*" changed type from string to number',
+      ]);
+    });
+  });
+
   it("formats every group", () => {
     const base = doc({
       "/a": { get: op() },

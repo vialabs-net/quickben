@@ -248,6 +248,44 @@ describe("generateOpenApi", () => {
       expect(String(schema?.$ref)).toMatch(/^#\/components\/schemas\/Schema[0-9a-f]{8}$/);
     });
 
+    it("merges paths that differ only in parameter names", async () => {
+      const read = defineEndpoint({ method: "GET", path: "/items/:id", handler: () => 1 });
+      const write = defineEndpoint({
+        method: "POST",
+        path: "/items/:itemId",
+        input: { params: z.object({ itemId: z.string().min(3) }) },
+        handler: () => 1,
+      });
+      const merged = generateOpenApi(config([read, write]));
+      expect(Object.keys(merged.paths)).toEqual(["/items/{id}"]);
+      expect(operation(merged, "/items/{id}", "post").parameters?.[0]).toMatchObject({
+        name: "id",
+        in: "path",
+        schema: { type: "string", minLength: 3 },
+      });
+      expect((await validateOpenApi(merged)).valid).toBe(true);
+    });
+
+    it("documents the parameters of a union query schema", () => {
+      const search = defineEndpoint({
+        method: "GET",
+        path: "/search",
+        input: {
+          query: z.union([
+            z.object({ q: z.string(), page: z.coerce.number().optional() }),
+            z.object({ q: z.string(), tag: z.string() }),
+          ]),
+        },
+        handler: () => 1,
+      });
+      const op = operation(generateOpenApi(config([search])), "/search", "get");
+      expect(op.parameters?.map((p) => [p.name, p.required])).toEqual([
+        ["q", true],
+        ["page", false],
+        ["tag", false],
+      ]);
+    });
+
     it("throws on duplicate operation ids", () => {
       const a = defineEndpoint({
         method: "GET",
@@ -360,6 +398,27 @@ describe("generateOpenApi", () => {
       expect(op.parameters?.[2]?.schema).toEqual({ type: "integer", minimum: 1, maximum: 100 });
       const limited = generateOpenApi(fixtureConfig(), { maxLimit: 20 });
       expect(operation(limited, "/posts", "get").parameters?.[2]?.schema?.maximum).toBe(20);
+    });
+
+    it("lets optional select fields be null", () => {
+      const props = schemas.Post?.properties as Record<string, Record<string, unknown>>;
+      expect(props.priority).toMatchObject({
+        type: ["string", "null"],
+        enum: ["low", "high", null],
+      });
+    });
+
+    it("documents filter operands without write rules", () => {
+      const where = schemas.PostWhere?.properties as Record<
+        string,
+        { properties?: Record<string, unknown> }
+      >;
+      expect(where.views?.properties?.gt).toEqual({ type: "number" });
+      expect(where.title?.properties?.eq).toEqual({ type: "string" });
+      expect(where.status?.properties?.in).toEqual({
+        type: "array",
+        items: { type: "string", enum: ["draft", "published"] },
+      });
     });
 
     it("documents where operators per field type", () => {

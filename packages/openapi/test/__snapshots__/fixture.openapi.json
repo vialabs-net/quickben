@@ -87,7 +87,7 @@
             }
           },
           {
-            "description": "Fields to return, comma-separated.",
+            "description": "Fields to return, comma-separated. The response has `id` and these fields only, so other fields of the schema are missing.",
             "explode": false,
             "in": "query",
             "name": "select",
@@ -269,7 +269,7 @@
             }
           },
           {
-            "description": "Fields to return, comma-separated.",
+            "description": "Fields to return, comma-separated. The response has `id` and these fields only, so other fields of the schema are missing.",
             "explode": false,
             "in": "query",
             "name": "select",
@@ -551,7 +551,7 @@
             }
           },
           {
-            "description": "Fields to return, comma-separated.",
+            "description": "Fields to return, comma-separated. The response has `id` and these fields only, so other fields of the schema are missing.",
             "explode": false,
             "in": "query",
             "name": "select",
@@ -572,6 +572,7 @@
                   "reviewer",
                   "tags",
                   "labels",
+                  "priority",
                   "meta",
                   "extra",
                   "body"
@@ -724,7 +725,7 @@
             }
           },
           {
-            "description": "Fields to return, comma-separated.",
+            "description": "Fields to return, comma-separated. The response has `id` and these fields only, so other fields of the schema are missing.",
             "explode": false,
             "in": "query",
             "name": "select",
@@ -745,6 +746,7 @@
                   "reviewer",
                   "tags",
                   "labels",
+                  "priority",
                   "meta",
                   "extra",
                   "body"
@@ -1467,49 +1469,39 @@
             "additionalProperties": false,
             "properties": {
               "eq": {
-                "maxLength": 120,
                 "type": "string"
               },
               "ne": {
-                "maxLength": 120,
                 "type": "string"
               },
               "in": {
                 "items": {
-                  "maxLength": 120,
                   "type": "string"
                 },
                 "type": "array"
               },
               "notIn": {
                 "items": {
-                  "maxLength": 120,
                   "type": "string"
                 },
                 "type": "array"
               },
               "lt": {
-                "maxLength": 120,
                 "type": "string"
               },
               "lte": {
-                "maxLength": 120,
                 "type": "string"
               },
               "gt": {
-                "maxLength": 120,
                 "type": "string"
               },
               "gte": {
-                "maxLength": 120,
                 "type": "string"
               },
               "contains": {
-                "maxLength": 120,
                 "type": "string"
               },
               "startsWith": {
-                "maxLength": 120,
                 "type": "string"
               },
               "exists": {
@@ -1522,49 +1514,39 @@
             "additionalProperties": false,
             "properties": {
               "eq": {
-                "format": "email",
                 "type": "string"
               },
               "ne": {
-                "format": "email",
                 "type": "string"
               },
               "in": {
                 "items": {
-                  "format": "email",
                   "type": "string"
                 },
                 "type": "array"
               },
               "notIn": {
                 "items": {
-                  "format": "email",
                   "type": "string"
                 },
                 "type": "array"
               },
               "lt": {
-                "format": "email",
                 "type": "string"
               },
               "lte": {
-                "format": "email",
                 "type": "string"
               },
               "gt": {
-                "format": "email",
                 "type": "string"
               },
               "gte": {
-                "format": "email",
                 "type": "string"
               },
               "contains": {
-                "format": "email",
                 "type": "string"
               },
               "startsWith": {
-                "format": "email",
                 "type": "string"
               },
               "exists": {
@@ -1577,49 +1559,39 @@
             "additionalProperties": false,
             "properties": {
               "eq": {
-                "format": "uri",
                 "type": "string"
               },
               "ne": {
-                "format": "uri",
                 "type": "string"
               },
               "in": {
                 "items": {
-                  "format": "uri",
                   "type": "string"
                 },
                 "type": "array"
               },
               "notIn": {
                 "items": {
-                  "format": "uri",
                   "type": "string"
                 },
                 "type": "array"
               },
               "lt": {
-                "format": "uri",
                 "type": "string"
               },
               "lte": {
-                "format": "uri",
                 "type": "string"
               },
               "gt": {
-                "format": "uri",
                 "type": "string"
               },
               "gte": {
-                "format": "uri",
                 "type": "string"
               },
               "contains": {
-                "format": "uri",
                 "type": "string"
               },
               "startsWith": {
-                "format": "uri",
                 "type": "string"
               },
               "exists": {
@@ -1848,6 +1820,18 @@
             "title": "Labels",
             "type": "array"
           },
+          "priority": {
+            "enum": [
+              "low",
+              "high",
+              null
+            ],
+            "title": "Priority",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "meta": {
             "properties": {
               "seo": {
@@ -1895,6 +1879,7 @@
           "reviewer",
           "tags",
           "labels",
+          "priority",
           "meta",
           "extra",
           "body"
@@ -1990,6 +1975,18 @@
             },
             "title": "Labels",
             "type": "array"
+          },
+          "priority": {
+            "enum": [
+              "low",
+              "high",
+              null
+            ],
+            "title": "Priority",
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "meta": {
             "properties": {
@@ -2168,6 +2165,18 @@
             },
             "title": "Labels",
             "type": "array"
+          },
+          "priority": {
+            "enum": [
+              "low",
+              "high",
+              null
+            ],
+            "title": "Priority",
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "meta": {
             "properties": {
@@ -2420,42 +2429,34 @@
             "additionalProperties": false,
             "properties": {
               "eq": {
-                "minimum": 0,
-                "type": "integer"
+                "type": "number"
               },
               "ne": {
-                "minimum": 0,
-                "type": "integer"
+                "type": "number"
               },
               "in": {
                 "items": {
-                  "minimum": 0,
-                  "type": "integer"
+                  "type": "number"
                 },
                 "type": "array"
               },
               "notIn": {
                 "items": {
-                  "minimum": 0,
-                  "type": "integer"
+                  "type": "number"
                 },
                 "type": "array"
               },
               "lt": {
-                "minimum": 0,
-                "type": "integer"
+                "type": "number"
               },
               "lte": {
-                "minimum": 0,
-                "type": "integer"
+                "type": "number"
               },
               "gt": {
-                "minimum": 0,
-                "type": "integer"
+                "type": "number"
               },
               "gte": {
-                "minimum": 0,
-                "type": "integer"
+                "type": "number"
               },
               "exists": {
                 "type": "boolean"
@@ -2467,49 +2468,33 @@
             "additionalProperties": false,
             "properties": {
               "eq": {
-                "maximum": 5,
-                "minimum": 0,
                 "type": "number"
               },
               "ne": {
-                "maximum": 5,
-                "minimum": 0,
                 "type": "number"
               },
               "in": {
                 "items": {
-                  "maximum": 5,
-                  "minimum": 0,
                   "type": "number"
                 },
                 "type": "array"
               },
               "notIn": {
                 "items": {
-                  "maximum": 5,
-                  "minimum": 0,
                   "type": "number"
                 },
                 "type": "array"
               },
               "lt": {
-                "maximum": 5,
-                "minimum": 0,
                 "type": "number"
               },
               "lte": {
-                "maximum": 5,
-                "minimum": 0,
                 "type": "number"
               },
               "gt": {
-                "maximum": 5,
-                "minimum": 0,
                 "type": "number"
               },
               "gte": {
-                "maximum": 5,
-                "minimum": 0,
                 "type": "number"
               },
               "exists": {
@@ -2549,41 +2534,33 @@
             "additionalProperties": false,
             "properties": {
               "eq": {
-                "format": "date",
                 "type": "string"
               },
               "ne": {
-                "format": "date",
                 "type": "string"
               },
               "in": {
                 "items": {
-                  "format": "date",
                   "type": "string"
                 },
                 "type": "array"
               },
               "notIn": {
                 "items": {
-                  "format": "date",
                   "type": "string"
                 },
                 "type": "array"
               },
               "lt": {
-                "format": "date",
                 "type": "string"
               },
               "lte": {
-                "format": "date",
                 "type": "string"
               },
               "gt": {
-                "format": "date",
                 "type": "string"
               },
               "gte": {
-                "format": "date",
                 "type": "string"
               },
               "exists": {
@@ -2596,41 +2573,33 @@
             "additionalProperties": false,
             "properties": {
               "eq": {
-                "format": "date-time",
                 "type": "string"
               },
               "ne": {
-                "format": "date-time",
                 "type": "string"
               },
               "in": {
                 "items": {
-                  "format": "date-time",
                   "type": "string"
                 },
                 "type": "array"
               },
               "notIn": {
                 "items": {
-                  "format": "date-time",
                   "type": "string"
                 },
                 "type": "array"
               },
               "lt": {
-                "format": "date-time",
                 "type": "string"
               },
               "lte": {
-                "format": "date-time",
                 "type": "string"
               },
               "gt": {
-                "format": "date-time",
                 "type": "string"
               },
               "gte": {
-                "format": "date-time",
                 "type": "string"
               },
               "exists": {
@@ -2753,6 +2722,49 @@
             },
             "type": "object"
           },
+          "priority": {
+            "additionalProperties": false,
+            "properties": {
+              "eq": {
+                "enum": [
+                  "low",
+                  "high"
+                ],
+                "type": "string"
+              },
+              "ne": {
+                "enum": [
+                  "low",
+                  "high"
+                ],
+                "type": "string"
+              },
+              "in": {
+                "items": {
+                  "enum": [
+                    "low",
+                    "high"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "notIn": {
+                "items": {
+                  "enum": [
+                    "low",
+                    "high"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "exists": {
+                "type": "boolean"
+              }
+            },
+            "type": "object"
+          },
           "meta": {
             "additionalProperties": false,
             "properties": {
@@ -2775,49 +2787,39 @@
             "additionalProperties": false,
             "properties": {
               "eq": {
-                "minLength": 1,
                 "type": "string"
               },
               "ne": {
-                "minLength": 1,
                 "type": "string"
               },
               "in": {
                 "items": {
-                  "minLength": 1,
                   "type": "string"
                 },
                 "type": "array"
               },
               "notIn": {
                 "items": {
-                  "minLength": 1,
                   "type": "string"
                 },
                 "type": "array"
               },
               "lt": {
-                "minLength": 1,
                 "type": "string"
               },
               "lte": {
-                "minLength": 1,
                 "type": "string"
               },
               "gt": {
-                "minLength": 1,
                 "type": "string"
               },
               "gte": {
-                "minLength": 1,
                 "type": "string"
               },
               "contains": {
-                "minLength": 1,
                 "type": "string"
               },
               "startsWith": {
-                "minLength": 1,
                 "type": "string"
               },
               "exists": {

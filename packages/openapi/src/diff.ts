@@ -1,3 +1,4 @@
+import { constraintChanges } from "./constraints";
 import { compareText, isObject } from "./schemas";
 
 import type {
@@ -33,7 +34,11 @@ export type OpenApiChangeKind =
   | "removed-field"
   | "retyped"
   | "narrowed-enum"
-  | "widened-enum";
+  | "widened-enum"
+  | "narrowed-constraint"
+  | "widened-constraint"
+  | "security-required"
+  | "removed-security";
 
 /** One difference between two documents. */
 export interface OpenApiChange {
@@ -353,6 +358,62 @@ function compareObjects(
   for (const name of names) compareProperty(scope, pair, objects, name, seen);
 }
 
+function compareConstraints(scope: Scope, pair: SchemaPair, b: JsonSchema, h: JsonSchema): void {
+  const breakingByMessage = new Map<string, boolean>();
+  for (const change of constraintChanges(b, h)) {
+    const breaking = pair.direction === "request" ? change.narrowed : !change.narrowed;
+    breakingByMessage.set(
+      change.message,
+      (breakingByMessage.get(change.message) ?? false) || breaking,
+    );
+  }
+  for (const [message, breaking] of breakingByMessage) {
+    const narrowed = pair.direction === "request" ? breaking : !breaking;
+    add(
+      scope,
+      narrowed ? "narrowed-constraint" : "widened-constraint",
+      breaking,
+      `${pair.where} ${label(pair.at)} ${message}`,
+    );
+  }
+}
+
+/** Branches of `anyOf` / `oneOf` without the `null` branch. */
+function valueBranches(schema: JsonSchema): JsonSchema[] {
+  return (branches(schema) ?? []).filter((branch) => branch.type !== "null");
+}
+
+/** Compare the parts inside a schema: properties, values of maps, items and union branches. */
+function compareInner(
+  scope: Scope,
+  pair: SchemaPair,
+  b: JsonSchema,
+  h: JsonSchema,
+  seen: Set<string>,
+) {
+  compareObjects(scope, pair, b, h, seen);
+  if (isObject(b.additionalProperties) && isObject(h.additionalProperties)) {
+    const at = child(pair.at, "*");
+    compareSchema(
+      scope,
+      { ...pair, base: b.additionalProperties, head: h.additionalProperties, at },
+      seen,
+    );
+  }
+  if (isObject(b.items) && isObject(h.items)) {
+    compareSchema(scope, { ...pair, base: b.items, head: h.items, at: `${pair.at}[]` }, seen);
+  }
+  // Unions with the same number of branches are compared branch by branch.
+  const bBranches = valueBranches(b);
+  const hBranches = valueBranches(h);
+  if (bBranches.length > 1 && bBranches.length === hBranches.length) {
+    for (const [index, branch] of bBranches.entries()) {
+      const at = `${pair.at}<${String(index + 1)}>`;
+      compareSchema(scope, { ...pair, base: branch, head: hBranches[index], at }, seen);
+    }
+  }
+}
+
 function compareSchema(scope: Scope, pair: SchemaPair, seen = new Set<string>()): void {
   const bRef = isObject(pair.base) && typeof pair.base.$ref === "string" ? pair.base.$ref : "";
   const hRef = isObject(pair.head) && typeof pair.head.$ref === "string" ? pair.head.$ref : "";
@@ -368,14 +429,8 @@ function compareSchema(scope: Scope, pair: SchemaPair, seen = new Set<string>())
     compareEnums(scope, pair, b, h);
     const bInner = unwrap(scope.base, b);
     const hInner = unwrap(scope.head, h);
-    compareObjects(scope, pair, bInner, hInner, seen);
-    if (isObject(bInner.items) && isObject(hInner.items)) {
-      compareSchema(
-        scope,
-        { ...pair, base: bInner.items, head: hInner.items, at: `${pair.at}[]` },
-        seen,
-      );
-    }
+    compareConstraints(scope, pair, bInner, hInner);
+    compareInner(scope, pair, bInner, hInner, seen);
   }
   if (visit !== undefined) seen.delete(visit);
 }
@@ -500,10 +555,53 @@ function compareResponses(scope: Scope, base: OpenApiOperation, head: OpenApiOpe
   }
 }
 
+type Requirements = readonly Record<string, readonly string[]>[];
+
+function securityOf(doc: OpenApiDocument, operation: OpenApiOperation): Requirements {
+  return operation.security ?? doc.security ?? [];
+}
+
+function anonymousAllowed(requirements: Requirements): boolean {
+  return requirements.length === 0 || requirements.some((item) => Object.keys(item).length === 0);
+}
+
+function requirementKey(requirement: Record<string, readonly string[]>): string {
+  return Object.keys(requirement).sort(compareText).join(" + ");
+}
+
+function schemeOf(doc: OpenApiDocument, name: string): string {
+  return JSON.stringify(doc.components?.securitySchemes?.[name] ?? null);
+}
+
+/** Credentials that are now required, or no longer accepted. */
+function compareSecurity(scope: Scope, base: OpenApiOperation, head: OpenApiOperation): void {
+  const b = securityOf(scope.base, base);
+  const h = securityOf(scope.head, head);
+  if (anonymousAllowed(b)) {
+    if (!anonymousAllowed(h)) add(scope, "security-required", true, "credentials are now required");
+    return;
+  }
+  if (anonymousAllowed(h)) return;
+  const headKeys = new Set(h.map(requirementKey));
+  for (const requirement of b) {
+    const key = requirementKey(requirement);
+    if (!headKeys.has(key)) {
+      add(scope, "removed-security", true, `credentials "${key}" are no longer accepted`);
+      continue;
+    }
+    for (const name of Object.keys(requirement)) {
+      if (schemeOf(scope.base, name) !== schemeOf(scope.head, name)) {
+        add(scope, "removed-security", true, `security scheme "${name}" changed`);
+      }
+    }
+  }
+}
+
 function compareOperations(scope: Scope, base: OpenApiOperation, head: OpenApiOperation): void {
   if (head.deprecated === true && base.deprecated !== true) {
     add(scope, "deprecated", false, "the operation is now deprecated");
   }
+  compareSecurity(scope, base, head);
   compareParameters(scope, base, head);
   compareBody(scope, base, head);
   compareResponses(scope, base, head);

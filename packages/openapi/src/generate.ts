@@ -84,12 +84,44 @@ function securityOf(config: QuickbenConfig, options: OpenApiOptions) {
   return { schemes, security };
 }
 
+/** `/items/{id}` → `/items/{}`: paths that differ only in parameter names. */
+function pathShape(path: string): string {
+  return path.replaceAll(/\{[^{}/]*\}/g, "{}");
+}
+
+function parameterNames(path: string): string[] {
+  return [...path.matchAll(/\{([^{}/]*)\}/g)].map((match) => match[1] ?? "");
+}
+
+/** Rename the path parameters of an operation to the names of an equivalent path. */
+function renamePathParameters(
+  operation: OpenApiOperation,
+  from: string,
+  to: string,
+): OpenApiOperation {
+  const names = new Map(
+    parameterNames(from).map((name, index) => [name, parameterNames(to)[index] ?? name]),
+  );
+  if (!operation.parameters) return operation;
+  return {
+    ...operation,
+    parameters: operation.parameters.map((parameter) =>
+      parameter.in === "path"
+        ? { ...parameter, name: names.get(parameter.name) ?? parameter.name }
+        : parameter,
+    ),
+  };
+}
+
 function addOperation(
   paths: Record<string, OpenApiPathItem>,
-  path: string,
+  given: string,
   method: OpenApiMethod,
-  operation: OpenApiOperation,
+  input: OpenApiOperation,
 ): void {
+  // OpenAPI forbids two paths that differ only in parameter names: use the first one.
+  const path = Object.keys(paths).find((other) => pathShape(other) === pathShape(given)) ?? given;
+  const operation = path === given ? input : renamePathParameters(input, given, path);
   const item = (paths[path] ??= {});
   if (item[method]) {
     throw new Error(`[quickben] OpenAPI: two operations for ${method.toUpperCase()} ${path}`);

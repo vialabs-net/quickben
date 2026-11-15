@@ -59,8 +59,10 @@ export function collectionNames(slug: string): { one: string; many: string } {
 }
 
 function nullable(schema: JsonSchema): JsonSchema {
-  if (typeof schema.type === "string") return { ...schema, type: [schema.type, "null"] };
-  return { anyOf: [schema, { type: "null" }] };
+  if (typeof schema.type !== "string") return { anyOf: [schema, { type: "null" }] };
+  const withNull: JsonSchema = { ...schema, type: [schema.type, "null"] };
+  if (Array.isArray(schema.enum)) withNull.enum = [...(schema.enum as unknown[]), null];
+  return withNull;
 }
 
 function textSchema(field: Extract<AnyField, { minLength: unknown }>): JsonSchema {
@@ -175,8 +177,18 @@ function inputSchema(
     : { type: "object", properties };
 }
 
+/** Operand of a filter: the value type only. Write rules (bounds, formats) do not apply. */
 function scalarSchema(field: AnyField | undefined): JsonSchema {
-  return (field && plainSchema(field)) ?? { type: "string" };
+  switch (field?.type) {
+    case "number":
+      return { type: "number" };
+    case "boolean":
+      return { type: "boolean" };
+    case "select":
+      return { type: "string", enum: [...field.options] };
+    default:
+      return { type: "string" };
+  }
 }
 
 function operatorsOf(field: AnyField | undefined): readonly string[] {
@@ -269,7 +281,8 @@ function selectParameter(collection: SanitizedCollection): OpenApiParameter {
   return {
     name: "select",
     in: "query",
-    description: "Fields to return, comma-separated.",
+    description:
+      "Fields to return, comma-separated. The response has `id` and these fields only, so other fields of the schema are missing.",
     style: "form",
     explode: false,
     schema: { type: "array", items: { type: "string", enum: names } },

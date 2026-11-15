@@ -89,7 +89,7 @@
             }
           },
           {
-            "description": "Fields to return, comma-separated.",
+            "description": "Fields to return, comma-separated. The response has `id` and these fields only, so other fields of the schema are missing.",
             "explode": false,
             "in": "query",
             "name": "select",
@@ -272,7 +272,7 @@
             }
           },
           {
-            "description": "Fields to return, comma-separated.",
+            "description": "Fields to return, comma-separated. The response has `id` and these fields only, so other fields of the schema are missing.",
             "explode": false,
             "in": "query",
             "name": "select",
@@ -528,7 +528,7 @@
             }
           },
           {
-            "description": "Fields to return, comma-separated.",
+            "description": "Fields to return, comma-separated. The response has `id` and these fields only, so other fields of the schema are missing.",
             "explode": false,
             "in": "query",
             "name": "select",
@@ -698,7 +698,7 @@
             }
           },
           {
-            "description": "Fields to return, comma-separated.",
+            "description": "Fields to return, comma-separated. The response has `id` and these fields only, so other fields of the schema are missing.",
             "explode": false,
             "in": "query",
             "name": "select",
@@ -886,7 +886,7 @@
             }
           },
           {
-            "description": "Fields to return, comma-separated.",
+            "description": "Fields to return, comma-separated. The response has `id` and these fields only, so other fields of the schema are missing.",
             "explode": false,
             "in": "query",
             "name": "select",
@@ -1050,7 +1050,7 @@
             }
           },
           {
-            "description": "Fields to return, comma-separated.",
+            "description": "Fields to return, comma-separated. The response has `id` and these fields only, so other fields of the schema are missing.",
             "explode": false,
             "in": "query",
             "name": "select",
@@ -1809,49 +1809,39 @@
             "additionalProperties": false,
             "properties": {
               "eq": {
-                "maxLength": 120,
                 "type": "string"
               },
               "ne": {
-                "maxLength": 120,
                 "type": "string"
               },
               "in": {
                 "items": {
-                  "maxLength": 120,
                   "type": "string"
                 },
                 "type": "array"
               },
               "notIn": {
                 "items": {
-                  "maxLength": 120,
                   "type": "string"
                 },
                 "type": "array"
               },
               "lt": {
-                "maxLength": 120,
                 "type": "string"
               },
               "lte": {
-                "maxLength": 120,
                 "type": "string"
               },
               "gt": {
-                "maxLength": 120,
                 "type": "string"
               },
               "gte": {
-                "maxLength": 120,
                 "type": "string"
               },
               "contains": {
-                "maxLength": 120,
                 "type": "string"
               },
               "startsWith": {
-                "maxLength": 120,
                 "type": "string"
               },
               "exists": {
@@ -1864,49 +1854,39 @@
             "additionalProperties": false,
             "properties": {
               "eq": {
-                "format": "email",
                 "type": "string"
               },
               "ne": {
-                "format": "email",
                 "type": "string"
               },
               "in": {
                 "items": {
-                  "format": "email",
                   "type": "string"
                 },
                 "type": "array"
               },
               "notIn": {
                 "items": {
-                  "format": "email",
                   "type": "string"
                 },
                 "type": "array"
               },
               "lt": {
-                "format": "email",
                 "type": "string"
               },
               "lte": {
-                "format": "email",
                 "type": "string"
               },
               "gt": {
-                "format": "email",
                 "type": "string"
               },
               "gte": {
-                "format": "email",
                 "type": "string"
               },
               "contains": {
-                "format": "email",
                 "type": "string"
               },
               "startsWith": {
-                "format": "email",
                 "type": "string"
               },
               "exists": {
@@ -1919,49 +1899,39 @@
             "additionalProperties": false,
             "properties": {
               "eq": {
-                "maxLength": 2000,
                 "type": "string"
               },
               "ne": {
-                "maxLength": 2000,
                 "type": "string"
               },
               "in": {
                 "items": {
-                  "maxLength": 2000,
                   "type": "string"
                 },
                 "type": "array"
               },
               "notIn": {
                 "items": {
-                  "maxLength": 2000,
                   "type": "string"
                 },
                 "type": "array"
               },
               "lt": {
-                "maxLength": 2000,
                 "type": "string"
               },
               "lte": {
-                "maxLength": 2000,
                 "type": "string"
               },
               "gt": {
-                "maxLength": 2000,
                 "type": "string"
               },
               "gte": {
-                "maxLength": 2000,
                 "type": "string"
               },
               "contains": {
-                "maxLength": 2000,
                 "type": "string"
               },
               "startsWith": {
-                "maxLength": 2000,
                 "type": "string"
               },
               "exists": {
@@ -2510,49 +2480,39 @@
             "additionalProperties": false,
             "properties": {
               "eq": {
-                "maxLength": 200,
                 "type": "string"
               },
               "ne": {
-                "maxLength": 200,
                 "type": "string"
               },
               "in": {
                 "items": {
-                  "maxLength": 200,
                   "type": "string"
                 },
                 "type": "array"
               },
               "notIn": {
                 "items": {
-                  "maxLength": 200,
                   "type": "string"
                 },
                 "type": "array"
               },
               "lt": {
-                "maxLength": 200,
                 "type": "string"
               },
               "lte": {
-                "maxLength": 200,
                 "type": "string"
               },
               "gt": {
-                "maxLength": 200,
                 "type": "string"
               },
               "gte": {
-                "maxLength": 200,
                 "type": "string"
               },
               "contains": {
-                "maxLength": 200,
                 "type": "string"
               },
               "startsWith": {
-                "maxLength": 200,
                 "type": "string"
               },
               "exists": {
@@ -2565,49 +2525,39 @@
             "additionalProperties": false,
             "properties": {
               "eq": {
-                "maxLength": 200,
                 "type": "string"
               },
               "ne": {
-                "maxLength": 200,
                 "type": "string"
               },
               "in": {
                 "items": {
-                  "maxLength": 200,
                   "type": "string"
                 },
                 "type": "array"
               },
               "notIn": {
                 "items": {
-                  "maxLength": 200,
                   "type": "string"
                 },
                 "type": "array"
               },
               "lt": {
-                "maxLength": 200,
                 "type": "string"
               },
               "lte": {
-                "maxLength": 200,
                 "type": "string"
               },
               "gt": {
-                "maxLength": 200,
                 "type": "string"
               },
               "gte": {
-                "maxLength": 200,
                 "type": "string"
               },
               "contains": {
-                "maxLength": 200,
                 "type": "string"
               },
               "startsWith": {
-                "maxLength": 200,
                 "type": "string"
               },
               "exists": {
@@ -2694,41 +2644,33 @@
             "additionalProperties": false,
             "properties": {
               "eq": {
-                "format": "date-time",
                 "type": "string"
               },
               "ne": {
-                "format": "date-time",
                 "type": "string"
               },
               "in": {
                 "items": {
-                  "format": "date-time",
                   "type": "string"
                 },
                 "type": "array"
               },
               "notIn": {
                 "items": {
-                  "format": "date-time",
                   "type": "string"
                 },
                 "type": "array"
               },
               "lt": {
-                "format": "date-time",
                 "type": "string"
               },
               "lte": {
-                "format": "date-time",
                 "type": "string"
               },
               "gt": {
-                "format": "date-time",
                 "type": "string"
               },
               "gte": {
-                "format": "date-time",
                 "type": "string"
               },
               "exists": {
@@ -2872,7 +2814,8 @@
               "blue",
               "green",
               "amber",
-              "red"
+              "red",
+              null
             ],
             "title": "Color",
             "type": [
@@ -2903,7 +2846,8 @@
               "blue",
               "green",
               "amber",
-              "red"
+              "red",
+              null
             ],
             "title": "Color",
             "type": [
@@ -2981,7 +2925,8 @@
               "blue",
               "green",
               "amber",
-              "red"
+              "red",
+              null
             ],
             "title": "Color",
             "type": [
@@ -3121,49 +3066,39 @@
             "additionalProperties": false,
             "properties": {
               "eq": {
-                "maxLength": 60,
                 "type": "string"
               },
               "ne": {
-                "maxLength": 60,
                 "type": "string"
               },
               "in": {
                 "items": {
-                  "maxLength": 60,
                   "type": "string"
                 },
                 "type": "array"
               },
               "notIn": {
                 "items": {
-                  "maxLength": 60,
                   "type": "string"
                 },
                 "type": "array"
               },
               "lt": {
-                "maxLength": 60,
                 "type": "string"
               },
               "lte": {
-                "maxLength": 60,
                 "type": "string"
               },
               "gt": {
-                "maxLength": 60,
                 "type": "string"
               },
               "gte": {
-                "maxLength": 60,
                 "type": "string"
               },
               "contains": {
-                "maxLength": 60,
                 "type": "string"
               },
               "startsWith": {
-                "maxLength": 60,
                 "type": "string"
               },
               "exists": {

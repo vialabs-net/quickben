@@ -34,6 +34,7 @@ export const posts = defineCollection({
     reviewer: fields.relation({ to: "users" }),
     tags: fields.relation({ to: "authors", many: true }),
     labels: fields.select({ options: ["a", "b"], many: true }),
+    priority: fields.select({ options: ["low", "high"] }),
     meta: fields.json({ schema: z.object({ seo: z.string().optional() }) }),
     extra: fields.json(),
     body: fields.textarea({ minLength: 1 }),
