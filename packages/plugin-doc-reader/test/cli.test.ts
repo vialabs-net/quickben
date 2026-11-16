@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -200,6 +200,24 @@ describe("quickben-doc-reader", () => {
     ).toBe(0);
     const csv = await readFile(join(root, "out.csv"), "utf8");
     expect(csv.split("\n")[0]).toContain("sampleId");
+    const outside = await tempDir();
+    await writeFile(join(outside, "keep.csv"), "keep");
+    await symlink(outside, join(root, "escape"));
+    await symlink(join(outside, "keep.csv"), join(root, "linked.csv"));
+    await symlink(join(outside, "new.csv"), join(root, "dangling.csv"));
+    for (const out of [
+      "../escape.csv",
+      join(outside, "keep.csv"),
+      "escape/new.csv",
+      "linked.csv",
+      "dangling.csv",
+    ]) {
+      expect(
+        await cli("export", "--config", "quickben.config.ts", "--run", run.id, "--out", out),
+      ).toBe(2);
+      expect(stderr).toContain("inside the working directory");
+    }
+    expect(await readFile(join(outside, "keep.csv"), "utf8")).toBe("keep");
     expect(
       await cli("export", "--config", "quickben.config.ts", "--run", run.id, "--format", "json"),
     ).toBe(0);

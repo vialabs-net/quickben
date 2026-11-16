@@ -351,7 +351,7 @@ quickben-doc-reader run    --config quickben.config.ts --type receipt --version 
 quickben-doc-reader export --config quickben.config.ts --run <id> --format csv --out run.csv
 ```
 
-The CLI runs as trusted server code against the config's database. `--map` names a module whose default export maps expected JSON to fields. TypeScript configs load through `tsx` when the app has it.
+The CLI runs as trusted server code against the config's database. `--out` must stay inside the working directory, including through symbolic links. `--map` names a module whose default export maps expected JSON to fields. TypeScript configs load through `tsx` when the app has it.
 
 ## Budgets
 

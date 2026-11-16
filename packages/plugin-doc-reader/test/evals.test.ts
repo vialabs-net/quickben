@@ -142,6 +142,25 @@ describe("import", () => {
 });
 
 describe("splits", () => {
+  it("uses the same stratum order for Unicode groups on every host", () => {
+    const subjects = [
+      { key: "accented", group: "ä", attributes: {} },
+      { key: "ascii", group: "z", attributes: {} },
+    ];
+    const settings = {
+      seed: "unicode",
+      ratios: { dev: 0.5, validation: 0.5, test: 0 },
+      stratifyBy: ["group"],
+      unseenGroups: [],
+    };
+    const expected = new Map([
+      ["ascii", "dev"],
+      ["accented", "validation"],
+    ]);
+    expect(assignSplits(subjects, settings)).toEqual(expected);
+    expect(assignSplits([...subjects].reverse(), settings)).toEqual(expected);
+  });
+
   it("splits by a saved seed, stratified by group, with unseen groups apart", async () => {
     const { qb } = await bench();
     await importSamples(qb, admin, "receipt", importItems(), { map: mapReceipt });
@@ -372,6 +391,22 @@ describe("publishing", () => {
       },
     };
     await saveDraft(qb, admin, "receipt", 2, bad);
+    expect(await rule(publishDraft(qb, admin, "receipt", 2))).toBe("not-validated");
+
+    // An empty budget or a hand-picked subset is not a validation of the dataset.
+    await finished(
+      made,
+      await startTestRun(qb, admin, "receipt", 2, { split: "validation", maxCostUsd: 0 }),
+    );
+    expect(await rule(publishDraft(qb, admin, "receipt", 2))).toBe("not-validated");
+    const [sample] = await listSamples(qb, admin, "receipt", "validation");
+    await finished(
+      made,
+      await startTestRun(qb, admin, "receipt", 2, {
+        split: "validation",
+        sampleIds: [sample!.id],
+      }),
+    );
     expect(await rule(publishDraft(qb, admin, "receipt", 2))).toBe("not-validated");
 
     // A dev-only run does not count.

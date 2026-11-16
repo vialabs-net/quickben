@@ -87,6 +87,12 @@ export function hashFraction(seed: string, key: string): number {
 
 const DEALT = ["dev", "validation", "test"] as const;
 
+/** Ordinal order keeps assignments independent of the host's locale. */
+function compareKeys(a: string, b: string): number {
+  if (a < b) return -1;
+  return a > b ? 1 : 0;
+}
+
 function normalized(ratios: SplitRatios): SplitRatios {
   const total = ratios.dev + ratios.validation + ratios.test;
   return {
@@ -150,10 +156,10 @@ export function assignSplits(
   const ratios = normalized(settings.ratios);
   const counts = { dev: 0, validation: 0, test: 0 };
   let dealt = 0;
-  for (const stratum of [...strata.keys()].sort((a, b) => a.localeCompare(b))) {
+  for (const stratum of [...strata.keys()].sort(compareKeys)) {
     const members = (strata.get(stratum) ?? [])
       .map((subject) => ({ subject, order: hashFraction(settings.seed, subject.key) }))
-      .sort((a, b) => a.order - b.order || a.subject.key.localeCompare(b.subject.key));
+      .sort((a, b) => a.order - b.order || compareKeys(a.subject.key, b.subject.key));
     for (const { subject } of members) {
       dealt += 1;
       const pick = furthestBehind(ratios, counts, dealt);

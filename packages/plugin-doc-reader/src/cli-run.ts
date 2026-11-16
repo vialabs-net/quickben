@@ -2,9 +2,9 @@
  * The `quickben-doc-reader` command: import, split, run and export from a terminal, against the
  * database of a Quickben config. It runs as trusted server code.
  */
-import { writeFile } from "node:fs/promises";
+import { lstat, realpath, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { resolve } from "node:path";
+import { basename, dirname, join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 
@@ -246,7 +246,28 @@ async function runExport(qb: Quickben, values: Values, io: CliIo): Promise<numbe
   const text = await exportTestRun(qb, CLI_CONTEXT, values.run, format);
   if (values.out === undefined) io.stdout(text);
   else {
-    await writeFile(resolve(io.cwd, values.out), text);
+    const base = await realpath(io.cwd);
+    const requested = resolve(base, values.out);
+    const target = await realpath(requested).catch(async (error: unknown) => {
+      if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") {
+        throw error;
+      }
+      // realpath also reports ENOENT for a dangling symlink. Never follow one on write.
+      const entry = await lstat(requested).catch((missing: unknown) => {
+        if (!(missing instanceof Error) || !("code" in missing) || missing.code !== "ENOENT") {
+          throw missing;
+        }
+        return null;
+      });
+      if (entry?.isSymbolicLink()) {
+        throw new UsageError("--out must be inside the working directory");
+      }
+      return join(await realpath(dirname(requested)), basename(requested));
+    });
+    if (!target.startsWith(base.endsWith(sep) ? base : base + sep)) {
+      throw new UsageError("--out must be inside the working directory");
+    }
+    await writeFile(target, text);
     io.stderr(`Wrote ${values.out}\n`);
   }
   return 0;

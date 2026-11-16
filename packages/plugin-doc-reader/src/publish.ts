@@ -13,15 +13,15 @@
  *    the publication: judging on them would tune the type to them.
  */
 import { listTestRuns, startRuns } from "./bench";
-import { DOC_TYPES } from "./collections";
+import { DOC_SAMPLES, DOC_TYPES } from "./collections";
 import { StudioError } from "./errors";
 import { checkExamples } from "./examples";
-import { compareResults } from "./metrics";
+import { compareResults, runMetrics } from "./metrics";
 import { currentSplit } from "./splits";
 import { findAll, SYSTEM, toDefinition } from "./store";
 
 import type { TestRun } from "./bench";
-import type { DocumentType, PublishGate } from "./definition";
+import type { PublishGate } from "./definition";
 import type { StudioRule } from "./errors";
 import type { RunComparison, RunSummary, SampleResult } from "./metrics";
 import type { DocTypeRecord } from "./records";
@@ -78,11 +78,21 @@ export function canPublish(
 const onValidation = (results: readonly SampleResult[]) =>
   results.filter((result) => result.split === "validation");
 
-const readValidation = (run: TestRun, splitVersion: number) =>
-  run.state === "done" &&
-  run.variant === null &&
-  run.splitVersion === splitVersion &&
-  (run.splits?.includes("validation") ?? false);
+const readValidation = (run: TestRun, splitVersion: number, sampleIds: readonly string[]) => {
+  const readIds = new Set(
+    run.results
+      .filter((result) => result.split === "validation" && result.skipped === undefined)
+      .map((result) => result.sampleId),
+  );
+  return (
+    run.state === "done" &&
+    run.variant === null &&
+    run.splitVersion === splitVersion &&
+    (run.splits?.includes("validation") ?? false) &&
+    sampleIds.length > 0 &&
+    sampleIds.every((id) => readIds.has(id))
+  );
+};
 
 const pct = (ratio: number) => `${(ratio * 100).toFixed(1)} %`;
 
@@ -165,10 +175,20 @@ export async function checkPublish(
     return run ? { ...refused("not-tested"), ok: true, rule: null, run } : refused("not-tested");
   }
   const splitVersion = split.version;
+  const validation = await findAll<{ id: string }>(
+    qb,
+    DOC_SAMPLES,
+    { typeKey: { eq: record.key }, split: { eq: "validation" } },
+    ctx,
+    { select: ["id"] },
+  );
+  const sampleIds = validation.map((sample) => sample.id);
+  const type = toDefinition(record);
   const run =
     runs.find(
       (r) =>
-        readValidation(r, splitVersion) &&
+        readValidation(r, splitVersion, sampleIds) &&
+        runMetrics(type, onValidation(r.results)).global.checked > 0 &&
         r.typeRevision === record.revision &&
         r.createdAt >= record.updatedAt,
     ) ?? null;
@@ -176,17 +196,22 @@ export async function checkPublish(
   const published = await newestPublished(qb, ctx, record.key);
   if (!published) return { ...refused("gate", { splitVersion, run }), ok: true, rule: null };
   const baseRuns = await listTestRuns(qb, ctx, record.key, published.version, 200);
-  const baseline = baseRuns.find((r) => readValidation(r, splitVersion)) ?? null;
+  const baseline =
+    baseRuns.find(
+      (r) =>
+        readValidation(r, splitVersion, sampleIds) &&
+        runMetrics(type, onValidation(r.results)).global.checked > 0,
+    ) ?? null;
   if (!baseline) {
     return refused("no-baseline", { splitVersion, run, baselineVersion: published.version });
   }
-  const type: DocumentType = toDefinition(record);
   const comparison = compareResults(
     type,
     onValidation(baseline.results),
     onValidation(run.results),
   );
   const reasons = gateReasons(type.evaluation.gate, comparison);
+  if (comparison.accuracy.delta === null) reasons.push("No scored validation fields in common");
   return {
     ok: reasons.length === 0,
     rule: reasons.length === 0 ? null : "gate",
