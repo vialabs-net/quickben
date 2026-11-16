@@ -135,15 +135,23 @@ Validation errors from the local API are shown next to their field. The first in
 A `json` field whose `schema` is an array of objects with string, number, boolean or enum properties gets a row editor instead of JSON text. `FieldMeta.rows` (from `jsonRowColumns`) lists the columns.
 
 ```ts
-models: f.json({
-  schema: z.array(
-    z.object({
-      id: z.string().min(1),
-      inputPerMTokUsd: z.number().min(0).default(0).meta({ title: "Input USD / 1M" }),
-      vision: z.boolean().default(false),
+import { defineCollection, fields as f } from "@quickben/core";
+import { z } from "zod";
+
+export const llms = defineCollection({
+  slug: "llms",
+  fields: {
+    models: f.json({
+      schema: z.array(
+        z.object({
+          id: z.string().min(1),
+          inputPerMTokUsd: z.number().min(0).default(0).meta({ title: "Input USD / 1M" }),
+          vision: z.boolean().default(false),
+        }),
+      ),
     }),
-  ),
-}),
+  },
+});
 ```
 
 | Feature     | Behavior                                                                   |
@@ -407,9 +415,20 @@ export default async function Layout({ children }: { children: ReactNode }) {
 
 With `pageTitle: "none"` the admin hides its own `<h1>` and breadcrumb (dashboard, collection pages, plugin pages). Descriptions and actions stay. Show the title in your layout from `getAdminNav(…, { pathname }).page`:
 
-```tsx
-const { page } = await getAdminNav(config, options, { pathname: "/data/posts/new" });
-// { title: "New post", crumbs: [{ label: "Posts", href: "/data/posts" }, { label: "New" }] }
+```ts
+import { getAdminNav } from "@quickben/admin";
+
+import config from "../quickben.config";
+
+export async function currentPage() {
+  const { page } = await getAdminNav(
+    config,
+    { basePath: "/data" },
+    { pathname: "/data/posts/new" },
+  );
+  // { title: "New post", crumbs: [{ label: "Posts", href: "/data/posts" }, { label: "New" }] }
+  return page;
+}
 ```
 
 | Path                  | `page.title`     | `page.crumbs`            |
