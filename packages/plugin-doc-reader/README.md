@@ -171,6 +171,10 @@ A connection model takes `inputPerMTokUsd`, `outputPerMTokUsd` and, optionally, 
 Register an extractor that calls your service and returns the fields. Steps name it by `key`, and test runs compare it like any other step.
 
 ```ts
+import { docReader } from "@quickben/plugin-doc-reader";
+
+import type { Extractor, FieldValue } from "@quickben/plugin-doc-reader";
+
 const external: Extractor = {
   key: "acme-ocr",
   paid: true, // skipped over budget
@@ -178,14 +182,16 @@ const external: Extractor = {
     const response = await fetch(String(ctx.config.url), {
       method: "POST",
       headers: { "content-type": input.mime },
-      body: input.bytes,
+      body: new Blob([new Uint8Array(input.bytes)]),
       ...(ctx.signal ? { signal: ctx.signal } : {}),
     });
     if (!response.ok) throw new Error(`HTTP ${String(response.status)}`); // counted as a failure, retried in test runs
-    const body = (await response.json()) as Record<string, { value: string; confidence: number }>;
-    const fields = Object.fromEntries(
-      type.fields.flatMap((f) => (body[f.key] ? [[f.key, body[f.key]]] : [])),
-    );
+    const body = (await response.json()) as Partial<Record<string, FieldValue>>;
+    const fields: Record<string, FieldValue> = {};
+    for (const field of type.fields) {
+      const value = body[field.key];
+      if (value) fields[field.key] = value;
+    }
     return {
       status: Object.keys(fields).length > 0 ? "OK" : "NO_MATCH",
       fields,
