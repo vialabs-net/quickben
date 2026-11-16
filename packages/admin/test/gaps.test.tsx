@@ -79,6 +79,23 @@ function renderRows(defaultValue: unknown, extra: Partial<Parameters<typeof Rows
 }
 
 describe("RowsEditor", () => {
+  it("sizes columns by type and lets headers wrap", () => {
+    renderRows([{ id: "a" }]);
+    const header = (name: string) => screen.getByRole("columnheader", { name: new RegExp(name) });
+    // Text and select columns share the free width; numbers stay compact, checkboxes narrow.
+    expect(header("Id").className).toContain("qb:w-1/5");
+    expect(header("Tier").className).toContain("qb:w-1/5");
+    expect(header("Price").className).toContain("qb:w-24");
+    expect(header("Vision").className).toContain("qb:w-0");
+    expect(header("Vision").className).toContain("qb:text-center");
+    // Headers wrap (balanced) instead of widening the table.
+    expect(header("Id").className).not.toContain("whitespace-nowrap");
+    expect(header("Id").className).toContain("qb:text-balance");
+    // Inputs fill their cell down to a minimum width.
+    expect(screen.getByLabelText("Id, row 1").className).toContain("qb:min-w-24");
+    expect(screen.getByLabelText("Price, row 1").className).toContain("qb:min-w-18");
+  });
+
   it("edits rows and submits them as JSON", async () => {
     const { container } = renderRows([
       { id: "a", price: 1, vision: true, tier: "fast", extra: "kept" },

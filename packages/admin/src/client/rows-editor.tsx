@@ -6,12 +6,13 @@ import { useAdminI18n } from "../i18n/context";
 import { Button } from "../ui/button";
 import { cn } from "../ui/cn";
 import { Checkbox, Input, Select } from "../ui/input";
-import { Table, Td, Th } from "../ui/table";
+import { Table } from "../ui/table";
 
 import { useFieldErrors } from "./document-form";
 import { JsonEditor } from "./json-editor";
 
 import type { JsonRowColumn } from "@quickben/core";
+import type { TdHTMLAttributes, ThHTMLAttributes } from "react";
 
 /** Props of {@link RowsEditor}. */
 export interface RowsEditorProps {
@@ -153,13 +154,15 @@ function CellInput({
   switch (column.type) {
     case "boolean":
       return (
-        <Checkbox
-          {...shared}
-          checked={value === "true"}
-          onChange={(event) => {
-            onChange(event.currentTarget.checked ? "true" : "");
-          }}
-        />
+        <div className="qb:flex qb:h-9 qb:items-center qb:justify-center">
+          <Checkbox
+            {...shared}
+            checked={value === "true"}
+            onChange={(event) => {
+              onChange(event.currentTarget.checked ? "true" : "");
+            }}
+          />
+        </div>
       );
     case "select":
       return (
@@ -167,7 +170,7 @@ function CellInput({
           {...shared}
           value={value}
           required={column.required && !column.options?.includes("")}
-          className="qb:min-w-32"
+          className="qb:w-full qb:min-w-24"
           onChange={(event) => {
             onChange(event.currentTarget.value);
           }}
@@ -191,7 +194,7 @@ function CellInput({
           max={column.max}
           required={column.required}
           value={value}
-          className="qb:w-28"
+          className="qb:w-full qb:min-w-18"
           onChange={(event) => {
             onChange(event.currentTarget.value);
           }}
@@ -207,7 +210,7 @@ function CellInput({
           // A required property may still be an empty string; only a minimum length needs text.
           required={column.required && (column.minLength ?? 0) > 0}
           value={value}
-          className="qb:min-w-40"
+          className="qb:w-full qb:min-w-24"
           onChange={(event) => {
             onChange(event.currentTarget.value);
           }}
@@ -215,6 +218,44 @@ function CellInput({
       );
   }
 }
+
+/**
+ * Header cell. Like the admin's `Th`, with less padding and headers that wrap, so a column is
+ * as wide as its input and not as its label.
+ */
+function HeadCell({ className, ...props }: Readonly<ThHTMLAttributes<HTMLTableCellElement>>) {
+  return (
+    <th
+      className={cn(
+        "qb:border-b qb:border-line qb:bg-surface-muted qb:px-2 qb:py-2.5 qb:text-xs qb:font-medium qb:tracking-wide qb:text-fg-muted qb:uppercase",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+/** Body cell. Like the admin's `Td`, with less padding. */
+function Cell({ className, ...props }: Readonly<TdHTMLAttributes<HTMLTableCellElement>>) {
+  return (
+    <td
+      className={cn("qb:border-b qb:border-line-soft qb:px-2 qb:py-2.5 qb:text-fg", className)}
+      {...props}
+    />
+  );
+}
+
+/**
+ * Width of a column by type. Text and select columns take the free width; numbers keep a
+ * compact width and checkboxes the width of their header's longest word. Inputs fill their
+ * cell down to a minimum width, so the table fits its box before it scrolls.
+ */
+const columnWidth: Readonly<Record<JsonRowColumn["type"], string | undefined>> = {
+  text: "qb:w-1/5",
+  select: "qb:w-1/5",
+  number: "qb:w-24",
+  boolean: "qb:w-0",
+};
 
 /**
  * Editor for a JSON list of objects with primitive properties: one row per object and one
@@ -388,14 +429,18 @@ export function RowsEditor({
         <Table>
           <thead>
             <tr>
-              <Th scope="col" className="qb:w-10 qb:px-3">
+              <HeadCell scope="col" className="qb:w-10 qb:text-right">
                 <span className="qb:sr-only">{i18n.t("rows.number")}</span>
-              </Th>
+              </HeadCell>
               {columns.map((column) => (
-                <Th
+                <HeadCell
                   key={column.key}
                   scope="col"
-                  className="qb:px-3"
+                  className={cn(
+                    "qb:align-bottom qb:text-balance",
+                    columnWidth[column.type],
+                    column.type === "boolean" ? "qb:text-center" : "qb:text-left",
+                  )}
                   title={column.description ?? undefined}
                 >
                   {column.label}
@@ -405,12 +450,12 @@ export function RowsEditor({
                       *
                     </span>
                   ) : null}
-                </Th>
+                </HeadCell>
               ))}
               {disabled ? null : (
-                <Th scope="col" className="qb:px-3">
+                <HeadCell scope="col" className="qb:w-0">
                   <span className="qb:sr-only">{i18n.t("rows.actions")}</span>
-                </Th>
+                </HeadCell>
               )}
             </tr>
           </thead>
@@ -419,18 +464,14 @@ export function RowsEditor({
               const number = index + 1;
               return (
                 <tr key={row.uid}>
-                  <Td className="qb:px-3 qb:text-fg-muted qb:tabular-nums">{number}</Td>
+                  <Cell className="qb:text-right qb:align-middle qb:text-fg-muted qb:tabular-nums">
+                    {number}
+                  </Cell>
                   {columns.map((column) => {
                     const cell = cellId(index, column.key);
                     const error = cellError(index, column.key);
                     return (
-                      <Td
-                        key={column.key}
-                        className={cn(
-                          "qb:px-3 qb:align-top",
-                          column.type === "boolean" && "qb:text-center",
-                        )}
-                      >
+                      <Cell key={column.key} className="qb:align-top">
                         <CellInput
                           column={column}
                           value={row.cells[column.key] ?? ""}
@@ -450,12 +491,12 @@ export function RowsEditor({
                             {error}
                           </p>
                         ) : null}
-                      </Td>
+                      </Cell>
                     );
                   })}
                   {disabled ? null : (
-                    <Td className="qb:px-3 qb:align-top">
-                      <div className="qb:flex qb:gap-1">
+                    <Cell className="qb:align-top">
+                      <div className="qb:flex qb:gap-0.5">
                         <Button
                           id={`${id}-up-${String(index)}`}
                           size="sm"
@@ -491,7 +532,7 @@ export function RowsEditor({
                           <span aria-hidden="true">×</span>
                         </Button>
                       </div>
-                    </Td>
+                    </Cell>
                   )}
                 </tr>
               );
