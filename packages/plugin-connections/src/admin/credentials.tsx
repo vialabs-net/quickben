@@ -31,7 +31,15 @@ import {
   stateValues,
 } from "./filters";
 import { connectionsMessages } from "./messages";
-import { DateTime, Detail, LastTestDetails, PageHeader, TestBadge } from "./shared";
+import {
+  CredentialMark,
+  DateTime,
+  Detail,
+  DetailColumns,
+  LastTestDetails,
+  PageHeader,
+  TestBadge,
+} from "./shared";
 import { maskedSecret } from "./state";
 import { TestCredentialButton } from "./test-button";
 
@@ -206,7 +214,7 @@ export function createCredentialEdit(config: QuickbenConfig, key: string) {
             description={t("credential.newDescription")}
             crumbs={[{ label: t("credentials.title"), href: listHref }, { label: t("crumb.new") }]}
           />
-          <div className="qb:grid qb:xl:grid-cols-[minmax(0,60rem)_18rem]">
+          <DetailColumns>
             <Card>
               <CredentialForm
                 action={saveCredentialAction.bind(null, key, null)}
@@ -218,7 +226,7 @@ export function createCredentialEdit(config: QuickbenConfig, key: string) {
                 secondary={cancel}
               />
             </Card>
-          </div>
+          </DetailColumns>
         </>
       );
     }
@@ -247,6 +255,7 @@ export function createCredentialEdit(config: QuickbenConfig, key: string) {
           i18n={i18n}
           title={doc.name}
           description={kindLabel(doc.kind, t)}
+          leading={<CredentialMark />}
           crumbs={[{ label: t("credentials.title"), href: listHref }, { label: doc.name }]}
           actions={
             <>
@@ -261,7 +270,7 @@ export function createCredentialEdit(config: QuickbenConfig, key: string) {
             </>
           }
         />
-        <div className="qb:grid qb:items-start qb:gap-6 qb:xl:grid-cols-[minmax(0,60rem)_18rem]">
+        <DetailColumns>
           <div className="qb:grid qb:gap-6">
             <Card>
               <CredentialForm
@@ -329,7 +338,7 @@ export function createCredentialEdit(config: QuickbenConfig, key: string) {
               ) : null}
             </CardBody>
           </Card>
-        </div>
+        </DetailColumns>
       </>
     );
   };
