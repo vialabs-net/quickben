@@ -262,7 +262,7 @@ export function docJobsCollection(isStaff: IsStaff, access: CollectionAccess = {
   });
 }
 
-/** One paid extractor call. Written by the plugin only. */
+/** Aggregated paid calls of one extractor step. Written by the plugin only. */
 export function docUsageCollection(isStaff: IsStaff) {
   return defineCollection({
     slug: DOC_USAGE,
@@ -281,6 +281,7 @@ export function docUsageCollection(isStaff: IsStaff) {
       inputTokens: f.number({ required: true, integer: true, min: 0 }),
       outputTokens: f.number({ required: true, integer: true, min: 0 }),
       cachedInputTokens: f.number({ integer: true, min: 0 }),
+      calls: f.number({ integer: true, min: 1, default: 1 }),
       pages: f.number({ required: true, integer: true, min: 0 }),
       costUsd: f.number({ required: true, min: 0 }),
       latencyMs: f.number({ integer: true, min: 0 }),

@@ -128,6 +128,7 @@ export interface UsageRecord extends System {
   readonly inputTokens: number;
   readonly outputTokens: number;
   readonly cachedInputTokens?: number | null;
+  readonly calls?: number | null;
   readonly pages: number;
   readonly costUsd: number;
   readonly latencyMs: number | null;

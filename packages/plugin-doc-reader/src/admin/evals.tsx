@@ -276,6 +276,13 @@ export function RunStats({ run, i18n }: Readonly<{ run: TestRun; i18n: AdminI18n
       <Stat label={t("run.failed")}>
         {t("run.failedValue", { failed: m.failed, retries: m.retries, skipped: m.skipped })}
       </Stat>
+      <Stat label={t("run.repaired")}>
+        {t("run.repairedValue", {
+          repaired: m.repaired ?? 0,
+          repairs: m.repairs ?? 0,
+          stepErrors: m.stepErrors ?? 0,
+        })}
+      </Stat>
       <Stat label={t("run.scope")}>
         {run.splits ? run.splits.map((s) => t(`split.${s}`)).join(", ") : t("run.allSamples")}
         {run.heldOut ? ` · ${t("run.heldOutMark")}` : ""}

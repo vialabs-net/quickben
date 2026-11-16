@@ -69,7 +69,7 @@ export function docReader(options: DocReaderOptions = {}): DocReaderPlugin {
       state.rootQb = qb;
       if (!state.ownFiles && qb.config.storage) state.files = qb.config.storage;
       register(qb.config, state);
-      await seedTypes(qb, state.types);
+      await seedTypes(qb, state.types, state.log);
       state.runner.start((jobId, run) =>
         jobId.startsWith(TEST_RUN_JOB)
           ? processTestRunItem(qb, jobId, run)

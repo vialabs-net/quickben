@@ -18,6 +18,7 @@ import { StudioError } from "./errors";
 import { datasetWrite } from "./eval-state";
 import { checkExamples, freezeExamples } from "./examples";
 import { VISION_LLM } from "./extractors/vision-llm";
+import { FIELD_KEY_MAX } from "./field-keys";
 import { getDocReader } from "./options";
 import {
   assertPublishable,
@@ -65,6 +66,8 @@ export interface TypeSummary {
   readonly builtin: boolean;
   readonly published: VersionSummary | null;
   readonly draft: VersionSummary | null;
+  /** The draft holds a change made in the app's code, not in the admin. */
+  readonly codeDraft: boolean;
   readonly versions: number;
   readonly samples: number;
 }
@@ -147,6 +150,7 @@ export async function listDocTypes(qb: Quickben, ctx: RequestContext): Promise<T
       builtin: versions.some((v) => v.builtin === true),
       published: published ? summary(published) : null,
       draft: draft ? summary(draft) : null,
+      codeDraft: draft?.builtin === true,
       versions: versions.length,
       samples: counts.get(key) ?? 0,
     };
@@ -311,6 +315,7 @@ export async function saveDraft(
         label: parsed.data.label,
         definition: parsed.data,
         revision: newRevision(),
+        builtin: false,
         updatedBy: actorOf(ctx),
       },
       ctx,
@@ -460,7 +465,7 @@ function noteOf(note: string | null | undefined): string | null {
   return text === "" ? null : text;
 }
 
-export const expectedSchema = z.record(z.string().max(64), z.string().max(500));
+export const expectedSchema = z.record(z.string().max(FIELD_KEY_MAX), z.string().max(500));
 
 export function parseExpected(expected: unknown, keepEmpty = false): Record<string, string> {
   const parsed = expectedSchema.safeParse(expected ?? {});
@@ -638,7 +643,7 @@ async function annotateSampleUnlocked(
   if (!text) throw new ValidationError([{ path: "text", message: "Write the note" }]);
   const record = (await qb.findById(DOC_SAMPLES, id, {}, ctx)) as unknown as SampleRecord;
   const note: SampleAnnotation = {
-    field: input.field?.trim() ? input.field.trim().slice(0, 64) : null,
+    field: input.field?.trim() ? input.field.trim().slice(0, FIELD_KEY_MAX) : null,
     text,
     by: actorOf(ctx),
     at: new Date().toISOString(),

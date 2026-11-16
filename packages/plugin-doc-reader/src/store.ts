@@ -3,13 +3,14 @@ import { ConflictError } from "@quickben/core";
 
 import { DOC_TYPES } from "./collections";
 import { parseDocumentType } from "./definition";
+import { datasetWrite } from "./eval-state";
+import { SYSTEM } from "./system-context";
 
 import type { DocumentType } from "./definition";
 import type { DocTypeRecord } from "./records";
 import type { Quickben, RequestContext } from "@quickben/core";
 
-/** Trusted server code: the plugin's own writes and background work. */
-export const SYSTEM: RequestContext = { user: null, overrideAccess: true };
+export { SYSTEM } from "./system-context";
 
 /** Every document that matches, page by page. */
 export async function findAll<T>(
@@ -94,16 +95,67 @@ export function newRevision(): string {
   return globalThis.crypto.randomUUID();
 }
 
-/** Add the types shipped with the code that are not stored yet, as published versions. */
-export async function seedTypes(qb: Quickben, types: readonly DocumentType[]): Promise<void> {
+/** JSON with sorted keys, so two equal definitions give the same text. */
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map((item) => stableJson(item)).join(",")}]`;
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value)
+      .filter(([, inner]) => inner !== undefined)
+      .sort(([a], [b]) => a.localeCompare(b));
+    const body = entries.map(([key, inner]) => JSON.stringify(key) + ":" + stableJson(inner));
+    return "{" + body.join(",") + "}";
+  }
+  return JSON.stringify(value);
+}
+
+/** What a definition says, without the version's own number and state. */
+export function definitionFingerprint(type: DocumentType): string {
+  return stableJson({ ...type, version: undefined, state: undefined });
+}
+
+function storedFingerprint(record: DocTypeRecord): string | null {
+  try {
+    return definitionFingerprint(toDefinition(record));
+  } catch {
+    // A stored definition the current schema rejects matches nothing.
+    return null;
+  }
+}
+
+/** What {@link seedTypes} did. Keys are `key@version`. */
+export interface SeedReport {
+  /** Versions added as published. */
+  readonly added: string[];
+  /** Drafts created or updated with a change made in the code. */
+  readonly drafted: string[];
+  /** Types changed in the code that already have a draft made in the admin: left alone. */
+  readonly skipped: string[];
+}
+
+type SeedLog = (event: string, data: Record<string, unknown>) => void;
+
+/**
+ * Store the types shipped with the code. A version not stored yet is added as published. A
+ * version stored with another definition is never changed: when no stored version has the
+ * code's definition, it becomes a new draft (marked `builtin`), or updates the draft an
+ * earlier start made. A draft made in the admin is left alone. Both cases are logged as
+ * `type-changed-in-code`.
+ */
+export async function seedTypes(
+  qb: Quickben,
+  types: readonly DocumentType[],
+  log: SeedLog = () => undefined,
+): Promise<SeedReport> {
+  const report: SeedReport = { added: [], drafted: [], skipped: [] };
   for (const type of types) {
     const key = versionKey(type.key, type.version);
-    const existing = await qb.find(
-      DOC_TYPES,
-      { where: { versionKey: { eq: key } }, limit: 1 },
-      SYSTEM,
-    );
-    if (existing.docs.length > 0) continue;
+    const records = await findAll<DocTypeRecord>(qb, DOC_TYPES, { key: { eq: type.key } }, SYSTEM, {
+      sort: "-version",
+    });
+    if (records.some((record) => record.version === type.version)) {
+      await proposeDraft(qb, type, records, report, log);
+      continue;
+    }
     try {
       await qb.create(
         DOC_TYPES,
@@ -120,9 +172,96 @@ export async function seedTypes(qb: Quickben, types: readonly DocumentType[]): P
         },
         SYSTEM,
       );
+      report.added.push(key);
     } catch (error) {
       // Another process seeded it first.
       if (!(error instanceof ConflictError)) throw error;
     }
   }
+  return report;
+}
+
+async function proposeDraft(
+  qb: Quickben,
+  type: DocumentType,
+  records: readonly DocTypeRecord[],
+  report: SeedReport,
+  log: SeedLog,
+): Promise<void> {
+  const code = definitionFingerprint(type);
+  if (records.some((record) => storedFingerprint(record) === code)) return;
+  const draft = records.find((record) => record.state === "draft");
+  const newest = records[0];
+  if (!newest) return;
+  if (draft && draft.builtin !== true) {
+    report.skipped.push(versionKey(type.key, type.version));
+    log("type-changed-in-code", {
+      type: type.key,
+      codeVersion: type.version,
+      draft: draft.version,
+      applied: false,
+      reason:
+        "the type has a draft made in the admin; publish or delete it to get the code's change",
+    });
+    return;
+  }
+  const version = draft?.version ?? newest.version + 1;
+  const definition = { ...type, version, state: "draft" as const };
+  try {
+    if (draft) {
+      await datasetWrite(qb, type.key, () =>
+        qb.transaction(async (tx) => {
+          const current = (await tx.findById(
+            DOC_TYPES,
+            draft.id,
+            {},
+            SYSTEM,
+          )) as unknown as DocTypeRecord;
+          if (
+            current.state !== "draft" ||
+            current.builtin !== true ||
+            current.revision !== draft.revision
+          ) {
+            throw new ConflictError("The code draft changed during startup; leave it alone");
+          }
+          await tx.update(
+            DOC_TYPES,
+            draft.id,
+            { label: type.label, definition, revision: newRevision(), updatedBy: "code" },
+            SYSTEM,
+          );
+        }),
+      );
+    } else {
+      await qb.create(
+        DOC_TYPES,
+        {
+          key: type.key,
+          version,
+          versionKey: versionKey(type.key, version),
+          state: "draft",
+          draftKey: type.key,
+          label: type.label,
+          definition,
+          revision: newRevision(),
+          builtin: true,
+          createdBy: "code",
+          updatedBy: "code",
+        },
+        SYSTEM,
+      );
+    }
+  } catch (error) {
+    // Another process proposed it first.
+    if (error instanceof ConflictError) return;
+    throw error;
+  }
+  report.drafted.push(versionKey(type.key, version));
+  log("type-changed-in-code", {
+    type: type.key,
+    codeVersion: type.version,
+    draft: version,
+    applied: true,
+    reason: `the code changed ${versionKey(type.key, type.version)}; review and publish draft v${String(version)}`,
+  });
 }

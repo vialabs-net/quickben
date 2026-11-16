@@ -158,9 +158,14 @@ export function createTypesPage(config: QuickbenConfig, key: string) {
                     </Td>
                     <Td>
                       {type.draft ? (
-                        <Badge tone="amber">
-                          {t("version.short", { version: type.draft.version })}
-                        </Badge>
+                        <>
+                          <Badge tone="amber">
+                            {t("version.short", { version: type.draft.version })}
+                          </Badge>
+                          {type.codeDraft ? (
+                            <p className="qb:text-xs qb:text-fg-muted">{t("types.codeDraft")}</p>
+                          ) : null}
+                        </>
                       ) : (
                         <span className="qb:text-fg-subtle">{EMPTY}</span>
                       )}

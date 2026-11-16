@@ -13,6 +13,7 @@ import { loadCounts, loadRelationOptions } from "./load";
 import { buildNav } from "./nav";
 import { registerAdmin } from "./registry";
 import { resolveRoute } from "./route";
+import { themeStyle } from "./theme";
 import { Toast } from "./ui/toast";
 import { Dashboard } from "./views/dashboard";
 import { EditView } from "./views/edit-view";
@@ -22,6 +23,7 @@ import { AdminFrame, Shell } from "./views/shell";
 
 import type { AdminI18n } from "./i18n/translator";
 import type { AdminRoute } from "./route";
+import type { AdminTheme } from "./theme";
 import type { AdminOptions, AdminServerFunction, ResolvedExtensions, SearchParams } from "./types";
 import type { Quickben, QuickbenConfig, RequestContext } from "@quickben/core";
 import type { CollectionMeta, MetaResponse } from "@quickben/next";
@@ -228,7 +230,7 @@ export function createAdminPage(
   const embedded = options.chrome === "none";
   function AdminPage(props: Readonly<AdminPageProps>): ReactElement {
     return (
-      <Suspense fallback={<AdminFallback embedded={embedded} />}>
+      <Suspense fallback={<AdminFallback embedded={embedded} theme={options.theme} />}>
         <AdminContent {...props} />
       </Suspense>
     );
@@ -236,10 +238,14 @@ export function createAdminPage(
   return AdminPage;
 }
 
-function AdminFallback({ embedded }: Readonly<{ embedded: boolean }>): ReactElement {
+function AdminFallback({
+  embedded,
+  theme,
+}: Readonly<{ embedded: boolean; theme: AdminTheme | undefined }>): ReactElement {
   return (
     <div
       className={embedded ? "qb-root" : "qb-root qb:min-h-screen qb:bg-surface-muted"}
+      style={themeStyle(theme)}
       aria-busy="true"
     />
   );
@@ -307,7 +313,7 @@ export function createAdminContent(
     const toast = toastFor(route, searchParams, metas, i18n);
     if (options.chrome === "none") {
       return (
-        <AdminFrame i18n={i18n} pageTitle={options.pageTitle}>
+        <AdminFrame i18n={i18n} pageTitle={options.pageTitle} theme={options.theme}>
           {content}
           {toast}
         </AdminFrame>
@@ -323,6 +329,8 @@ export function createAdminContent(
         user={ctx.user}
         i18n={i18n}
         pageTitle={options.pageTitle}
+        theme={options.theme}
+        logo={options.logo}
         sidebarTop={
           extensions.sidebar.length > 0
             ? extensions.sidebar.map((Sidebar, index) => (

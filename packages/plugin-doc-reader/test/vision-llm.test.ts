@@ -108,15 +108,17 @@ describe("vision-llm extractor", () => {
 
   it("keeps the billed tokens when the model answers out of shape", async () => {
     const { extractor, ctx } = setup('{"number": 3}');
+    // The first answer and its one repair are both billed.
     expect(await extractor.extract(input, invoice, {}, ctx)).toMatchObject({
       status: "ERROR",
-      problems: { error: "the model did not return the fields" },
-      usage: { costUsd: 0.0105 },
+      problems: { error: "the model did not return the fields", repairs: 1 },
+      usage: { costUsd: 0.021, calls: 2 },
+      repairs: 1,
     });
     const plain = setup("not json", { model: { structuredOutput: false } });
     expect(await plain.extractor.extract(input, invoice, {}, plain.ctx)).toMatchObject({
       status: "ERROR",
-      usage: { inputTokens: 2000 },
+      usage: { inputTokens: 4000 },
     });
   });
 
@@ -144,7 +146,7 @@ describe("vision-llm extractor", () => {
   it("refuses a bad config, a missing resolver, an unusable connection and a model without vision", async () => {
     const { extractor, resolve, ctx } = setup(full);
     expect((await extractor.extract(input, invoice, {}, { ...ctx, config: {} })).problems).toEqual({
-      error: "vision-llm needs config.connectionId",
+      error: "vision-llm needs config.connectionId or config.connection",
     });
     const bare = createVisionLlmExtractor();
     expect((await bare.extract(input, invoice, {}, ctx)).problems).toEqual({
@@ -290,7 +292,7 @@ describe("prompt and schema", () => {
         }),
       ),
     ).toEqual({
-      a: { value: "x", box: "" },
+      a: { value: "x", box: "0,0,0,0" },
       b: { box: "1,2,3,4" },
       c: null,
       d: { box: "1,2,3,4" },

@@ -189,7 +189,7 @@ export function RelationPicker(props: Readonly<RelationPickerProps>) {
               aria-selected={index === active}
               className={cn(
                 "qb:cursor-pointer qb:px-3 qb:py-2 qb:break-words",
-                index === active ? "qb:bg-surface-strong qb:text-fg" : "qb:text-fg",
+                index === active ? "qb:bg-selected qb:text-fg" : "qb:text-fg",
               )}
               onMouseDown={(event) => {
                 event.preventDefault();

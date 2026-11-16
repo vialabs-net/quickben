@@ -1,9 +1,10 @@
 import type { MessageBundle } from "./i18n/catalog";
 import type { AdminI18nOptions } from "./i18n/resolve";
 import type { AdminI18n, AdminI18nData } from "./i18n/translator";
+import type { AdminTheme } from "./theme";
 import type { LocalizedText, NavItem, QuickbenUser } from "@quickben/core";
 import type { CollectionMeta, FieldMeta } from "@quickben/next";
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 
 /**
  * Text in the admin chrome: a string, a per-locale record, or a function of the translator,
@@ -130,6 +131,17 @@ export interface AdminOptions extends AdminExtension, AdminI18nOptions {
    * stay. Read the title and breadcrumb from `getAdminNav(…, { pathname }).page`.
    */
   pageTitle?: AdminPageTitle;
+  /**
+   * Values for the `--qb-*` theme tokens: colors, fonts, radii, card shadow. Missing keys keep
+   * the defaults. Set on `.qb-root` as inline custom properties, so no CSS file is needed.
+   */
+  theme?: AdminTheme;
+  /**
+   * Logo shown before the title (`admin.title`) at the top of the sidebar, e.g.
+   * `<img src="/logo.svg" alt="" width={24} height={24} />`. Use `alt=""` when the title is
+   * next to it.
+   */
+  logo?: ReactNode;
   /** URL path of the admin route. Default `/admin`. */
   basePath?: string;
   /**

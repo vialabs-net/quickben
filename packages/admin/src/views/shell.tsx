@@ -1,11 +1,13 @@
 import Link from "next/link";
 
 import { AdminI18nProvider } from "../i18n/context";
+import { themeStyle } from "../theme";
 import { Badge } from "../ui/badge";
 import { cn, focusRing } from "../ui/cn";
 
 import type { AdminI18n } from "../i18n/translator";
 import type { NavGroup } from "../nav";
+import type { AdminTheme } from "../theme";
 import type { AdminPageTitle } from "../types";
 import type { QuickbenUser } from "@quickben/core";
 import type { ReactNode } from "react";
@@ -23,6 +25,10 @@ export interface ShellProps {
   sidebarTop?: ReactNode;
   /** `none` hides the page titles. Default `render`. */
   pageTitle?: AdminPageTitle;
+  /** Values for the `--qb-*` tokens. */
+  theme?: AdminTheme;
+  /** Shown before the title at the top of the sidebar. */
+  logo?: ReactNode;
   children: ReactNode;
 }
 
@@ -30,7 +36,7 @@ function linkClass(active: boolean): string {
   return cn(
     "qb:flex qb:items-center qb:rounded-md qb:px-2.5 qb:py-1.5 qb:text-sm",
     active
-      ? "qb:bg-surface-strong qb:font-medium qb:text-fg"
+      ? "qb:bg-selected qb:font-medium qb:text-fg"
       : "qb:text-fg-muted qb:hover:bg-surface-muted qb:hover:text-fg",
     focusRing,
   );
@@ -44,17 +50,21 @@ export function AdminFrame({
   i18n,
   className,
   pageTitle = "render",
+  theme,
   children,
 }: Readonly<{
   i18n: AdminI18n;
   className?: string;
   /** `none` hides the page titles (`.qb-page-title`). */
   pageTitle?: AdminPageTitle;
+  /** Values for the `--qb-*` tokens, set as inline custom properties. */
+  theme?: AdminTheme;
   children: ReactNode;
 }>) {
   return (
     <div
       className={cn("qb-root", className)}
+      style={themeStyle(theme)}
       lang={i18n.locale}
       data-qb-page-title={pageTitle === "none" ? "none" : undefined}
     >
@@ -73,12 +83,15 @@ export function Shell({
   i18n,
   sidebarTop,
   pageTitle,
+  theme,
+  logo,
   children,
 }: Readonly<ShellProps>) {
   return (
     <AdminFrame
       i18n={i18n}
       pageTitle={pageTitle}
+      theme={theme}
       className="qb:min-h-screen qb:bg-surface-muted qb:text-fg qb:md:flex"
     >
       <a
@@ -91,9 +104,13 @@ export function Shell({
         <div className="qb:flex qb:h-14 qb:items-center qb:px-5">
           <Link
             href={basePath}
-            className={cn("qb:truncate qb:font-semibold qb:text-fg", focusRing)}
+            className={cn(
+              "qb:flex qb:min-w-0 qb:items-center qb:gap-2.5 qb:font-semibold qb:text-fg-heading",
+              focusRing,
+            )}
           >
-            {title}
+            {logo ? <span className="qb:flex qb:shrink-0 qb:items-center">{logo}</span> : null}
+            <span className="qb:truncate">{title}</span>
           </Link>
         </div>
         {sidebarTop ? <div className="qb:space-y-3 qb:px-3 qb:pb-4">{sidebarTop}</div> : null}

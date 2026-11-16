@@ -67,11 +67,11 @@ export function Dashboard({
                     <div className="qb:flex qb:items-baseline qb:justify-between qb:gap-3">
                       <Link
                         href={`${basePath}/${collection.slug}`}
-                        className="qb:font-medium qb:text-fg qb:hover:underline"
+                        className="qb:font-medium qb:text-fg-heading qb:hover:underline"
                       >
                         {collection.labels.plural}
                       </Link>
-                      <span className="qb:text-2xl qb:font-semibold qb:tabular-nums qb:text-fg">
+                      <span className="qb:text-2xl qb:font-semibold qb:tabular-nums qb:text-fg-heading">
                         {i18n.number(counts[collection.slug] ?? 0)}
                       </span>
                     </div>

@@ -858,13 +858,15 @@ function SampleEditor({
 function variantLabel(t: DocReaderT, run: TestRun, models: readonly ModelChoice[]): string {
   const purpose = run.purpose === "bench" ? [] : [t("run.version", { version: run.typeVersion })];
   if (!run.variant) return [...purpose, t("run.thisVersion")].join(" · ");
-  const { connectionId, version, model } = run.variant;
+  const { connectionId, connection: connectionName, version, model, options } = run.variant;
   const connection = models.find((c) => c.connectionId === connectionId);
+  const named = connection?.connectionName ?? connectionName ?? connectionId;
   return [
     ...(version === undefined ? [] : [t("run.version", { version })]),
-    ...(connectionId === undefined
+    ...(named === undefined ? [] : [named, model ?? t("run.defaultModel")]),
+    ...(options === undefined
       ? []
-      : [connection?.connectionName ?? connectionId, model ?? t("run.defaultModel")]),
+      : Object.entries(options).map(([key, value]) => `${key}: ${JSON.stringify(value)}`)),
   ].join(" · ");
 }
 
@@ -1479,6 +1481,7 @@ export async function StudioPage({
             {version.publishedAt
               ? ` · ${t("studio.publishedAt", { when: formatWhen(i18n, version.publishedAt) })}`
               : ""}
+            {version.state === "draft" && version.builtin ? ` · ${t("studio.codeDraft")}` : ""}
           </>
         }
         actions={

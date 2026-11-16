@@ -422,6 +422,10 @@ async function read(
     input: { bytes, mime: job.mime, pages: type.pages },
     params: job.params,
     tenant,
+    qb,
+    user: job.actorUserId
+      ? { id: job.actorUserId, ...(job.actorEmail ? { email: job.actorEmail } : {}) }
+      : null,
     jobId: job.id,
     extractors: state.extractors,
     ...(examples.length > 0 ? { examples } : {}),

@@ -3,6 +3,7 @@ export { createAdminPage } from "./page";
 export { generateAdminMetadata } from "./metadata";
 export { navKeyForPath } from "./nav";
 export { handleAdminRequest } from "./server-function";
+export { themeStyle } from "./theme";
 
 export type { AdminNavOptions } from "./embed";
 export type {
@@ -13,6 +14,7 @@ export type {
   NavLink as AdminNavLink,
 } from "./nav";
 export type { AdminPageProps } from "./page";
+export type { AdminTheme } from "./theme";
 export type {
   AdminChrome,
   AdminExtension,

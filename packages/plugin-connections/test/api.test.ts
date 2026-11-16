@@ -7,6 +7,7 @@ import {
   ConnectionError,
   connectionState,
   defineProvider,
+  findConnectionIdByName,
   findConnectionsByCapability,
   getConnection,
   getConnectionsOptions,
@@ -193,6 +194,25 @@ describe("findConnectionsByCapability", () => {
       });
     }
     expect(await findConnectionsByCapability(qb, "llm")).toHaveLength(502);
+  });
+});
+
+describe("findConnectionIdByName", () => {
+  it("finds the one connection with a name, and refuses none or two", async () => {
+    const { qb, claude, key } = await world();
+    expect(await findConnectionIdByName(qb, " Claude ")).toBe(claude.id);
+    await expect(findConnectionIdByName(qb, "Nope")).rejects.toMatchObject({
+      reason: "not-found",
+    });
+    await qb.create(
+      "connections",
+      { name: "Claude", providerType: "anthropic", credential: key.id },
+      as(admin),
+    );
+    await expect(findConnectionIdByName(qb, "Claude")).rejects.toBeInstanceOf(ConnectionError);
+    await expect(findConnectionIdByName(qb, "Claude")).rejects.toMatchObject({
+      reason: "ambiguous",
+    });
   });
 });
 

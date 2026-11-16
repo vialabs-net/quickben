@@ -483,7 +483,9 @@ describe("publishing", () => {
       ...draft.definition,
       pipeline: {
         ...draft.definition.pipeline,
-        steps: [{ extractor: "vision-llm", config: { connectionId: "conn-1", model: "bad" } }],
+        steps: [
+          { extractor: "vision-llm", config: { connectionId: "conn-1", model: "bad", repair: 0 } },
+        ],
       },
     };
     await saveDraft(qb, admin, "receipt", 2, bad);

@@ -5,10 +5,10 @@
  * docReader({ ...connectionModels() })
  * ```
  */
-import { findConnectionsByCapability } from "@quickben/plugin-connections";
+import { findConnectionIdByName, findConnectionsByCapability } from "@quickben/plugin-connections";
 import { resolveLanguageModel } from "@quickben/plugin-connections/ai";
 
-import type { ListModels, ModelChoice, ResolveModel } from "./models";
+import type { ListModels, ModelChoice, ResolveConnectionId, ResolveModel } from "./models";
 import type { LanguageModelFactory } from "@quickben/plugin-connections/ai";
 
 /** Options of {@link connectionModels}. */
@@ -41,12 +41,13 @@ function visionModels(metadata: Readonly<Record<string, unknown>>): ModelChoice[
 }
 
 /**
- * `resolveModel` and `listModels` backed by `@quickben/plugin-connections`. Add the connections
- * plugin to the same config. Keys stay in the connections plugin; the reader gets a ready model
- * and its prices.
+ * `resolveModel`, `resolveConnectionId` and `listModels` backed by
+ * `@quickben/plugin-connections`. Add the connections plugin to the same config. Keys stay in
+ * the connections plugin; the reader gets a ready model and its prices.
  */
 export function connectionModels(options: ConnectionModelsOptions = {}): {
   resolveModel: ResolveModel;
+  resolveConnectionId: ResolveConnectionId;
   listModels: ListModels;
 } {
   const maxPages = options.maxPages ?? 4;
@@ -74,6 +75,7 @@ export function connectionModels(options: ConnectionModelsOptions = {}): {
         languageModel: resolved.languageModel,
       };
     },
+    resolveConnectionId: (name, qb) => findConnectionIdByName(qb, name),
     listModels: async (qb) => {
       const connections = await findConnectionsByCapability(qb, "llm");
       return connections.flatMap((connection) => {

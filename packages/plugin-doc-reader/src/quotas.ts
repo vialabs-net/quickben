@@ -70,7 +70,7 @@ export interface UsageContext {
   readonly typeVersion?: number | null;
 }
 
-/** One `doc-usage` row per paid call of a run. */
+/** One `doc-usage` row per paid step, including its aggregated calls and page submissions. */
 export async function recordUsage(
   qb: Quickben,
   context: UsageContext,
@@ -94,6 +94,7 @@ export async function recordUsage(
         model: usage.model,
         inputTokens: usage.inputTokens,
         outputTokens: usage.outputTokens,
+        calls: usage.calls ?? 1,
         ...(usage.cachedInputTokens ? { cachedInputTokens: usage.cachedInputTokens } : {}),
         pages: usage.pages,
         costUsd: usage.costUsd,
@@ -125,6 +126,7 @@ export function usageOf(
         "tenant",
         "costUsd",
         "pages",
+        "calls",
         "inputTokens",
         "outputTokens",
         "connectionId",

@@ -41,10 +41,18 @@ export {
 export {
   answerSchemaFor,
   buildPrompt,
+  checkAnswers,
   createVisionLlmExtractor,
+  DEFAULT_GROUP_SIZE,
+  describeProviderError,
   exampleAnswer,
+  fieldGroups,
+  formatTextLayer,
+  REASONING_LEVELS,
   VISION_LLM,
+  visionConfigSchema,
 } from "./extractors/vision-llm";
+export { FIELD_KEY, flattenValues, nestValues } from "./field-keys";
 export { normalizeFieldValue, sameFieldValue } from "./field-values";
 export { checkExamples } from "./examples";
 export { expectedValues, importSamples } from "./import";
@@ -137,6 +145,7 @@ export type {
   ExtractorContext,
   ExtractorExample,
   ExtractorInput,
+  ExtractorUser,
   FieldBox,
   FieldEvidence,
   FieldValue,
@@ -144,7 +153,7 @@ export type {
 export type { PageImage, Rasterize } from "./extractors/page-images";
 export type { LocatedEvidence } from "./extractors/text-layer";
 export type { TestRunHead } from "./bench";
-export type { VisionLlmOptions } from "./extractors/vision-llm";
+export type { PromptOptions, VisionConfig, VisionLlmOptions } from "./extractors/vision-llm";
 export type { FileStore } from "./files";
 export type {
   ExpectedMapper,
@@ -169,7 +178,14 @@ export type {
 } from "./metrics";
 export type { EvaluationRun, PublishCheck, PublishOptions } from "./publish";
 export type { SplitInput, SplitRatios, SplitSettings, SplitSubject, SplitVersion } from "./splits";
-export type { ListModels, ModelChoice, ModelInfo, ResolvedModel, ResolveModel } from "./models";
+export type {
+  ListModels,
+  ModelChoice,
+  ModelInfo,
+  ResolveConnectionId,
+  ResolvedModel,
+  ResolveModel,
+} from "./models";
 export type { DocReaderOptions, DocReaderState } from "./options";
 export type { PipelineAttempt, PipelineOptions, PipelineResult, SkipHook } from "./pipeline";
 export type { DocReaderPlugin } from "./plugin";

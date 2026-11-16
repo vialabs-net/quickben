@@ -22,7 +22,9 @@ export const receiptInput: DocumentTypeInput = {
     { key: "reference", label: "Reference", type: "text", scored: false },
   ],
   pipeline: {
-    steps: [{ extractor: "vision-llm", config: { connectionId: "conn-1", model: "good" } }],
+    steps: [
+      { extractor: "vision-llm", config: { connectionId: "conn-1", model: "good", repair: 0 } },
+    ],
   },
 };
 

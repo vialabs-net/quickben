@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { ConflictError } from "@quickben/core";
 
 import { DOC_EVAL_CLAIMS } from "./collections";
-import { SYSTEM } from "./store";
+import { SYSTEM } from "./system-context";
 
 import type { SampleRecord } from "./records";
 import type { Quickben } from "@quickben/core";

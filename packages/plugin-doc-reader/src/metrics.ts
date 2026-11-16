@@ -84,6 +84,8 @@ export interface SampleResult {
   readonly skipped?: "budget" | "held-out";
   /** Pages sent to paid extractors, all tries. */
   readonly pages?: number;
+  /** Extra model calls that repaired an incomplete or invalid answer (last try). */
+  readonly repairs?: number;
 }
 
 export interface RunSummary {
@@ -140,6 +142,12 @@ export interface RunMetrics {
   readonly failed: number;
   readonly skipped: number;
   readonly retries: number;
+  /** Samples whose answer needed a repair call. */
+  readonly repaired?: number;
+  /** Repair calls, all samples. */
+  readonly repairs?: number;
+  /** Samples where a step failed (e.g. the provider refused it), even if a later step read them. */
+  readonly stepErrors?: number;
   readonly statuses: Readonly<Partial<Record<ExtractionStatus, number>>>;
   /** Scored fields only. */
   readonly global: OutcomeCounts;
@@ -332,6 +340,10 @@ export function runMetrics(
     failed: results.filter((result) => result.failed === true).length,
     skipped: results.filter((result) => result.skipped !== undefined).length,
     retries: sum(results.map((result) => result.retries ?? 0)),
+    repaired: results.filter((result) => (result.repairs ?? 0) > 0).length,
+    repairs: sum(results.map((result) => result.repairs ?? 0)),
+    stepErrors: results.filter((result) => result.error !== undefined && result.error !== "")
+      .length,
     statuses,
     global: countOutcomes(checks),
     byField,
