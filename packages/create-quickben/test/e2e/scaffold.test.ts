@@ -17,7 +17,8 @@ import { afterAll, beforeAll, expect, it } from "vitest";
 const exec = promisify(execFile);
 const packageDir = resolve(import.meta.dirname, "../..");
 const packagesDir = resolve(packageDir, "..");
-const quickbenPackages = ["core", "next", "admin", "db-drizzle", "db-memory"];
+// `openapi` is a dependency of `next`, not of the app: it is only overridden.
+const quickbenPackages = ["core", "next", "openapi", "admin", "db-drizzle", "db-memory"];
 
 let work: string;
 let app: string;
@@ -87,14 +88,17 @@ beforeAll(async () => {
     dependencies: Record<string, string>;
     overrides?: Record<string, string>;
   };
-  const local: Record<string, string> = {};
-  for (const name of Object.keys(manifest.dependencies).filter((n) => n.startsWith("@quickben/"))) {
+  const tarball = (name: string) => {
     const file = tarballs.find((t) => t.startsWith(`${name.slice(1).replace("/", "-")}-`));
     if (!file) throw new Error(`No tarball for ${name}`);
-    local[name] = `file:${join(packs, file)}`;
+    return `file:${join(packs, file)}`;
+  };
+  const local: Record<string, string> = {};
+  for (const name of Object.keys(manifest.dependencies).filter((n) => n.startsWith("@quickben/"))) {
+    local[name] = tarball(name);
   }
   Object.assign(manifest.dependencies, local);
-  manifest.overrides = local;
+  manifest.overrides = { ...local, "@quickben/openapi": tarball("@quickben/openapi") };
   await writeFile(manifestPath, JSON.stringify(manifest, null, 2));
 
   await exec("npm", ["install", "--no-audit", "--no-fund", "--loglevel=error"], { cwd: app });

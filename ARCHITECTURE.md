@@ -28,6 +28,7 @@ This file describes what exists. Sections marked **Planned** describe agreed des
 | `tooling/eslint-config`      | `@quickben/eslint-config` (private)         | Exists |
 | `packages/db-drizzle`        | `@quickben/db-drizzle`                      | Exists |
 | `packages/next`              | `@quickben/next`                            | Exists |
+| `packages/openapi`           | `@quickben/openapi`                         | Exists |
 | `packages/admin`             | `@quickben/admin`                           | Exists |
 | `packages/plugin-tenancy`    | `@quickben/plugin-tenancy`                  | Exists |
 | `packages/plugin-doc-reader` | `@quickben/plugin-doc-reader`               | Exists |
@@ -332,6 +333,27 @@ defineConfig({ …, endpoints: [startPurchase] }); // plugins: definePlugin({ en
 - `deprecated: true | date` sets `Deprecation` (`true` or `@<unix seconds>`), `sunset` sets `Sunset` (HTTP date), also on errors.
 - `@quickben/core/http` also holds the HTTP helpers that `@quickben/next` re-exports: `HttpError`, `errorResponse`, `json`, `assertSameOrigin`, `readBytes`.
 - Unversioned endpoints are not a stable contract; external clients use versioned ones.
+
+### OpenAPI (`@quickben/openapi`)
+
+`generateOpenApi(config, { info, servers, basePath, include, securitySchemes, security, maxLimit })` returns an OpenAPI 3.1 document. It is a separate package so core keeps Zod as its only dependency.
+
+| Input                                     | Output                                                                                                                                             |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Endpoint schemas                          | `z.toJSONSchema`: params and query as parameters (request form), body, responses per status (response form).                                       |
+| `.meta({ id })`                           | `components/schemas/<id>`, plus `<id>Input` when the request form differs. Same id with other content throws.                                      |
+| Endpoint options                          | `operationId` (default from method and path), `summary`, `description`, `tags`, `deprecated`, `x-deprecated-at`, `x-sunset`, `x-quickben-version`. |
+| `access`                                  | `true`: `security: [{}, …]` (optional). Else `401` and `403`.                                                                                      |
+| Collections with `api: { openapi: true }` | CRUD and file routes; `<One>`, `<One>CreateInput`, `<One>UpdateInput`, `<One>Where`, `<One>List` schemas from fields.                              |
+| `auth.securitySchemes`                    | `components/securitySchemes` and top-level `security` (any one scheme).                                                                            |
+
+- Errors are `components/responses` (`ValidationError`, `Unauthorized`, `Forbidden`, `NotFound`, `Conflict`, `PayloadTooLarge`, `UnsupportedMediaType`, `InternalError`) with the `Error` schema. A status the endpoint declares wins.
+- Field mapping: text types → `string` (`email`, `uri` formats, lengths), `number` → `number`/`integer` with bounds, `date`/`datetime` → `date`/`date-time` strings, `select` → `enum`, `relation` → id (or the related schema with `depth`), `json` → its Zod schema or any, `file` → `FileRef`. Optional fields are nullable; fields with a read rule are not required.
+- Deterministic: keys sorted by code point, except `properties` (field order). `stringifyOpenApi` adds the final newline.
+- `diffOpenApi(base, head)` matches operations by method and path (parameter names ignored). Requests must accept what they accepted; responses must not return what they did not. A new version of a route (`/v2/x` next to `/v1/x`) is compared with the latest older one and its breaking changes are `allowed: "version"`. Removing a deprecated operation after `x-sunset` is `allowed: "sunset"`. `breaking` counts the rest.
+- `createOpenApiHandler(config, { serve, access, … })` answers `GET <basePath>/openapi.json` (default access: authenticated users). `createRouteHandlers(config, { openapi })` calls it first.
+- CLI `quickben-openapi`: `generate --config --out [--check]` (exit 1 when stale), `diff <base> <head> [--json]` (exit 1 on breaking changes), exit 2 on usage errors. Configs load with the app's `tsx` when present, else Node's type stripping.
+- CI: the playground commits `openapi.json`; the `OpenAPI contract` job runs `openapi:check` and diffs against `trunk` (skipped with the `api-breaking` label).
 
 ### Drizzle adapter (`@quickben/db-drizzle`)
 

@@ -16,6 +16,54 @@ describe("betterAuthAdapter with a real Better Auth instance", () => {
     expect(await adapter.getUser(request(bad))).toBeNull();
   });
 
+  it("describes the session cookie as a security scheme", async () => {
+    const auth = await createTestAuth();
+    expect(betterAuthAdapter({ auth }).securitySchemes?.session).toMatchObject({
+      type: "apiKey",
+      in: "cookie",
+      name: "better-auth.session_token",
+    });
+    expect(
+      betterAuthAdapter({ auth, cookieName: "__Secure-s" }).securitySchemes?.session,
+    ).toMatchObject({ name: "__Secure-s" });
+  });
+
+  it("describes the effective HTTPS and customized cookie names", async () => {
+    const https = await createTestAuth({ baseURL: "https://app.test" });
+    const context = await https.$context;
+    expect(betterAuthAdapter({ auth: https }).securitySchemes?.session).toMatchObject({
+      name: context.authCookies.sessionToken.name,
+    });
+    expect(context.authCookies.sessionToken.name).toBe("__Secure-better-auth.session_token");
+    const custom = await createTestAuth({
+      baseURL: "https://app.test",
+      advanced: {
+        cookiePrefix: "app",
+        useSecureCookies: false,
+        cookies: { session_token: { name: "custom-session" } },
+      },
+    });
+    expect(betterAuthAdapter({ auth: custom }).securitySchemes?.session).toMatchObject({
+      name: (await custom.$context).authCookies.sessionToken.name,
+    });
+    expect(
+      betterAuthAdapter({ auth: https, cookieName: "override" }).securitySchemes?.session,
+    ).toMatchObject({ name: "override" });
+  });
+
+  it("uses the effective HTTPS URL from the environment", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("BETTER_AUTH_URL", "https://app.test");
+    try {
+      const auth = await createTestAuth({ baseURL: undefined });
+      const name = (await auth.$context).authCookies.sessionToken.name;
+      expect(name).toBe("__Secure-better-auth.session_token");
+      expect(betterAuthAdapter({ auth }).securitySchemes?.session).toMatchObject({ name });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("maps the session user", async () => {
     const auth = await createTestAuth();
     const headers = await signUp(auth, "ada@example.com");

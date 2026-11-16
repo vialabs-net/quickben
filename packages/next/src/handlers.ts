@@ -8,6 +8,7 @@ import {
   normalizeBasePath,
   readBytes,
 } from "@quickben/core/http";
+import { createOpenApiHandler } from "@quickben/openapi";
 
 import { fileResponse, readMultipart } from "./files";
 import { getMeta } from "./meta";
@@ -15,6 +16,7 @@ import { parseFindParams, parseReadParams } from "./query-string";
 
 import type { Quickben, QuickbenConfig, RequestContext } from "@quickben/core";
 import type { CsrfOptions } from "@quickben/core/http";
+import type { OpenApiServeOptions } from "@quickben/openapi";
 
 /** Options of {@link createRouteHandlers}. */
 export interface RouteHandlerOptions {
@@ -39,6 +41,12 @@ export interface RouteHandlerOptions {
    * `production`. An endpoint's own `validateOutput` wins.
    */
   validateOutput?: boolean;
+  /**
+   * Serve the OpenAPI document at `GET <basePath>/openapi.json` with `{ serve: true }`. Off by
+   * default. Readable by authenticated users unless `access` says otherwise. The other keys are
+   * options of `generateOpenApi` (`info`, `servers`, `include`, …).
+   */
+  openapi?: OpenApiServeOptions;
 }
 
 /** A Next.js route handler. */
@@ -206,7 +214,8 @@ const dispatch: Record<Method, (call: Call) => Promise<Response>> = {
  * | `GET /:collection/:id/:field` | `qb.readFile` (streams the file)  | 200     |
  *
  * Custom endpoints (`defineConfig({ endpoints })`) are served first, with
- * `handleEndpointRequest`. Export `PUT` too when an endpoint uses it.
+ * `handleEndpointRequest`. Export `PUT` too when an endpoint uses it. With
+ * `openapi: { serve: true }`, `GET /openapi.json` returns the OpenAPI document.
  *
  * `POST` and `PATCH` take JSON, or `multipart/form-data` with a `_payload` JSON part and one
  * file part per file field. The user comes from `config.auth.getUser(req)` on every request.
@@ -231,9 +240,15 @@ export function createRouteHandlers(
     validateOutput: options.validateOutput,
   };
 
+  const openapi = options.openapi?.serve
+    ? createOpenApiHandler(config, { maxLimit, ...options.openapi, basePath })
+    : undefined;
+
   const handler =
     (method: Method | "PUT"): RouteHandler =>
     async (req) => {
+      const document = openapi ? await openapi(req) : null;
+      if (document) return document;
       const custom = await handleEndpointRequest(config, req, endpointOptions);
       if (custom) return custom;
       try {

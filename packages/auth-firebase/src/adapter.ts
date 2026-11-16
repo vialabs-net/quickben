@@ -373,6 +373,24 @@ export function firebaseAuth(options: FirebaseAuthOptions = {}): FirebaseAuth {
 
   return {
     cookieName,
+    securitySchemes: {
+      session: {
+        type: "apiKey",
+        in: "cookie",
+        name: cookieName,
+        description: "Firebase session cookie, set by the session route.",
+      },
+      ...(options.bearer === true
+        ? {
+            bearer: {
+              type: "http",
+              scheme: "bearer",
+              bearerFormat: "JWT",
+              description: "Firebase ID token.",
+            },
+          }
+        : {}),
+    },
     getUser,
     verify,
     handlers: {

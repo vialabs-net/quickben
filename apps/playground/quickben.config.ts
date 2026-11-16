@@ -57,6 +57,8 @@ export const authors = defineCollection({
   },
   access: { read: () => true, create: canEdit, update: canEdit, delete: isAdmin },
   admin: { useAsTitle: "name", defaultColumns: ["name", "email", "active", "updatedAt"] },
+  // CRUD routes listed in openapi.json (`pnpm openapi`).
+  api: { openapi: true },
 });
 
 export const tags = defineCollection({
@@ -77,6 +79,7 @@ export const tags = defineCollection({
   },
   access: { read: () => true, create: canEdit, update: canEdit, delete: canEdit },
   admin: { useAsTitle: "name" },
+  api: { openapi: true },
 });
 
 export const posts = defineCollection({
@@ -134,6 +137,7 @@ export const posts = defineCollection({
       es: "Artículos que aparecen en la página pública una vez publicados.",
     },
   },
+  api: { openapi: true },
 });
 
 export const settings = defineCollection({
@@ -231,3 +235,6 @@ const config = defineConfig({
 });
 
 export default config;
+
+// Options of the OpenAPI document, read by `quickben-openapi generate`.
+export { openapi } from "./lib/openapi";

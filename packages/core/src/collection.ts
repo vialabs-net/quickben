@@ -105,6 +105,7 @@ export function defineCollection<
     access: config.access ?? {},
     hooks: config.hooks ?? {},
     admin: config.admin ?? {},
+    ...(config.api ? { api: config.api } : {}),
   };
   const trackAuthor: boolean = config.trackAuthor ?? false;
   return (trackAuthor ? withAuthor(collection) : collection) as Collection<

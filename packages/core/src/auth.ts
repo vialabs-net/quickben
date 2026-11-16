@@ -20,9 +20,19 @@ export interface QuickbenUser {
   roles?: string[];
 }
 
+/**
+ * How a client sends its credentials, as an OpenAPI security scheme. Adapters describe
+ * themselves with it so generated API documents list the right schemes.
+ */
+export type AuthSecurityScheme =
+  | { type: "http"; scheme: string; bearerFormat?: string; description?: string }
+  | { type: "apiKey"; in: "header" | "query" | "cookie"; name: string; description?: string };
+
 /** Resolves the user of an incoming request. Return `null` for anonymous requests. */
 export interface AuthAdapter {
   getUser(req: Request): Promise<QuickbenUser | null>;
+  /** Credentials the adapter accepts, keyed by scheme name. Used by OpenAPI generators. */
+  readonly securitySchemes?: Readonly<Record<string, AuthSecurityScheme>>;
 }
 
 /** Options for {@link devAuth}. */
@@ -45,6 +55,14 @@ export function devAuth(options: DevAuthOptions = {}): AuthAdapter {
   const header = options.header ?? "x-quickben-user";
   const envName = options.env ?? "QUICKBEN_DEV_USER";
   return {
+    securitySchemes: {
+      devUser: {
+        type: "apiKey",
+        in: "header",
+        name: header,
+        description: "Development only: a user id or a JSON user.",
+      },
+    },
     getUser(req) {
       const env = typeof process === "undefined" ? {} : process.env;
       if (env.NODE_ENV === "production" && options.allowInProduction !== true) {
