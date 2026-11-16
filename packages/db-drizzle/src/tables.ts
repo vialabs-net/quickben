@@ -28,6 +28,9 @@ function pgColumn(spec: ColumnSpec): pg.PgColumnBuilderBase {
     case "integer":
       builder = pg.bigint(name, { mode: "number" });
       break;
+    case "integer32":
+      builder = pg.integer(name);
+      break;
     case "float":
       builder = pg.doublePrecision(name);
       break;
@@ -58,6 +61,7 @@ function sqliteColumn(spec: ColumnSpec): sqlite.SQLiteColumnBuilderBase {
     case "id":
       return sqlite.text(name).primaryKey();
     case "integer":
+    case "integer32":
       builder = sqlite.integer(name);
       break;
     case "float":

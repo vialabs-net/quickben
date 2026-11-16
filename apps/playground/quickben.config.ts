@@ -1,7 +1,7 @@
 import { defineCollection, defineConfig, definePlugin, fields as f } from "@quickben/core";
 import { connections } from "@quickben/plugin-connections";
 import { templates, TEMPLATE_COLLECTIONS } from "@quickben/plugin-templates";
-import { tenancy } from "@quickben/plugin-tenancy";
+import { organizationFromPath, tenancy } from "@quickben/plugin-tenancy";
 import { z } from "zod";
 
 import { playgroundAuth } from "./lib/auth";
@@ -13,7 +13,7 @@ import { playgroundLocale } from "./lib/locale";
 import { seedIfEmpty } from "./lib/seed";
 import { playgroundStorage } from "./lib/storage";
 import { invoice, templatesEnabled } from "./lib/templates";
-import { tenancyEnabled } from "./lib/tenancy";
+import { ORGANIZATION_PAGES, refuseBlockedDomains, tenancyEnabled } from "./lib/tenancy";
 
 import type { AccessArgs } from "@quickben/core";
 
@@ -181,9 +181,13 @@ const documentTemplates = templates({
 
 // With QUICKBEN_TENANCY=1, posts, authors and tags belong to an organization. The demo `admin`
 // user is platform staff: it sees every organization.
+// Pages under /orgs/<organization id>/ take the organization from the URL (see proxy.ts and
+// app/orgs). A member hook shows how a host refuses an invitation with its own message.
 const multiTenant = tenancy({
   scope: ["posts", "authors", "tags", ...(templatesEnabled ? TEMPLATE_COLLECTIONS : [])],
   isPlatformAdmin: (user) => user.roles?.includes("admin") === true,
+  activeOrganization: organizationFromPath(`${ORGANIZATION_PAGES}/:organization`),
+  memberHooks: { onInvite: refuseBlockedDomains },
 });
 
 // Fields the host adds to the tenancy collections. They show in the Organization settings page

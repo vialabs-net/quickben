@@ -18,7 +18,7 @@ import { accessOf, getTenancy, ORGANIZATIONS } from "../options";
 import { createOrganizationAction, updateOrganizationAction } from "./actions";
 import { AddedFields, addedFields, addedForm, ownOrganizationFields } from "./fields";
 import { organizationStatusLabel, tenancyMessages } from "./messages";
-import { Feedback, Field, Heading, Notice, tenantOrMessage } from "./shared";
+import { Feedback, Field, Heading, hookNotice, Notice, tenantOrMessage } from "./shared";
 
 import type { ModuleEntitlement } from "../entitlements";
 import type { OrganizationAccess, ResolvedTenancy } from "../options";
@@ -376,7 +376,7 @@ export function createOrganizationPage(
         ) : null}
         {body}
         {ctx.user && current === undefined ? <CreateForm create={create} t={t} /> : null}
-        <Feedback searchParams={searchParams} t={t} />
+        <Feedback searchParams={searchParams} t={t} notice={await hookNotice(searchParams)} />
       </>
     );
   };

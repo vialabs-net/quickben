@@ -278,6 +278,21 @@ describe("file fields", () => {
     expect(storage.objects.size).toBe(1);
   });
 
+  it("removes the files of a host transaction on rolledBack()", async () => {
+    const { qb, storage } = await setup();
+    let scope: ReturnType<typeof qb.withTransaction> | undefined;
+    await expect(
+      qb.db.transaction(async (tx) => {
+        scope = qb.withTransaction(tx);
+        await scope.qb.create("docs", { logo: { name: "a.png", bytes: png } }, user);
+        throw new Error("host failed");
+      }),
+    ).rejects.toThrow("host failed");
+    expect(storage.objects.size).toBe(1);
+    await scope?.rolledBack();
+    expect(storage.objects.size).toBe(0);
+  });
+
   it("keeps the files of a failed write while the outer transaction may still commit", async () => {
     const storage = memoryStorage();
     const docs = defineCollection({

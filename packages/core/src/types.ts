@@ -792,6 +792,18 @@ export interface Quickben<R extends Registry = Registry> {
   transaction<T>(fn: (qb: Quickben<R>) => Promise<T>): Promise<T>;
 
   /**
+   * The local API on an adapter bound to a transaction your code opened, so Quickben writes
+   * join it (for example `adapter.fromTransaction(tx)` of `@quickben/db-drizzle`). Your code
+   * commits or rolls back; then call `committed()` or `rolledBack()`.
+   *
+   * ```ts
+   * const scope = qb.withTransaction(adapter.fromTransaction(tx));
+   * await scope.qb.create("memberships", data, ctx);
+   * ```
+   */
+  withTransaction(db: DatabaseAdapter): JoinedTransaction<R>;
+
+  /**
    * Read the file of a `file` field. Needs read access to the document and the field.
    * Throws `NotFoundError` when the document, the file or the stored object is missing.
    */
@@ -801,6 +813,22 @@ export interface Quickben<R extends Registry = Registry> {
     field: FileFieldKey<R[S]>,
     ctx: RequestContext,
   ): Promise<StoredFile>;
+}
+
+/** What {@link Quickben.withTransaction} returns. */
+export interface JoinedTransaction<R extends Registry = Registry> {
+  /** Local API whose reads and writes run in your transaction. Hooks get it as `qb`. */
+  readonly qb: Quickben<R>;
+  /**
+   * Call after your transaction commits: runs the `afterCommit` hooks of the writes (their
+   * errors are logged). Later calls do nothing.
+   */
+  committed(): Promise<void>;
+  /**
+   * Call after your transaction rolls back: drops the `afterCommit` hooks and removes files
+   * the writes stored. Later calls do nothing.
+   */
+  rolledBack(): Promise<void>;
 }
 
 /** Names of the `file` fields of a collection. */

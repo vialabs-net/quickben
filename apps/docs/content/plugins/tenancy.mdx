@@ -58,21 +58,25 @@ An invitation is a membership with status `invited`. The creator of an organizat
 
 ## Options
 
-| Option                  | Default                                      | Purpose                                                                 |
-| ----------------------- | -------------------------------------------- | ----------------------------------------------------------------------- |
-| `scope`                 | required                                     | Slugs of tenant-scoped collections.                                     |
-| `roles`                 | owner, admin, member, viewer                 | Capabilities per role, highest rank first.                              |
-| `ownerRole`             | `owner`                                      | Every organization keeps one active member with this role.              |
-| `defaultRole`           | `member`                                     | Role of new memberships.                                                |
-| `isPlatformAdmin`       | `user.roles` includes a `platformRoles` role | Platform staff.                                                         |
-| `platformRoles`         | `["platform-admin"]`                         | Roles that make a user platform staff.                                  |
-| `statuses`              | `active` (full), `suspended` (limited)       | Organization statuses. See [Statuses](#statuses).                       |
-| `defaultStatus`         | the first status                             | Status of new organizations.                                            |
-| `onOrganizationDelete`  | `"restrict"`                                 | `"restrict"` or `"cascade"`. See [Deleting](#deleting-an-organization). |
-| `canCreateOrganization` | any signed-in user                           | Who may create organizations.                                           |
-| `defaultModules`        | `"all"`                                      | Modules of a new organization.                                          |
-| `header`                | `x-quickben-organization`                    | Header with the active organization id.                                 |
-| `cookie`                | `quickben-organization`                      | Cookie with the active organization id.                                 |
+| Option                  | Default                                      | Purpose                                                                         |
+| ----------------------- | -------------------------------------------- | ------------------------------------------------------------------------------- |
+| `scope`                 | required                                     | Slugs of tenant-scoped collections.                                             |
+| `roles`                 | owner, admin, member, viewer                 | Capabilities per role, highest rank first.                                      |
+| `ownerRole`             | `owner`                                      | Every organization keeps one active member with this role.                      |
+| `defaultRole`           | `member`                                     | Role of new memberships.                                                        |
+| `isPlatformAdmin`       | `user.roles` includes a `platformRoles` role | Platform staff.                                                                 |
+| `platformRoles`         | `["platform-admin"]`                         | Roles that make a user platform staff.                                          |
+| `statuses`              | `active` (full), `suspended` (limited)       | Organization statuses. See [Statuses](#statuses).                               |
+| `defaultStatus`         | the first status                             | Status of new organizations.                                                    |
+| `onOrganizationDelete`  | `"restrict"`                                 | `"restrict"` or `"cascade"`. See [Deleting](#deleting-an-organization).         |
+| `canCreateOrganization` | any signed-in user                           | Who may create organizations.                                                   |
+| `defaultModules`        | `"all"`                                      | Modules of a new organization.                                                  |
+| `header`                | `x-quickben-organization`                    | Header with the active organization id.                                         |
+| `cookie`                | `quickben-organization`                      | Cookie with the active organization id.                                         |
+| `activeOrganization`    | none                                         | Read the organization id from the request. See [URL](#organization-in-the-url). |
+| `emptyModules`          | `"all"`                                      | What an empty membership `modules` list grants. See [Modules](#modules).        |
+| `memberHooks`           | none                                         | Hooks of the member helpers. See [Member hooks](#member-hooks).                 |
+| `canManageMember`       | the rank rule                                | Who may manage which member. See [Guard rails](#guard-rails).                   |
 
 ## Roles
 
@@ -101,9 +105,10 @@ export const plugin = tenancy({
 | Order | Source                            |
 | ----- | --------------------------------- |
 | 1     | `ctx.organizationId`              |
-| 2     | The header                        |
-| 3     | The cookie                        |
-| 4     | The user's only active membership |
+| 2     | `activeOrganization(req)`         |
+| 3     | The header                        |
+| 4     | The cookie                        |
+| 5     | The user's only active membership |
 
 The user must be an active member and the organization's status must give full access. Otherwise the call throws `OrganizationError` (403) with a `reason`:
 
@@ -130,6 +135,29 @@ try {
   }
 }
 ```
+
+### Organization in the URL
+
+```ts nocheck
+import { organizationFromPath, tenancy } from "@quickben/plugin-tenancy";
+
+tenancy({ scope, activeOrganization: organizationFromPath("/settings/t/:organization") });
+```
+
+The id in `/settings/t/<id>/…` selects the organization, before the header and the cookie. The membership check still applies. Next.js does not give server components the URL path, so add it in `proxy.ts`:
+
+```ts filename="proxy.ts"
+import { pathnameHeaders } from "@quickben/next";
+import { NextResponse } from "next/server";
+
+export function proxy(request: Request) {
+  return NextResponse.next({ request: { headers: pathnameHeaders(request) } });
+}
+
+export const config = { matcher: ["/settings/t/:path*"] };
+```
+
+Mount the admin with `basePath: "/settings/t/<id>"`, and pass `organizationHref: (id) => …` to `tenancyAdmin` and `createOrganizationSwitcher`: the switcher then opens the URL of the chosen organization. The playground does this in `app/orgs/[organization]`.
 
 **Platform staff** (`isPlatformAdmin`) skip the membership check, and the status check unless the status limits staff. With nothing selected they see every organization, except the scoped documents of organizations whose status limits staff. With an organization selected they act inside it with every capability.
 
@@ -190,7 +218,17 @@ await qb.update(
 );
 ```
 
-From `expiresAt` on, the module counts as disabled in scoped access, `canUseModule` and `moduleAccess`. `source` is free text, for example a plan key. Entries without expiry or source are stored as plain keys, so existing lists stay valid. `activeModules(organization.modules)` returns the keys in use now. A membership grants a subset in `membership.modules`; an empty list grants every module of the organization.
+From `expiresAt` on, the module counts as disabled in scoped access, `canUseModule` and `moduleAccess`. `source` is free text, for example a plan key. Entries without expiry or source are stored as plain keys, so existing lists stay valid. `activeModules(organization.modules)` returns the keys in use now. A membership grants a subset in `membership.modules`:
+
+| `membership.modules` | `emptyModules: "all"` (default) | `emptyModules: "none"` |
+| -------------------- | ------------------------------- | ---------------------- |
+| `["*"]`              | every module                    | every module           |
+| `[]`                 | every module                    | no module              |
+| `["sales"]`          | `sales`                         | `sales`                |
+
+New memberships get every module. The helpers take `modules: "all"` and store `["*"]` (`ALL_MODULES`). With `"none"`, the Members page has an **All modules** box.
+
+**Migration to `"none"`:** run `await migrateEmptyModules(qb)` once before you deploy the option. It sets `["*"]` on each membership with an empty list, so nobody loses modules. Pause membership edits until it finishes: the adapter does not lock rows, so concurrent edits could be overwritten.
 
 ```ts
 import { defineCollection, fields as f } from "@quickben/core";
@@ -218,12 +256,67 @@ Use `moduleAccess` for collections outside `scope`.
 | A membership keeps its organization, and its user once set.                     | `ValidationError`                               |
 | Granted modules must be enabled for the organization.                           | `ValidationError`                               |
 | One membership per user or email per organization.                              | `ConflictError`                                 |
+| `canManageMember` refused the change.                                           | `TenancyRuleError` `cannot-manage`              |
 
-Platform staff and `overrideAccess` skip the role rules. The last-owner rule always applies.
+The guard rails apply to user actions:
+
+| Context                                   | Guard rails                                                  |
+| ----------------------------------------- | ------------------------------------------------------------ |
+| A user                                    | applied                                                      |
+| Platform staff                            | last owner only                                              |
+| `overrideAccess: true` (imports, repairs) | skipped                                                      |
+| `overrideAccess: true, skipGuards: false` | last owner only                                              |
+| A user with `skipGuards: true`            | applied; explicit `overrideAccess: true` is required to skip |
+
+Before 0.3.2 the last-owner rule also applied with `overrideAccess`. Pass `skipGuards: false` to keep it.
+
+`canManageMember` adds a host rule on top of `members:manage`, for invites, changes and removals:
+
+```ts nocheck
+tenancy({
+  scope,
+  // A branch admin manages only members of their branch.
+  canManageMember: async ({ allowedByRank, actor, target }) =>
+    allowedByRank && (await sameBranch(actor.id, target.user)),
+});
+```
+
+It gets `action`, `actor`, `actorMembership`, `target` (the stored membership, or the new one for `invite`), `next`, `allowedByRank` (the default rule) and `qb`. The helper `canManageMember(qb, ctx, membership)` gives the same answer for UIs; the Members page uses it to show forms only where the user may act.
 
 `TenancyRuleError` extends `ForbiddenError`; `rule` says which rule failed.
 
 Invitations by email need a verified address. Set `emailVerified` on the user in your auth adapter: with `emailVerified: false`, `acceptInvitation` throws `ForbiddenError`, and `listMyInvitations` and membership reads ignore the email. Invitations by user id do not check it. When the field is missing, the email is trusted, so return only verified addresses in `email`.
+
+## Member hooks
+
+```ts nocheck
+import { MemberHookError, tenancy } from "@quickben/plugin-tenancy";
+
+tenancy({
+  scope,
+  memberHooks: {
+    onInvite: async ({ qb, after }) => {
+      if (await isBlocked(after?.email))
+        throw new MemberHookError("We cannot invite that address.");
+      await createHostAccount(qb, after);
+    },
+    onRoleChange: ({ before, after }) => syncHostRole(before, after),
+  },
+});
+```
+
+| Hook             | Runs after                                   |
+| ---------------- | -------------------------------------------- |
+| `onInvite`       | `inviteMember`                               |
+| `onAccept`       | `acceptInvitation`                           |
+| `onRoleChange`   | `updateMembership` changed the role          |
+| `onStatusChange` | `updateMembership` changed the status        |
+| `onUpdate`       | every `updateMembership`, member details too |
+| `onRemove`       | `removeMember`                               |
+
+A hook gets `{ action, qb, ctx, before, after }`. It runs in the transaction of the change: writes through `qb` commit with it, and a throw undoes it. Throw `MemberHookError` to show its message on the Members page. The admin calls the helpers, so its Members page runs the hooks. Direct writes to `memberships` do not.
+
+`before` is a snapshot read without a row lock. Concurrent edits are not serialized: use `onUpdate` for idempotent synchronization, or serialize host transactions when every role/status transition must be observed.
 
 ## Deleting an organization
 
@@ -247,7 +340,9 @@ Each helper takes `(qb, ctx, …)` and calls the local API, so access rules appl
 | `listMyInvitations`   | Pending invitations for the user's id or email.               |
 | `inviteMember`        | Create an `invited` membership.                               |
 | `acceptInvitation`    | Make an invitation `active` for the current user.             |
-| `updateMembership`    | Change role, status or modules.                               |
+| `updateMembership`    | Change role, status, modules or added fields.                 |
+| `canManageMember`     | Whether the user may change or remove a membership.           |
+| `migrateEmptyModules` | Set `["*"]` on memberships with an empty `modules` list.      |
 | `removeMember`        | Delete a membership.                                          |
 | `switchOrganization`  | Check access and return the cookie to set.                    |
 | `isPlatformStaff`     | `isPlatformAdmin` of the installed plugin, for `(qb, user)`.  |

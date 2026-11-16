@@ -40,6 +40,8 @@ export const tenancyMessages = defineMessages("tenancy", {
     "members.description": "People in the active organization.",
     "members.descriptionOf":
       "People in {organization}. No module ticked means every module of the organization.",
+    "members.descriptionNone":
+      'People in {organization}. Tick "All modules" to grant every module of the organization.',
     "members.you": "(you)",
     "members.column.member": "Member",
     "members.column.role": "Role",
@@ -50,6 +52,8 @@ export const tenancyMessages = defineMessages("tenancy", {
     "members.statusOf": "Status of {who}",
     "members.modulesOf": "Modules of {who}",
     "members.allModules": "All",
+    "members.noModules": "None",
+    "members.everyModule": "All modules",
     "members.save": "Save",
     "members.remove": "Remove",
     "members.removeWho": "Remove {who}",
@@ -112,6 +116,8 @@ export const tenancyMessages = defineMessages("tenancy", {
     "error.own-membership":
       "You cannot remove your own owner or admin membership. Ask another owner or admin.",
     "error.higher-role": "Only a higher role can manage that role.",
+    "error.cannot-manage": "You cannot manage this member.",
+    "error.hook": "The change was stopped.",
     "error.platform-only": "Only platform staff can change modules or status.",
     "error.not-empty": "The organization still has data. Delete it first.",
     "error.failed": "The change could not be saved.",
@@ -147,6 +153,8 @@ export const tenancyMessages = defineMessages("tenancy", {
     "members.description": "Personas de la organización activa.",
     "members.descriptionOf":
       "Personas de {organization}. Sin módulos marcados, tiene acceso a todos los módulos de la organización.",
+    "members.descriptionNone":
+      "Personas de {organization}. Marca «Todos los módulos» para dar todos los módulos de la organización.",
     "members.you": "(tú)",
     "members.column.member": "Miembro",
     "members.column.role": "Rol",
@@ -157,6 +165,8 @@ export const tenancyMessages = defineMessages("tenancy", {
     "members.statusOf": "Estado de {who}",
     "members.modulesOf": "Módulos de {who}",
     "members.allModules": "Todos",
+    "members.noModules": "Ninguno",
+    "members.everyModule": "Todos los módulos",
     "members.save": "Guardar",
     "members.remove": "Quitar",
     "members.removeWho": "Quitar a {who}",
@@ -220,6 +230,8 @@ export const tenancyMessages = defineMessages("tenancy", {
     "error.own-membership":
       "No puedes quitar tu propia membresía de propietario o administrador. Pídeselo a otro propietario o administrador.",
     "error.higher-role": "Solo un rol superior puede administrar ese rol.",
+    "error.cannot-manage": "No puedes administrar a este miembro.",
+    "error.hook": "Se detuvo el cambio.",
     "error.platform-only": "Solo el equipo de la plataforma puede cambiar los módulos o el estado.",
     "error.not-empty": "La organización aún tiene datos. Elimínalos primero.",
     "error.failed": "No se pudo guardar el cambio.",

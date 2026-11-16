@@ -27,12 +27,24 @@ export interface TenancyAdminOptions {
    * a server component at `<basePath>/organization/<key>` and can use its own server actions.
    */
   sections?: readonly OrganizationSection[];
+  /**
+   * Where the organization switcher goes after a switch, for hosts that put the organization
+   * in the URL (with `tenancy({ activeOrganization })`), e.g.
+   * one that returns `/settings/t/<id>/members`. Default: the admin dashboard.
+   */
+  organizationHref?: (organizationId: string) => string;
 }
 
 /** Options of {@link createOrganizationSwitcher}. */
 export interface OrganizationSwitcherOptions {
   /** Same as `createAdminPage`'s `basePath`. Default `/admin`. */
   basePath?: string;
+  /**
+   * Where the organization switcher goes after a switch, for hosts that put the organization
+   * in the URL (with `tenancy({ activeOrganization })`), e.g.
+   * one that returns `/settings/t/<id>/members`. Default: the admin dashboard.
+   */
+  organizationHref?: (organizationId: string) => string;
 }
 
 /** Admin text from the tenancy catalog. */
@@ -55,7 +67,11 @@ export function tenancyAdmin(
   options: TenancyAdminOptions = {},
 ): AdminExtension {
   const basePath = normalizeBasePath(options.basePath ?? "/admin");
-  const key = registerTenancyAdmin({ config, basePath });
+  const key = registerTenancyAdmin({
+    config,
+    basePath,
+    organizationHref: options.organizationHref,
+  });
   const group = options.group ?? text("nav.group");
   const sections = options.sections ?? [];
   assertSections(sections);
@@ -93,6 +109,10 @@ export function createOrganizationSwitcher(
   options: OrganizationSwitcherOptions = {},
 ): (props: OrganizationSwitcherProps) => Promise<ReactNode> {
   const basePath = normalizeBasePath(options.basePath ?? "/admin");
-  const key = registerTenancyAdmin({ config, basePath });
+  const key = registerTenancyAdmin({
+    config,
+    basePath,
+    organizationHref: options.organizationHref,
+  });
   return createSwitcher(config, key, basePath);
 }

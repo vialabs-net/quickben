@@ -1,9 +1,12 @@
 import { ConflictError, ValidationError } from "@quickben/core";
 
-import { OrganizationError, TenancyRuleError } from "../tenant";
+import { MemberHookError, OrganizationError, TenancyRuleError } from "../tenant";
 
 import type { TenancyT } from "./messages";
 import type { QuickbenError } from "@quickben/core";
+
+/** Cookie with the message of a `MemberHookError`, shown with `?error=hook`. */
+export const NOTICE_COOKIE = "quickben-tenancy-notice";
 
 /** `?toast=` codes of the tenancy admin. Each one has the message `tenancy.toast.<code>`. */
 export const toastCodes = [
@@ -34,8 +37,10 @@ export const errorCodes = [
   "own-role",
   "own-membership",
   "higher-role",
+  "cannot-manage",
   "platform-only",
   "not-empty",
+  "hook",
   "failed",
 ] as const;
 
@@ -45,6 +50,7 @@ export type FeedbackErrorCode = (typeof errorCodes)[number];
 /** The `?error=` code for an error thrown by a tenancy admin action. */
 export function errorCode(error: QuickbenError): FeedbackErrorCode {
   if (error instanceof OrganizationError) return `organization-${error.reason}`;
+  if (error instanceof MemberHookError) return "hook";
   if (error instanceof TenancyRuleError) return error.rule;
   if (error instanceof ConflictError) {
     if (error.field === "slug") return "slug-taken";

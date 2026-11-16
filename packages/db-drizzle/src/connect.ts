@@ -1,4 +1,4 @@
-import type { Dialect } from "./columns";
+import type { Dialect, IntegerColumns } from "./columns";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import type { BaseSQLiteDatabase } from "drizzle-orm/sqlite-core";
 
@@ -27,6 +27,13 @@ export interface CommonOptions {
    * logs them with `console.warn`. Extra tables and columns are allowed. Default: off.
    */
   verify?: boolean | "warn";
+  /**
+   * Column type of integer fields (`f.number({ integer: true })`) on Postgres: `bigint` (int8,
+   * default) or `integer` (int4), for databases whose tables already use `INTEGER`. Push,
+   * verify, `generate` and `sql` (also `--format prisma`) follow it. `integer` columns reject
+   * values outside ±2,147,483,647. SQLite ignores it.
+   */
+  integerColumns?: IntegerColumns;
 }
 
 /** Options of the Postgres dialects (`postgres`, `pglite`). */

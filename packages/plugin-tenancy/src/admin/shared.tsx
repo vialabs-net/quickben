@@ -1,9 +1,10 @@
 import { Card, CardBody, Toast } from "@quickben/admin/ui";
+import { cookies } from "next/headers";
 
 import { resolveTenant } from "../api";
 import { OrganizationError } from "../tenant";
 
-import { errorCode, errorMessage, toastMessage } from "./feedback";
+import { errorCode, errorMessage, NOTICE_COOKIE, toastMessage } from "./feedback";
 
 import type { Tenant } from "../tenant";
 import type { TenancyT } from "./messages";
@@ -38,14 +39,25 @@ export function Notice({ children }: Readonly<{ children: ReactNode }>) {
 }
 
 /**
+ * The message a member hook gave, for `?error=hook`. It is kept in a short-lived cookie by
+ * the server action, so the URL never carries text.
+ */
+export async function hookNotice(searchParams: SearchParams): Promise<string | undefined> {
+  if (first(searchParams.error) !== "hook") return undefined;
+  const value = (await cookies()).get(NOTICE_COOKIE)?.value;
+  return value === undefined || value === "" ? undefined : value;
+}
+
+/**
  * Toast for the `?toast=` or `?error=` code set by the server actions. Codes map to fixed
- * messages; unknown codes show nothing.
+ * messages; unknown codes show nothing. `notice` replaces the message of `?error=hook`.
  */
 export function Feedback({
   searchParams,
   t,
-}: Readonly<{ searchParams: SearchParams; t: TenancyT }>) {
-  const error = errorMessage(t, first(searchParams.error));
+  notice,
+}: Readonly<{ searchParams: SearchParams; t: TenancyT; notice: string | undefined }>) {
+  const error = notice ?? errorMessage(t, first(searchParams.error));
   if (error) return <Toast message={error} tone="error" param="error" duration={8000} />;
   const toast = toastMessage(t, first(searchParams.toast));
   return toast ? <Toast message={toast} param="toast" /> : null;

@@ -1,8 +1,22 @@
 import { ConfigError } from "@quickben/core";
 
-import { arrayDefault, familyOf, indexName, tableSpecs, uniqueIndexName } from "./columns";
+import {
+  arrayDefault,
+  familyOf,
+  indexName,
+  isIntegerColumns,
+  tableSpecs,
+  uniqueIndexName,
+} from "./columns";
 
-import type { ColumnSpec, Dialect, Family, TableSpec } from "./columns";
+import type {
+  ColumnOptions,
+  ColumnSpec,
+  Dialect,
+  Family,
+  IntegerColumns,
+  TableSpec,
+} from "./columns";
 import type { DatabaseSchema, QuickbenConfig } from "@quickben/core";
 
 /** Options of {@link generateDrizzleSchema}. */
@@ -13,6 +27,8 @@ export interface GenerateSchemaOptions {
   schema?: string;
   /** Write the file to this path. Directories are created. */
   out?: string;
+  /** Column type of integer fields. Defaults to the `integerColumns` of `config.db`, else `bigint`. */
+  integerColumns?: IntegerColumns;
 }
 
 /** Schema passed to `DatabaseAdapter.init`, built from a config like `createQuickben` does. */
@@ -50,6 +66,7 @@ const pgBuilders: Record<ColumnSpec["kind"], (name: string) => string> = {
   id: (name) => `pg.text(${JSON.stringify(name)}).primaryKey()`,
   text: (name) => `pg.text(${JSON.stringify(name)})`,
   integer: (name) => `pg.bigint(${JSON.stringify(name)}, { mode: "number" })`,
+  integer32: (name) => `pg.integer(${JSON.stringify(name)})`,
   float: (name) => `pg.doublePrecision(${JSON.stringify(name)})`,
   boolean: (name) => `pg.boolean(${JSON.stringify(name)})`,
   date: (name) => `pg.date(${JSON.stringify(name)}, { mode: "string" })`,
@@ -63,6 +80,7 @@ const sqliteBuilders: Record<ColumnSpec["kind"], (name: string) => string> = {
   id: (name) => `sqlite.text(${JSON.stringify(name)}).primaryKey()`,
   text: (name) => `sqlite.text(${JSON.stringify(name)})`,
   integer: (name) => `sqlite.integer(${JSON.stringify(name)})`,
+  integer32: (name) => `sqlite.integer(${JSON.stringify(name)})`,
   float: (name) => `sqlite.real(${JSON.stringify(name)})`,
   boolean: (name) => `sqlite.integer(${JSON.stringify(name)}, { mode: "boolean" })`,
   date: (name) => `sqlite.text(${JSON.stringify(name)})`,
@@ -122,11 +140,16 @@ function tableCode(table: TableSpec, family: Family, schema: string | undefined)
 }
 
 /** TypeScript source of the Drizzle schema for `schema`, in a Postgres `pgSchema` if given. */
-export function schemaSource(schema: DatabaseSchema, dialect: Dialect, pgSchema?: string): string {
+export function schemaSource(
+  schema: DatabaseSchema,
+  dialect: Dialect,
+  pgSchema?: string,
+  options: ColumnOptions = {},
+): string {
   const family = familyOf(dialect);
   // Drizzle uses `public` when there is no schema, and rejects `pgSchema("public")`.
   const named = family === "pg" && pgSchema !== "public" ? pgSchema : undefined;
-  const tables = tableSpecs(schema);
+  const tables = tableSpecs(schema, options);
   const usesSql = tables.some((table) => table.columns.some((column) => column.kind === "array"));
   const imports = [
     ...(usesSql ? ['import { sql } from "drizzle-orm";'] : []),
@@ -146,27 +169,43 @@ export function schemaSource(schema: DatabaseSchema, dialect: Dialect, pgSchema?
   ].join("\n");
 }
 
-/** The dialect and Postgres schema of `config.db` when it is a Drizzle adapter. */
+/** The dialect, Postgres schema and integer columns of `config.db` when it is a Drizzle adapter. */
 export function drizzleOptionsOf(config: QuickbenConfig): {
   dialect: Dialect | undefined;
   schema: string | undefined;
+  integerColumns: IntegerColumns | undefined;
 } {
-  const db = config.db as { name?: unknown; dialect?: unknown; schema?: unknown };
-  if (db.name !== "drizzle") return { dialect: undefined, schema: undefined };
-  const { dialect, schema } = db;
+  const db = config.db as {
+    name?: unknown;
+    dialect?: unknown;
+    schema?: unknown;
+    integerColumns?: unknown;
+  };
+  if (db.name !== "drizzle") {
+    return { dialect: undefined, schema: undefined, integerColumns: undefined };
+  }
+  const { dialect, schema, integerColumns } = db;
   return {
     dialect:
       dialect === "postgres" || dialect === "pglite" || dialect === "sqlite" ? dialect : undefined,
     schema: typeof schema === "string" ? schema : undefined,
+    integerColumns: isIntegerColumns(integerColumns) ? integerColumns : undefined,
   };
 }
 
-/** Dialect and schema from the options, else from the config. Throws without a dialect. */
+/** Where generated code or SQL goes: dialect, Postgres schema and integer columns. */
+export interface Target {
+  dialect: Dialect;
+  schema: string | undefined;
+  integerColumns: IntegerColumns;
+}
+
+/** Dialect, schema and integer columns from the options, else from the config. Throws without a dialect. */
 export function resolveTarget(
   caller: string,
   config: QuickbenConfig,
-  options: { dialect?: Dialect; schema?: string },
-): { dialect: Dialect; schema: string | undefined } {
+  options: { dialect?: Dialect; schema?: string; integerColumns?: IntegerColumns },
+): Target {
   const fromConfig = drizzleOptionsOf(config);
   const dialect = options.dialect ?? fromConfig.dialect;
   if (!dialect) {
@@ -175,7 +214,11 @@ export function resolveTarget(
     );
   }
   const schema = familyOf(dialect) === "pg" ? (options.schema ?? fromConfig.schema) : undefined;
-  return { dialect, schema };
+  const integerColumns = options.integerColumns ?? fromConfig.integerColumns ?? "bigint";
+  if (!isIntegerColumns(integerColumns)) {
+    throw new ConfigError(`${caller}: integerColumns is "bigint" or "integer"`);
+  }
+  return { dialect, schema, integerColumns };
 }
 
 /** Write `source` to `out`, creating directories. */
@@ -195,8 +238,12 @@ export async function generateDrizzleSchema(
   config: QuickbenConfig,
   options: GenerateSchemaOptions = {},
 ): Promise<string> {
-  const { dialect, schema } = resolveTarget("generateDrizzleSchema", config, options);
-  const source = schemaSource(schemaOf(config), dialect, schema);
+  const { dialect, schema, integerColumns } = resolveTarget(
+    "generateDrizzleSchema",
+    config,
+    options,
+  );
+  const source = schemaSource(schemaOf(config), dialect, schema, { integerColumns });
   if (options.out) await writeOut(options.out, source);
   return source;
 }

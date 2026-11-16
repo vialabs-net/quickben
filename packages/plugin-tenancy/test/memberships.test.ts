@@ -189,9 +189,10 @@ describe("guard rails", () => {
     await expect(removeMember(qb, ctx, aliceAtAcme.id)).rejects.toThrow(
       /at least one active owner/,
     );
-    await expect(qb.delete("memberships", aliceAtAcme.id, system)).rejects.toThrow(
-      /at least one active owner/,
-    );
+    // A trusted call keeps the rule when it asks for it.
+    await expect(
+      qb.delete("memberships", aliceAtAcme.id, { ...system, skipGuards: false }),
+    ).rejects.toThrow(/at least one active owner/);
     // With a second owner, the first can step down.
     await updateMembership(qb, as(alice), bobAtAcme.id, { role: "owner" });
     expect(
@@ -263,6 +264,47 @@ describe("guard rails", () => {
     await expect(
       qb.create("memberships", { organization: acme.id, email: "eve@example.com" }, system),
     ).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it("skips the guard rails for overrideAccess (imports, repairs)", async () => {
+    const { qb, aliceAtAcme } = await setup();
+    const demoted = await qb.update("memberships", aliceAtAcme.id, { role: "admin" }, system);
+    expect(demoted.role).toBe("admin");
+    await qb.update("memberships", aliceAtAcme.id, { role: "owner" }, system);
+    expect((await qb.delete("memberships", aliceAtAcme.id, system)).id).toBe(aliceAtAcme.id);
+  });
+
+  it("requires explicit overrideAccess to skip guard rails, even with skipGuards", async () => {
+    const { qb, acme, aliceAtAcme, bobAtAcme } = await setup();
+    const asBob = { ...inOrg(bob, acme.id), skipGuards: true };
+    await expect(
+      updateMembership(qb, asBob, aliceAtAcme.id, { role: "admin" }),
+    ).rejects.toMatchObject({ rule: "higher-role" });
+    await expect(removeMember(qb, asBob, aliceAtAcme.id)).rejects.toMatchObject({
+      rule: "higher-role",
+    });
+    await expect(
+      updateMembership(qb, asBob, bobAtAcme.id, { role: "member" }),
+    ).rejects.toMatchObject({ rule: "own-role" });
+    const asStaff = { ...inOrg(staff, acme.id), skipGuards: true };
+    await expect(
+      updateMembership(qb, asStaff, aliceAtAcme.id, { status: "disabled" }),
+    ).rejects.toMatchObject({ rule: "last-owner" });
+    await expect(removeMember(qb, asStaff, aliceAtAcme.id)).rejects.toMatchObject({
+      rule: "last-owner",
+    });
+    await expect(
+      updateMembership(qb, { ...inOrg(carol, acme.id), skipGuards: true }, aliceAtAcme.id, {
+        role: "member",
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    expect(
+      (
+        await updateMembership(qb, { ...asBob, overrideAccess: true }, aliceAtAcme.id, {
+          role: "admin",
+        })
+      ).role,
+    ).toBe("admin");
   });
 
   it("grants only modules the organization has", async () => {

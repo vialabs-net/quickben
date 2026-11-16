@@ -1,14 +1,14 @@
 import { ConfigError } from "@quickben/core";
 import { count, eq } from "drizzle-orm";
 
-import { familyOf, tableSpecs } from "./columns";
+import { familyOf, isIntegerColumns, tableSpecs } from "./columns";
 import { toConflict } from "./errors";
 import { compareSchema, inspectDatabase, uniqueIndexNames } from "./inspect";
 import { pushTables } from "./push";
 import { buildTable, decodeValue, encodeValue } from "./tables";
 import { orderToSql, whereToSql } from "./where";
 
-import type { Dialect, Family } from "./columns";
+import type { Dialect, Family, IntegerColumns } from "./columns";
 import type { Connection, Connector, DrizzleAdapterOptions, DrizzleDatabase } from "./connect";
 import type { SchemaReport } from "./inspect";
 import type { RuntimeTable } from "./tables";
@@ -68,12 +68,29 @@ export interface DrizzleAdapter<D extends Dialect = Dialect> extends DatabaseAda
   readonly dialect: D;
   /** Postgres schema of the tables (the `schema` option). `undefined`: the current schema. */
   readonly schema: string | undefined;
+  /** Column type of integer fields (the `integerColumns` option). */
+  readonly integerColumns: IntegerColumns;
   /**
    * Compare the tables the collections need with the database: what is missing or different,
    * and the SQL that adds what is missing. Call it after `init`. The `verify` option runs it.
    */
   checkSchema(): Promise<SchemaReport>;
   transaction<T>(fn: (tx: DrizzleAdapter<D>) => Promise<T>): Promise<T>;
+  /**
+   * An adapter bound to a transaction your code opened on the same database, so Quickben writes
+   * join it. Pass the Drizzle transaction (`db.transaction(async (tx) => …)`), or a Drizzle
+   * database over a node-postgres client that ran `BEGIN`. Use it with `qb.withTransaction`.
+   * Call it after `init` (after `createQuickben`).
+   *
+   * ```ts
+   * await db.transaction(async (tx) => {
+   *   await tx.insert(accounts).values(row);
+   *   const scope = qb.withTransaction(adapter.fromTransaction(tx));
+   *   await scope.qb.create("memberships", data, ctx);
+   * });
+   * ```
+   */
+  fromTransaction(tx: DrizzleDatabase<D>): DrizzleAdapter<D>;
 }
 
 type Row = Record<string, unknown>;
@@ -102,6 +119,7 @@ interface State {
   options: DrizzleAdapterOptions;
   /** Postgres schema, `undefined` for the current one. */
   schema: string | undefined;
+  integerColumns: IntegerColumns;
   connect: Connector;
   family: Family;
   connection: Connection | undefined;
@@ -187,9 +205,14 @@ export function createDrizzleAdapter<O extends DrizzleAdapterOptions>(
 ): DrizzleAdapter<O["dialect"]> {
   const schema = "schema" in options ? options.schema : undefined;
   if (schema === "") throw new ConfigError("drizzleAdapter: `schema` must not be empty");
+  const integerColumns = options.integerColumns ?? "bigint";
+  if (!isIntegerColumns(integerColumns)) {
+    throw new ConfigError('drizzleAdapter: `integerColumns` is "bigint" or "integer"');
+  }
   const state: State = {
     options,
     schema,
+    integerColumns,
     connect: connect as Connector,
     family: familyOf(options.dialect),
     connection: undefined,
@@ -283,6 +306,7 @@ function createAdapter(state: State, tx: QueryRunner | undefined): DrizzleAdapte
     name: "drizzle",
     dialect,
     schema: state.schema,
+    integerColumns: state.integerColumns,
     get raw() {
       const tables = Object.fromEntries(
         [...state.tables].map(([slug, table]) => [slug, table.table]),
@@ -303,7 +327,7 @@ function createAdapter(state: State, tx: QueryRunner | undefined): DrizzleAdapte
         state.connection = await state.connecting;
       }
       const connection = state.connection;
-      const specs = tableSpecs(schema);
+      const specs = tableSpecs(schema, { integerColumns: state.integerColumns });
       state.tables = new Map(
         specs.map((spec) => [spec.slug, buildTable(spec, dialect, state.schema)]),
       );
@@ -385,6 +409,15 @@ function createAdapter(state: State, tx: QueryRunner | undefined): DrizzleAdapte
       return serialized(state, () =>
         runner().transaction((inner) => fn(createAdapter(state, inner))),
       );
+    },
+
+    fromTransaction(external) {
+      if (state.tables.size === 0) {
+        throw new ConfigError(
+          "drizzleAdapter: not initialized. Call createQuickben(config) before fromTransaction.",
+        );
+      }
+      return createAdapter(state, external as unknown as QueryRunner);
     },
 
     async close() {

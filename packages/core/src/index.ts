@@ -161,6 +161,7 @@ export type {
   InferUpdateInput,
   InferWhere,
   InitHook,
+  JoinedTransaction,
   Module,
   NavItem,
   Plugin,

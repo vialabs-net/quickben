@@ -1,6 +1,13 @@
 import { ConfigError, pluginState } from "@quickben/core";
 
-import type { LocalizedText, Quickben, QuickbenConfig, QuickbenUser } from "@quickben/core";
+import type { MembershipRecord } from "./tenant";
+import type {
+  LocalizedText,
+  Quickben,
+  QuickbenConfig,
+  QuickbenUser,
+  RequestContext,
+} from "@quickben/core";
 
 /**
  * A permission a role grants inside an organization. The built-in ones are checked by the
@@ -56,6 +63,81 @@ export const defaultStatuses = {
 /** What `tenancy()` does with the scoped documents of a deleted organization. */
 export type OrganizationDeleteMode = "restrict" | "cascade";
 
+/**
+ * What an empty `modules` list on a membership grants. `all` (default): every module of the
+ * organization. `none`: no module. In both modes `["*"]` ({@link ALL_MODULES}) grants every
+ * module.
+ */
+export type EmptyModules = "all" | "none";
+
+/** The membership `modules` entry that grants every module of the organization. */
+export const ALL_MODULES = "*";
+
+/** A change to a membership made through the tenancy helpers or the tenancy admin. */
+export type MemberAction = "invite" | "accept" | "update" | "remove";
+
+/** What a member hook gets. */
+export interface MemberEvent {
+  action: MemberAction;
+  /** Local API bound to the transaction of the change. Writes here commit with it. */
+  qb: Quickben;
+  /** Context of the caller. */
+  ctx: RequestContext;
+  /** The membership before the change. `null` for `invite`. */
+  before: MembershipRecord | null;
+  /** The membership after the change. `null` for `remove`. */
+  after: MembershipRecord | null;
+}
+
+/**
+ * A member hook. It runs after the change, in its transaction: throw to undo the change. Throw
+ * `MemberHookError` to show its message in the admin.
+ */
+export type MemberHook = (event: MemberEvent) => void | Promise<void>;
+
+/**
+ * Hooks of the member helpers (`inviteMember`, `acceptInvitation`, `updateMembership`,
+ * `removeMember`) and of the tenancy admin, which calls them. Direct writes to `memberships`
+ * (for example imports) do not run them.
+ */
+export interface MemberHooks {
+  /** After `inviteMember`. */
+  onInvite?: MemberHook;
+  /** After `acceptInvitation`. */
+  onAccept?: MemberHook;
+  /** After `updateMembership` changed the role. Runs before `onUpdate`. */
+  onRoleChange?: MemberHook;
+  /** After `updateMembership` changed the status. Runs before `onUpdate`. */
+  onStatusChange?: MemberHook;
+  /** After every `updateMembership`, also from the member details dialog. */
+  onUpdate?: MemberHook;
+  /** After `removeMember`. */
+  onRemove?: MemberHook;
+}
+
+/** Arguments of `tenancy({ canManageMember })`. */
+export interface ManageMemberArgs {
+  action: "invite" | "update" | "remove";
+  /** The user making the change. */
+  actor: QuickbenUser;
+  /** The actor's active membership in the organization, if any. */
+  actorMembership: MembershipRecord | null;
+  /** The membership as stored. For `invite`, the new membership. */
+  target: MembershipRecord;
+  /** The membership after the change. `null` for `remove`. */
+  next: MembershipRecord | null;
+  /** What the default rule says: the actor's role ranks at least as high as every role involved. */
+  allowedByRank: boolean;
+  /** Local API bound to the transaction of the change. */
+  qb: Quickben;
+}
+
+/**
+ * Who may invite, change or remove a member, on top of the `members:manage` capability.
+ * Default: `allowedByRank`.
+ */
+export type CanManageMember = (args: ManageMemberArgs) => boolean | Promise<boolean>;
+
 /** Options of `tenancy()`. */
 export interface TenancyOptions<S extends string = string> {
   /** Slugs of the collections whose documents belong to one organization. */
@@ -94,6 +176,19 @@ export interface TenancyOptions<S extends string = string> {
   header?: string;
   /** Cookie with the active organization id. Default `quickben-organization`. */
   cookie?: string;
+  /**
+   * Read the active organization id from the request, e.g. from the URL path with
+   * `organizationFromPath("/settings/t/:organization")`. Checked after `ctx.organizationId`
+   * and before the header and the cookie. The user must still be a member. Return `undefined`
+   * when the request has none.
+   */
+  activeOrganization?: (req: Request) => string | null | undefined;
+  /** What an empty membership `modules` list grants. Default `all` (as before 0.3.2). */
+  emptyModules?: EmptyModules;
+  /** Hooks of the member helpers and the tenancy admin. See {@link MemberHooks}. */
+  memberHooks?: MemberHooks;
+  /** Who may manage which member. Default: the rank rule. See {@link CanManageMember}. */
+  canManageMember?: CanManageMember;
 }
 
 /** Options after defaults are applied. Read them with `getTenancy(qb)`. */
@@ -115,6 +210,10 @@ export interface ResolvedTenancy {
   readonly defaultModules: "all" | readonly string[];
   readonly header: string;
   readonly cookie: string;
+  readonly activeOrganization: ((req: Request) => string | null | undefined) | undefined;
+  readonly emptyModules: EmptyModules;
+  readonly memberHooks: Readonly<MemberHooks>;
+  readonly canManageMember: CanManageMember | undefined;
 }
 
 /** A status after defaults are applied. */
@@ -151,6 +250,10 @@ export function resolveOptions(options: TenancyOptions): ResolvedTenancy {
   if (!deleteModes.includes(onOrganizationDelete)) {
     throw new ConfigError('tenancy: onOrganizationDelete is "restrict" or "cascade"');
   }
+  const emptyModules = options.emptyModules ?? "all";
+  if (!emptyModesList.includes(emptyModules)) {
+    throw new ConfigError('tenancy: emptyModules is "all" or "none"');
+  }
   const platformRoles = options.platformRoles ?? ["platform-admin"];
   for (const slug of options.scope) {
     if (slug === ORGANIZATIONS || slug === MEMBERSHIPS) {
@@ -172,10 +275,24 @@ export function resolveOptions(options: TenancyOptions): ResolvedTenancy {
     defaultModules: options.defaultModules ?? "all",
     header: (options.header ?? "x-quickben-organization").toLowerCase(),
     cookie: options.cookie ?? "quickben-organization",
+    activeOrganization: options.activeOrganization,
+    emptyModules,
+    memberHooks: { ...options.memberHooks },
+    canManageMember: options.canManageMember,
   };
 }
 
+/**
+ * Whether a membership's `modules` list grants every module of the organization: it has
+ * {@link ALL_MODULES}, or it is empty and `emptyModules` is `all`.
+ */
+export function grantsAllModules(tenancy: ResolvedTenancy, modules: readonly string[]): boolean {
+  return modules.includes(ALL_MODULES) || (modules.length === 0 && tenancy.emptyModules === "all");
+}
+
 const deleteModes: readonly OrganizationDeleteMode[] = ["restrict", "cascade"];
+
+const emptyModesList: readonly EmptyModules[] = ["all", "none"];
 
 const levels: readonly OrganizationAccess[] = ["full", "limited", "none"];
 
