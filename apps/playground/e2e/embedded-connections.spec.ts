@@ -129,3 +129,39 @@ test("edit the models of a connection as rows, in embedded mode", async ({ page 
     expect(overflow, url).toBeLessThanOrEqual(0);
   }
 });
+
+test("long model test results stay inside stacked detail cards", async ({
+  page,
+  request,
+  baseURL,
+}) => {
+  const model = "m".repeat(200);
+  const response = await request.post("/api/connections", {
+    data: {
+      name: `Long model ${String(Date.now())}`,
+      providerType: "openai_compatible",
+      // The local API has no chat endpoint: its 404 still records the tested model.
+      baseUrl: `${baseURL ?? ""}/api`,
+      metadata: { models: [{ id: model, default: true }] },
+    },
+  });
+  expect(response.status()).toBe(201);
+  const connection = (await response.json()) as { id: string };
+  await page.goto(`/admin/connections/${connection.id}`);
+  await page.getByRole("button", { name: "Test", exact: true }).click();
+  const status = page.locator(".qb-detail-columns > *").nth(1);
+  await expect(status.getByText(model, { exact: false })).toBeVisible();
+
+  for (const layout of ["admin", "embedded"]) {
+    for (const width of [1440, 1024, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      // Navigation also clears the result toast, leaving the persisted status card.
+      await page.goto(`/${layout}/connections/${connection.id}`);
+      await expect(status.getByText(model, { exact: false })).toBeVisible();
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(overflow, `${layout} at ${String(width)} px`).toBeLessThanOrEqual(0);
+    }
+  }
+});
