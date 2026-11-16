@@ -1,6 +1,6 @@
 {
   "name": "@quickben/storage-gcs",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Google Cloud Storage adapter for Quickben file fields.",
   "keywords": [
     "quickben",

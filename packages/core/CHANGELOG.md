@@ -1,5 +1,27 @@
 # @quickben/core
 
+## 0.3.1
+
+### Patch Changes
+
+- 62d9804: Admin gaps found by the first embedded host app:
+  
+  - `pageTitle: "none"` hides page titles and breadcrumbs (admin and plugin pages); `getAdminNav(…, { pathname }).page` gives the title and breadcrumb to the host.
+  - The dashboard tells "nothing set up yet" from "no access".
+  - Layout tokens: `--qb-card-radius`, `--qb-card-padding`, `--qb-title-size`, `--qb-title-weight`, `--qb-heading-size`, `--qb-heading-weight`, `--qb-table-row-height`.
+  - `json` fields whose schema is a list of objects get a row editor (`FieldMeta.rows`, `jsonRowColumns`, `RowsEditor`); plugin-connections uses it for LLM models.
+  - Selects and relation chips fit their column; tables scroll in their own box and never widen the page.
+  - `ListToolbar` in `@quickben/admin/ui`; the connections and credentials lists get search and filters.
+- 5f55d52: Custom endpoints: `defineEndpoint`, `reply` and `endpointFactory` in `@quickben/core`, `defineConfig({ endpoints })` and `definePlugin({ endpoints })`, and `handleEndpointRequest` in the new `@quickben/core/http` entry point. Endpoints are typed from Zod schemas, versioned under `/vN`, can be deprecated (`Deprecation` and `Sunset` headers) and run in a transaction with `transactional: true`. `createRouteHandlers` serves them before the CRUD routes and returns a `PUT` handler. The app template exports `PUT`.
+- 11e160b: Gaps found by the first real host app, all additive:
+  
+  - `@quickben/core`: `customAuth({ getUser })` and `chainAuth(...adapters)` (first user wins; `null` or `UnauthorizedError` moves to the next adapter). `ctx.preserveTimestamps` with `overrideAccess: true` keeps `createdAt` and `updatedAt` from the input, for imports. `defineCollection({ trackAuthor: true })` adds `createdBy` and `updatedBy`, set from `ctx.user.id`. `pluginState(id)` keeps per-config plugin state on `globalThis`.
+  - `@quickben/next`: imports `next/headers.js` and `next/server.js`, so the built package loads in plain Node ESM.
+  - `@quickben/auth-firebase`: `session: { read(req) → uid | null, loadUser? }` resolves the host's own session instead of the Firebase session cookie. Bearer ID tokens still work. Firebase SDK service and permission errors propagate instead of allowing a later auth adapter to authenticate the request.
+  - `@quickben/plugin-connections`: `connections({ modelSchema: (base) => base.extend({ … }) })` adds keys to LLM model entries; `ModelOf<typeof plugin>` types them in `resolveLanguageModel`.
+  - Tenancy, templates, doc reader and connections: plugin state survives dev hot reloads.
+- dcf82ce: OpenAPI 3.1 and contract checks. New package `@quickben/openapi`: `generateOpenApi(config, options)` documents custom endpoints (schemas from Zod, shared through `components/schemas` by `.meta({ id })`) and, opt-in, the CRUD routes of collections marked `api: { openapi: true }`; `diffOpenApi` classifies changes as breaking or not; `createOpenApiHandler` serves the document. The `quickben-openapi` CLI runs `generate` (with `--check` for stale files) and `diff`. Core adds the `api` collection option, `operationId` on endpoints and `securitySchemes` on auth adapters (`devAuth`, `firebaseAuth`, `betterAuthAdapter` describe theirs). `createRouteHandlers(config, { openapi: { serve: true } })` serves `GET /openapi.json`.
+
 ## 0.3.0
 
 ### Minor Changes
