@@ -293,7 +293,7 @@ async function launch(
         typeKey: run.record.key,
         typeVersion: run.record.version,
         typeRevision: run.record.revision,
-        examplesRevision: await examplesRevision(qb, type),
+        examplesRevision: await examplesRevision(tx, type),
         compareGroup: run.compareGroup,
         variant: run.variant,
         pipeline,
@@ -551,6 +551,16 @@ async function runType(qb: Quickben, run: TestRunRecord): Promise<DocumentType> 
   }
   const record = await versionRecord(qb, SYSTEM, run.typeKey, run.typeVersion);
   return { ...toDefinition(record), pipeline: run.pipeline as Pipeline };
+}
+
+/** Historical definition, even when the draft that produced the run was removed. */
+export async function testRunDefinition(
+  qb: Quickben,
+  ctx: RequestContext,
+  id: string,
+): Promise<DocumentType> {
+  const run = (await qb.findById(DOC_TEST_RUNS, id, {}, ctx)) as unknown as TestRunRecord;
+  return runType(qb, run);
 }
 
 interface ResultRow {

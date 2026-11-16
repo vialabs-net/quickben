@@ -4,7 +4,7 @@ import { getQuickben } from "@quickben/core";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { addSample, getSample, listSamples, startTestRun } from "../src";
+import { createDraft, deleteDraft, addSample, getSample, listSamples, startTestRun } from "../src";
 import { docReaderAdmin } from "../src/admin";
 import {
   annotateAction,
@@ -325,4 +325,17 @@ describe("evidence boxes", () => {
       }),
     ).toBe(1);
   });
+});
+
+it("opens a historical run after its draft is deleted", async () => {
+  actAs(staff);
+  const qb = await getQuickben(made.config);
+  const ctx = { user: staff };
+  const sample = await addSample(qb, ctx, "invoice", { file: { bytes: PNG } });
+  await createDraft(qb, ctx, "invoice");
+  const [run] = await startTestRun(qb, ctx, "invoice", 2);
+  await made.runner.idle();
+  await deleteDraft(qb, ctx, "invoice", 2);
+  await renderPage(["invoice", "samples", sample.id], { v: "1", run: run!.id });
+  expect(screen.getByRole("heading", { level: 1 })).toBeTruthy();
 });

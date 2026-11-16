@@ -1005,6 +1005,9 @@ importers:
       '@quickben/core':
         specifier: workspace:^
         version: link:../core
+      '@quickben/db-drizzle':
+        specifier: workspace:^
+        version: link:../db-drizzle
       '@quickben/db-memory':
         specifier: workspace:^
         version: link:../db-memory

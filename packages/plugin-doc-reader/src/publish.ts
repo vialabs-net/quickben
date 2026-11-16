@@ -13,7 +13,7 @@
  *    the publication: judging on them would tune the type to them.
  */
 import { listTestRuns, startRuns, TEST_RUN_JOB } from "./bench";
-import { DOC_SAMPLES, DOC_TYPES } from "./collections";
+import { DOC_SAMPLES, DOC_TEST_RUNS, DOC_TYPES } from "./collections";
 import { StudioError } from "./errors";
 import { sampleRevision } from "./eval-state";
 import { checkExamples, examplesRevision } from "./examples";
@@ -26,7 +26,7 @@ import type { TestRun } from "./bench";
 import type { PublishGate } from "./definition";
 import type { StudioRule } from "./errors";
 import type { RunComparison, RunSummary, SampleResult } from "./metrics";
-import type { DocTypeRecord, SampleRecord } from "./records";
+import type { DocTypeRecord, SampleRecord, TestRunRecord } from "./records";
 import type { Quickben, RequestContext } from "@quickben/core";
 
 export interface PublishCheck {
@@ -368,8 +368,11 @@ export async function getEvaluation(
 ): Promise<VersionEvaluation | null> {
   const stored = record.evaluation ?? null;
   if (!stored) return null;
-  const runs = await listTestRuns(qb, ctx, record.key, record.version, 200);
-  const byId = new Map(runs.map((run) => [run.id, run]));
+  const ids = [stored.test?.runId, stored.unseen?.runId].filter(
+    (id): id is string => id !== undefined,
+  );
+  const page = await qb.find(DOC_TEST_RUNS, { where: { id: { in: ids } }, limit: 2 }, ctx);
+  const byId = new Map((page.docs as unknown as TestRunRecord[]).map((run) => [run.id, run]));
   const fill = (entry: EvaluationRun | null): EvaluationRun | null => {
     if (!entry) return null;
     const run = byId.get(entry.runId);

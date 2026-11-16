@@ -16,7 +16,7 @@ import { getQuickben } from "@quickben/core";
 import { getRequestContext } from "@quickben/next";
 import Link from "next/link";
 
-import { getTestRun, listSampleRuns } from "../bench";
+import { getTestRun, listSampleRuns, testRunDefinition } from "../bench";
 import { HELD_OUT_SPLITS } from "../collections";
 import { isEmptyValue } from "../metrics";
 import { getDocReader } from "../options";
@@ -535,7 +535,9 @@ export async function SamplePage({
     history,
     runParam: first(searchParams.run),
   });
-  const runType = (await getVersion(qb, ctx, typeKey, run?.typeVersion ?? number)).definition;
+  const runType = run
+    ? await testRunDefinition(qb, ctx, run.id)
+    : (await getVersion(qb, ctx, typeKey, number)).definition;
 
   const errorsOnly = first(searchParams.errors) === "1";
   const pagePath = (id: string, query: Record<string, string>) =>

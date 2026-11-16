@@ -23,8 +23,13 @@ export async function datasetWrite<T>(
   qb: Quickben,
   key: string,
   work: () => Promise<T>,
+  attempts = 1,
 ): Promise<T> {
-  const id = await claim(qb, `dataset:${key}`);
+  let id = await claim(qb, `dataset:${key}`);
+  for (let attempt = 1; id === null && attempt < attempts; attempt += 1) {
+    await new Promise<void>((done) => setTimeout(done, 10));
+    id = await claim(qb, `dataset:${key}`);
+  }
   if (!id) throw new ConflictError("The dataset is being changed; retry when it finishes");
   try {
     return await work();

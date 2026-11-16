@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   DOC_TEST_RUNS,
+  annotateSample,
   compareResults,
   createDraft,
   getTestRun,
@@ -173,4 +174,37 @@ describe("certification regressions", () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+});
+
+it("keeps both concurrently submitted annotations", async () => {
+  const made = await ready();
+  const [sample] = await listSamples(made.qb, admin, "receipt", "dev");
+  await Promise.all(
+    ["first", "second"].map((text) => annotateSample(made.qb, admin, sample!.id, { text })),
+  );
+  const saved = (await listSamples(made.qb, admin, "receipt")).find(
+    (entry) => entry.id === sample!.id,
+  )!;
+  expect(saved.annotations.map((note) => note.text).sort((a, b) => a.localeCompare(b))).toEqual([
+    "first",
+    "second",
+  ]);
+});
+
+it("reads publication evaluations directly even beyond the 200-run history window", async () => {
+  const made = await ready();
+  await startTestRun(made.qb, admin, "receipt", 2, { split: "validation", baseline: true });
+  await made.runner.idle();
+  const version = await publishDraft(made.qb, admin, "receipt", 2);
+  await made.runner.idle();
+  for (let index = 0; index < 201; index += 1) {
+    await made.qb.create(
+      DOC_TEST_RUNS,
+      { typeKey: "receipt", typeVersion: 2, typeRevision: "later", pipeline: {}, state: "done" },
+      admin,
+    );
+  }
+  const history = await getVersion(made.qb, admin, "receipt", 2);
+  expect(history.evaluation?.test?.runId).toBe(version.evaluation?.test?.runId);
+  expect(history.evaluation?.test?.state).toBe("done");
 });

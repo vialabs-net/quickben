@@ -106,6 +106,7 @@
     "@quickben/admin": "workspace:^",
     "@quickben/core": "workspace:^",
     "@quickben/db-memory": "workspace:^",
+    "@quickben/db-drizzle": "workspace:^",
     "@quickben/eslint-config": "workspace:*",
     "@quickben/next": "workspace:^",
     "@quickben/plugin-connections": "workspace:^",

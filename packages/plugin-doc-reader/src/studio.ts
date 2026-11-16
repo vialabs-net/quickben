@@ -624,6 +624,16 @@ export async function annotateSample(
   id: string,
   input: { field?: string | null; text: string },
 ): Promise<Sample> {
+  const sample = (await qb.findById(DOC_SAMPLES, id, {}, ctx)) as unknown as SampleRecord;
+  return datasetWrite(qb, sample.typeKey, () => annotateSampleUnlocked(qb, ctx, id, input), 100);
+}
+
+async function annotateSampleUnlocked(
+  qb: Quickben,
+  ctx: RequestContext,
+  id: string,
+  input: { field?: string | null; text: string },
+): Promise<Sample> {
   const text = input.text.trim().slice(0, 1000);
   if (!text) throw new ValidationError([{ path: "text", message: "Write the note" }]);
   const record = (await qb.findById(DOC_SAMPLES, id, {}, ctx)) as unknown as SampleRecord;
