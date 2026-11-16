@@ -32,6 +32,8 @@ export interface BetterAuthSession {
 
 /** The part of a `betterAuth()` instance this adapter calls. */
 export interface BetterAuthInstance {
+  /** Better Auth options, used to describe the effective session cookie. */
+  readonly options?: unknown;
   api: {
     getSession(context: { headers: Headers }): Promise<unknown>;
     /** Organization plugin. Needed for `memberRoles: true`. */
@@ -58,6 +60,11 @@ export interface BetterAuthAdapterOptions {
     session: BetterAuthSession,
     user: QuickbenUser,
   ) => QuickbenUser | null | Promise<QuickbenUser | null>;
+  /**
+   * Name of the session cookie, for generated API documents only. Default
+   * derived from the Better Auth instance options (including HTTPS and cookie overrides).
+   */
+  cookieName?: string;
 }
 
 /** Split a comma-separated role string. */
@@ -87,6 +94,40 @@ async function memberRolesOf(auth: BetterAuthInstance, headers: Headers): Promis
   }
 }
 
+interface CookieConfig {
+  baseURL?: string | { protocol?: string };
+  advanced?: {
+    useSecureCookies?: boolean;
+    cookiePrefix?: string;
+    cookies?: { session_token?: { name?: string } };
+  };
+}
+
+function usesSecureCookie(config: CookieConfig | undefined): boolean {
+  const secure = config?.advanced?.useSecureCookies;
+  if (secure !== undefined) return secure;
+  const base =
+    config?.baseURL ?? (typeof process === "undefined" ? undefined : process.env.BETTER_AUTH_URL);
+  if (typeof base === "string") return base.startsWith("https://");
+  if (base?.protocol === "https") return true;
+  if (base?.protocol === "http") return false;
+  return typeof process !== "undefined" && process.env.NODE_ENV === "production";
+}
+
+function sessionCookieName(auth: BetterAuthInstance): string {
+  const config = auth.options as CookieConfig | undefined;
+  const advanced = config?.advanced;
+  const configuredPrefix = advanced?.cookiePrefix;
+  const prefix =
+    configuredPrefix === undefined || configuredPrefix === "" ? "better-auth" : configuredPrefix;
+  const configuredName = advanced?.cookies?.session_token?.name;
+  const name =
+    configuredName === undefined || configuredName === ""
+      ? `${prefix}.session_token`
+      : configuredName;
+  return `${usesSecureCookie(config) ? "__Secure-" : ""}${name}`;
+}
+
 /**
  * Auth adapter for [Better Auth](https://www.better-auth.com). It reads the session with
  * `auth.api.getSession({ headers })`. Sign-in, sign-up and sessions stay in Better Auth.
@@ -98,6 +139,14 @@ async function memberRolesOf(auth: BetterAuthInstance, headers: Headers): Promis
 export function betterAuthAdapter(options: BetterAuthAdapterOptions): AuthAdapter {
   const { auth } = options;
   return {
+    securitySchemes: {
+      session: {
+        type: "apiKey",
+        in: "cookie",
+        name: options.cookieName ?? sessionCookieName(auth),
+        description: "Better Auth session cookie.",
+      },
+    },
     async getUser(req) {
       const session = await auth.api.getSession({ headers: req.headers });
       if (!isSession(session)) return null;

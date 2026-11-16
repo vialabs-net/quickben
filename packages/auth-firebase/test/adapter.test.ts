@@ -107,6 +107,27 @@ describe("getUser", () => {
     expect(await bearer.getUser(basic)).toBeNull();
   });
 
+  it("describes the session cookie and bearer tokens as security schemes", () => {
+    const { auth } = fakeAdmin();
+    expect(firebaseAuth({ auth, cookieName: "sid" }).securitySchemes).toEqual({
+      session: {
+        type: "apiKey",
+        in: "cookie",
+        name: "sid",
+        description: "Firebase session cookie, set by the session route.",
+      },
+    });
+    expect(Object.keys(firebaseAuth({ auth, bearer: true }).securitySchemes ?? {})).toEqual([
+      "session",
+      "bearer",
+    ]);
+    expect(firebaseAuth({ auth, bearer: true }).securitySchemes?.bearer).toMatchObject({
+      type: "http",
+      scheme: "bearer",
+      bearerFormat: "JWT",
+    });
+  });
+
   it("uses a custom cookie name and returns raw claims from verify", async () => {
     const { auth, cookies } = fakeAdmin();
     cookies.set("c1", claims({ tier: "pro" }));

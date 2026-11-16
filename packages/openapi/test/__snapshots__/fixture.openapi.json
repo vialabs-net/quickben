@@ -1,0 +1,2889 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Fixture",
+    "version": "0.0.0"
+  },
+  "servers": [
+    {
+      "url": "/api"
+    }
+  ],
+  "security": [
+    {
+      "bearer": []
+    },
+    {
+      "session": []
+    }
+  ],
+  "tags": [
+    {
+      "description": "Authors",
+      "name": "authors"
+    },
+    {
+      "description": "Articles.",
+      "name": "posts"
+    },
+    {
+      "name": "tags"
+    }
+  ],
+  "paths": {
+    "/authors": {
+      "get": {
+        "operationId": "listAuthors",
+        "parameters": [
+          {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorWhere"
+                }
+              }
+            },
+            "description": "Filter as JSON: `{\"status\":{\"eq\":\"draft\"}}`.",
+            "in": "query",
+            "name": "where"
+          },
+          {
+            "description": "Sort keys, comma-separated. `-` sorts descending: `-createdAt,title`.",
+            "explode": false,
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "style": "form"
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Page number, from 1.",
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "`nextCursor` of the previous page. Not with `page`.",
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Fields to return, comma-separated. The response has `id` and these fields only, so other fields of the schema are missing.",
+            "explode": false,
+            "in": "query",
+            "name": "select",
+            "schema": {
+              "items": {
+                "enum": [
+                  "id",
+                  "createdAt",
+                  "updatedAt",
+                  "name",
+                  "email",
+                  "site",
+                  "photo"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "style": "form"
+          },
+          {
+            "description": "Load relations to this depth. `0` returns ids.",
+            "in": "query",
+            "name": "depth",
+            "schema": {
+              "maximum": 3,
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorList"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "summary": "List authors",
+        "tags": [
+          "authors"
+        ]
+      },
+      "post": {
+        "operationId": "createAuthor",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthorCreateInput"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "properties": {
+                  "_payload": {
+                    "contentMediaType": "application/json",
+                    "description": "The other fields, as JSON.",
+                    "type": "string"
+                  },
+                  "photo": {
+                    "contentMediaType": "application/octet-stream",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Author"
+                }
+              }
+            },
+            "description": "Created."
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "summary": "Create a authors document",
+        "tags": [
+          "authors"
+        ]
+      }
+    },
+    "/authors/{id}": {
+      "delete": {
+        "operationId": "deleteAuthor",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Author"
+                }
+              }
+            },
+            "description": "The deleted document."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "summary": "Delete a authors document",
+        "tags": [
+          "authors"
+        ]
+      },
+      "get": {
+        "operationId": "getAuthor",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Fields to return, comma-separated. The response has `id` and these fields only, so other fields of the schema are missing.",
+            "explode": false,
+            "in": "query",
+            "name": "select",
+            "schema": {
+              "items": {
+                "enum": [
+                  "id",
+                  "createdAt",
+                  "updatedAt",
+                  "name",
+                  "email",
+                  "site",
+                  "photo"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "style": "form"
+          },
+          {
+            "description": "Load relations to this depth. `0` returns ids.",
+            "in": "query",
+            "name": "depth",
+            "schema": {
+              "maximum": 3,
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Author"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "summary": "Get a authors document",
+        "tags": [
+          "authors"
+        ]
+      },
+      "patch": {
+        "operationId": "updateAuthor",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthorUpdateInput"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "properties": {
+                  "_payload": {
+                    "contentMediaType": "application/json",
+                    "description": "The other fields, as JSON.",
+                    "type": "string"
+                  },
+                  "photo": {
+                    "contentMediaType": "application/octet-stream",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Author"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "summary": "Update a authors document",
+        "tags": [
+          "authors"
+        ]
+      }
+    },
+    "/authors/{id}/photo": {
+      "get": {
+        "operationId": "getAuthorPhoto",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Send `Content-Disposition: attachment`.",
+            "in": "query",
+            "name": "download",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/png": {}
+            },
+            "description": "The file."
+          },
+          "304": {
+            "description": "Not modified (`If-None-Match`)."
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "summary": "Download the photo file",
+        "tags": [
+          "authors"
+        ]
+      }
+    },
+    "/ping/{token}": {
+      "delete": {
+        "operationId": "deletePingByToken",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/posts": {
+      "get": {
+        "operationId": "listPosts",
+        "parameters": [
+          {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostWhere"
+                }
+              }
+            },
+            "description": "Filter as JSON: `{\"status\":{\"eq\":\"draft\"}}`.",
+            "in": "query",
+            "name": "where"
+          },
+          {
+            "description": "Sort keys, comma-separated. `-` sorts descending: `-createdAt,title`.",
+            "explode": false,
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "style": "form"
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Page number, from 1.",
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "`nextCursor` of the previous page. Not with `page`.",
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Fields to return, comma-separated. The response has `id` and these fields only, so other fields of the schema are missing.",
+            "explode": false,
+            "in": "query",
+            "name": "select",
+            "schema": {
+              "items": {
+                "enum": [
+                  "id",
+                  "createdAt",
+                  "updatedAt",
+                  "title",
+                  "status",
+                  "views",
+                  "rating",
+                  "featured",
+                  "publishedOn",
+                  "publishedAt",
+                  "author",
+                  "reviewer",
+                  "tags",
+                  "labels",
+                  "priority",
+                  "meta",
+                  "extra",
+                  "body"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "style": "form"
+          },
+          {
+            "description": "Load relations to this depth. `0` returns ids.",
+            "in": "query",
+            "name": "depth",
+            "schema": {
+              "maximum": 3,
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostList"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "summary": "List posts",
+        "tags": [
+          "posts"
+        ]
+      },
+      "post": {
+        "operationId": "createPost",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostCreateInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Post"
+                }
+              }
+            },
+            "description": "Created."
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "summary": "Create a posts document",
+        "tags": [
+          "posts"
+        ]
+      }
+    },
+    "/posts/{id}": {
+      "delete": {
+        "operationId": "deletePost",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Post"
+                }
+              }
+            },
+            "description": "The deleted document."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "summary": "Delete a posts document",
+        "tags": [
+          "posts"
+        ]
+      },
+      "get": {
+        "operationId": "getPost",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Fields to return, comma-separated. The response has `id` and these fields only, so other fields of the schema are missing.",
+            "explode": false,
+            "in": "query",
+            "name": "select",
+            "schema": {
+              "items": {
+                "enum": [
+                  "id",
+                  "createdAt",
+                  "updatedAt",
+                  "title",
+                  "status",
+                  "views",
+                  "rating",
+                  "featured",
+                  "publishedOn",
+                  "publishedAt",
+                  "author",
+                  "reviewer",
+                  "tags",
+                  "labels",
+                  "priority",
+                  "meta",
+                  "extra",
+                  "body"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "style": "form"
+          },
+          {
+            "description": "Load relations to this depth. `0` returns ids.",
+            "in": "query",
+            "name": "depth",
+            "schema": {
+              "maximum": 3,
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Post"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "summary": "Get a posts document",
+        "tags": [
+          "posts"
+        ]
+      },
+      "patch": {
+        "operationId": "updatePost",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostUpdateInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Post"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "summary": "Update a posts document",
+        "tags": [
+          "posts"
+        ]
+      }
+    },
+    "/tags/{id}": {
+      "put": {
+        "deprecated": true,
+        "operationId": "putTagsById",
+        "parameters": [
+          {
+            "description": "Tag id.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Tag id.",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "description": "Success."
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/tags": {
+      "get": {
+        "description": "Every tag.",
+        "operationId": "getV1Tags",
+        "parameters": [
+          {
+            "description": "Largest number of tags.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "description": "Largest number of tags.",
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "tags": {
+                      "items": {
+                        "$ref": "#/components/schemas/Tag"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "tags"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {},
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ],
+        "summary": "List tags",
+        "tags": [
+          "tags"
+        ],
+        "x-quickben-version": 1
+      },
+      "post": {
+        "deprecated": true,
+        "operationId": "createTag",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TagInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tag"
+                }
+              }
+            },
+            "description": "Created."
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "taken": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "taken"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Status 409."
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-deprecated-at": "2026-01-01T00:00:00.000Z",
+        "x-quickben-version": 1,
+        "x-sunset": "2027-01-01T00:00:00.000Z"
+      }
+    }
+  },
+  "components": {
+    "responses": {
+      "Conflict": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        },
+        "description": "A unique value is taken (`CONFLICT`)."
+      },
+      "Forbidden": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        },
+        "description": "The user may not do this (`FORBIDDEN`)."
+      },
+      "InternalError": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        },
+        "description": "Unexpected server error (`INTERNAL`)."
+      },
+      "NotFound": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        },
+        "description": "No such document or route (`NOT_FOUND`)."
+      },
+      "PayloadTooLarge": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        },
+        "description": "The body is too large (`PAYLOAD_TOO_LARGE`)."
+      },
+      "Unauthorized": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        },
+        "description": "No user (`UNAUTHORIZED`)."
+      },
+      "UnsupportedMediaType": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        },
+        "description": "Wrong content type (`UNSUPPORTED_MEDIA_TYPE`)."
+      },
+      "ValidationError": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        },
+        "description": "Invalid input (`VALIDATION`)."
+      }
+    },
+    "schemas": {
+      "Author": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "title": "Name",
+            "type": "string"
+          },
+          "email": {
+            "format": "email",
+            "title": "Email",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "site": {
+            "format": "uri",
+            "title": "Site",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "photo": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FileRef",
+                "title": "Photo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "AuthorCreateInput": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 120,
+            "title": "Name",
+            "type": "string"
+          },
+          "email": {
+            "format": "email",
+            "title": "Email",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "site": {
+            "format": "uri",
+            "title": "Site",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "photo": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FileRef",
+                "title": "Photo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "AuthorList": {
+        "properties": {
+          "docs": {
+            "items": {
+              "$ref": "#/components/schemas/Author"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "hasNextPage": {
+            "type": "boolean"
+          },
+          "nextCursor": {
+            "description": "Pass as `cursor` for the next page.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "page": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "totalDocs": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "totalPages": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "docs",
+          "limit",
+          "hasNextPage",
+          "nextCursor",
+          "page",
+          "totalDocs",
+          "totalPages"
+        ],
+        "type": "object"
+      },
+      "AuthorUpdateInput": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 120,
+            "title": "Name",
+            "type": "string"
+          },
+          "email": {
+            "format": "email",
+            "title": "Email",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "site": {
+            "format": "uri",
+            "title": "Site",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "photo": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FileRef",
+                "title": "Photo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "AuthorWhere": {
+        "additionalProperties": false,
+        "description": "Filter. Conditions are combined with AND.",
+        "properties": {
+          "id": {
+            "additionalProperties": false,
+            "properties": {
+              "eq": {
+                "type": "string"
+              },
+              "ne": {
+                "type": "string"
+              },
+              "in": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "notIn": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "exists": {
+                "type": "boolean"
+              }
+            },
+            "type": "object"
+          },
+          "createdAt": {
+            "additionalProperties": false,
+            "properties": {
+              "eq": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "ne": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "in": {
+                "items": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "notIn": {
+                "items": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "lt": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "lte": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "gt": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "gte": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "exists": {
+                "type": "boolean"
+              }
+            },
+            "type": "object"
+          },
+          "updatedAt": {
+            "additionalProperties": false,
+            "properties": {
+              "eq": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "ne": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "in": {
+                "items": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "notIn": {
+                "items": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "lt": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "lte": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "gt": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "gte": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "exists": {
+                "type": "boolean"
+              }
+            },
+            "type": "object"
+          },
+          "name": {
+            "additionalProperties": false,
+            "properties": {
+              "eq": {
+                "type": "string"
+              },
+              "ne": {
+                "type": "string"
+              },
+              "in": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "notIn": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "lt": {
+                "type": "string"
+              },
+              "lte": {
+                "type": "string"
+              },
+              "gt": {
+                "type": "string"
+              },
+              "gte": {
+                "type": "string"
+              },
+              "contains": {
+                "type": "string"
+              },
+              "startsWith": {
+                "type": "string"
+              },
+              "exists": {
+                "type": "boolean"
+              }
+            },
+            "type": "object"
+          },
+          "email": {
+            "additionalProperties": false,
+            "properties": {
+              "eq": {
+                "type": "string"
+              },
+              "ne": {
+                "type": "string"
+              },
+              "in": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "notIn": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "lt": {
+                "type": "string"
+              },
+              "lte": {
+                "type": "string"
+              },
+              "gt": {
+                "type": "string"
+              },
+              "gte": {
+                "type": "string"
+              },
+              "contains": {
+                "type": "string"
+              },
+              "startsWith": {
+                "type": "string"
+              },
+              "exists": {
+                "type": "boolean"
+              }
+            },
+            "type": "object"
+          },
+          "site": {
+            "additionalProperties": false,
+            "properties": {
+              "eq": {
+                "type": "string"
+              },
+              "ne": {
+                "type": "string"
+              },
+              "in": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "notIn": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "lt": {
+                "type": "string"
+              },
+              "lte": {
+                "type": "string"
+              },
+              "gt": {
+                "type": "string"
+              },
+              "gte": {
+                "type": "string"
+              },
+              "contains": {
+                "type": "string"
+              },
+              "startsWith": {
+                "type": "string"
+              },
+              "exists": {
+                "type": "boolean"
+              }
+            },
+            "type": "object"
+          },
+          "photo": {
+            "additionalProperties": false,
+            "properties": {
+              "exists": {
+                "type": "boolean"
+              }
+            },
+            "type": "object"
+          },
+          "and": {
+            "items": {
+              "$ref": "#/components/schemas/AuthorWhere"
+            },
+            "type": "array"
+          },
+          "or": {
+            "items": {
+              "$ref": "#/components/schemas/AuthorWhere"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "Error": {
+        "description": "Body of every error response.",
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "description": "VALIDATION, UNAUTHORIZED, FORBIDDEN, NOT_FOUND, CONFLICT, METHOD_NOT_ALLOWED, PAYLOAD_TOO_LARGE, UNSUPPORTED_MEDIA_TYPE or INTERNAL.",
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {
+                "anyOf": [
+                  {
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "`{ issues }` for VALIDATION, `{ field }` for CONFLICT, `{ fields }` for FORBIDDEN from field rules, else null."
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "details"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "type": "object"
+      },
+      "FileRef": {
+        "description": "A stored file. Download it from `GET /{collection}/{id}/{field}`.",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "mime": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "sha256": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "mime",
+          "size",
+          "sha256"
+        ],
+        "type": "object"
+      },
+      "Post": {
+        "description": "Articles.",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "title": {
+            "description": "Shown in lists.",
+            "title": "Title",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "published"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "views": {
+            "minimum": 0,
+            "title": "Views",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "rating": {
+            "maximum": 5,
+            "minimum": 0,
+            "title": "Rating",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "featured": {
+            "title": "Featured",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "publishedOn": {
+            "format": "date",
+            "title": "Published on",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "title": "Published at",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "author": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "$ref": "#/components/schemas/Author"
+                  }
+                ],
+                "description": "Id of a authors document, or the document with `depth` above 0.",
+                "title": "Author"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reviewer": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "object"
+                  }
+                ],
+                "description": "Id of a users document, or the document with `depth` above 0.",
+                "title": "Reviewer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tags": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "$ref": "#/components/schemas/Author"
+                }
+              ],
+              "description": "Id of a authors document, or the document with `depth` above 0."
+            },
+            "title": "Tags",
+            "type": "array",
+            "uniqueItems": true
+          },
+          "labels": {
+            "items": {
+              "enum": [
+                "a",
+                "b"
+              ],
+              "type": "string"
+            },
+            "title": "Labels",
+            "type": "array",
+            "uniqueItems": true
+          },
+          "priority": {
+            "enum": [
+              "low",
+              "high",
+              null
+            ],
+            "title": "Priority",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "meta": {
+            "properties": {
+              "seo": {
+                "type": "string"
+              }
+            },
+            "title": "Meta",
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "extra": {
+            "anyOf": [
+              {
+                "description": "Any JSON value.",
+                "title": "Extra"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "body": {
+            "minLength": 1,
+            "title": "Body",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "PostCreateInput": {
+        "additionalProperties": false,
+        "properties": {
+          "title": {
+            "description": "Shown in lists.",
+            "title": "Title",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "published"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "views": {
+            "minimum": 0,
+            "title": "Views",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "rating": {
+            "maximum": 5,
+            "minimum": 0,
+            "title": "Rating",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "featured": {
+            "title": "Featured",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "publishedOn": {
+            "format": "date",
+            "title": "Published on",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "title": "Published at",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "author": {
+            "description": "Id of a authors document.",
+            "title": "Author",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reviewer": {
+            "description": "Id of a users document.",
+            "title": "Reviewer",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tags": {
+            "items": {
+              "description": "Id of a authors document.",
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array",
+            "uniqueItems": true
+          },
+          "labels": {
+            "items": {
+              "enum": [
+                "a",
+                "b"
+              ],
+              "type": "string"
+            },
+            "title": "Labels",
+            "type": "array",
+            "uniqueItems": true
+          },
+          "priority": {
+            "enum": [
+              "low",
+              "high",
+              null
+            ],
+            "title": "Priority",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "meta": {
+            "properties": {
+              "seo": {
+                "type": "string"
+              }
+            },
+            "title": "Meta",
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "extra": {
+            "anyOf": [
+              {
+                "description": "Any JSON value.",
+                "title": "Extra"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "body": {
+            "minLength": 1,
+            "title": "Body",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "type": "object"
+      },
+      "PostList": {
+        "properties": {
+          "docs": {
+            "items": {
+              "$ref": "#/components/schemas/Post"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "hasNextPage": {
+            "type": "boolean"
+          },
+          "nextCursor": {
+            "description": "Pass as `cursor` for the next page.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "page": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "totalDocs": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "totalPages": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "docs",
+          "limit",
+          "hasNextPage",
+          "nextCursor",
+          "page",
+          "totalDocs",
+          "totalPages"
+        ],
+        "type": "object"
+      },
+      "PostUpdateInput": {
+        "additionalProperties": false,
+        "properties": {
+          "title": {
+            "description": "Shown in lists.",
+            "title": "Title",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "published"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "views": {
+            "minimum": 0,
+            "title": "Views",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "rating": {
+            "maximum": 5,
+            "minimum": 0,
+            "title": "Rating",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "featured": {
+            "title": "Featured",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "publishedOn": {
+            "format": "date",
+            "title": "Published on",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "title": "Published at",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "author": {
+            "description": "Id of a authors document.",
+            "title": "Author",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reviewer": {
+            "description": "Id of a users document.",
+            "title": "Reviewer",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tags": {
+            "items": {
+              "description": "Id of a authors document.",
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array",
+            "uniqueItems": true
+          },
+          "labels": {
+            "items": {
+              "enum": [
+                "a",
+                "b"
+              ],
+              "type": "string"
+            },
+            "title": "Labels",
+            "type": "array",
+            "uniqueItems": true
+          },
+          "priority": {
+            "enum": [
+              "low",
+              "high",
+              null
+            ],
+            "title": "Priority",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "meta": {
+            "properties": {
+              "seo": {
+                "type": "string"
+              }
+            },
+            "title": "Meta",
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "extra": {
+            "anyOf": [
+              {
+                "description": "Any JSON value.",
+                "title": "Extra"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "body": {
+            "minLength": 1,
+            "title": "Body",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "PostWhere": {
+        "additionalProperties": false,
+        "description": "Filter. Conditions are combined with AND.",
+        "properties": {
+          "id": {
+            "additionalProperties": false,
+            "properties": {
+              "eq": {
+                "type": "string"
+              },
+              "ne": {
+                "type": "string"
+              },
+              "in": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "notIn": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "exists": {
+                "type": "boolean"
+              }
+            },
+            "type": "object"
+          },
+          "createdAt": {
+            "additionalProperties": false,
+            "properties": {
+              "eq": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "ne": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "in": {
+                "items": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "notIn": {
+                "items": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "lt": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "lte": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "gt": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "gte": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "exists": {
+                "type": "boolean"
+              }
+            },
+            "type": "object"
+          },
+          "updatedAt": {
+            "additionalProperties": false,
+            "properties": {
+              "eq": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "ne": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "in": {
+                "items": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "notIn": {
+                "items": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "lt": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "lte": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "gt": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "gte": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "exists": {
+                "type": "boolean"
+              }
+            },
+            "type": "object"
+          },
+          "title": {
+            "additionalProperties": false,
+            "properties": {
+              "eq": {
+                "type": "string"
+              },
+              "ne": {
+                "type": "string"
+              },
+              "in": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "notIn": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "lt": {
+                "type": "string"
+              },
+              "lte": {
+                "type": "string"
+              },
+              "gt": {
+                "type": "string"
+              },
+              "gte": {
+                "type": "string"
+              },
+              "contains": {
+                "type": "string"
+              },
+              "startsWith": {
+                "type": "string"
+              },
+              "exists": {
+                "type": "boolean"
+              }
+            },
+            "type": "object"
+          },
+          "status": {
+            "additionalProperties": false,
+            "properties": {
+              "eq": {
+                "enum": [
+                  "draft",
+                  "published"
+                ],
+                "type": "string"
+              },
+              "ne": {
+                "enum": [
+                  "draft",
+                  "published"
+                ],
+                "type": "string"
+              },
+              "in": {
+                "items": {
+                  "enum": [
+                    "draft",
+                    "published"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "notIn": {
+                "items": {
+                  "enum": [
+                    "draft",
+                    "published"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "exists": {
+                "type": "boolean"
+              }
+            },
+            "type": "object"
+          },
+          "views": {
+            "additionalProperties": false,
+            "properties": {
+              "eq": {
+                "type": "number"
+              },
+              "ne": {
+                "type": "number"
+              },
+              "in": {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              "notIn": {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              "lt": {
+                "type": "number"
+              },
+              "lte": {
+                "type": "number"
+              },
+              "gt": {
+                "type": "number"
+              },
+              "gte": {
+                "type": "number"
+              },
+              "exists": {
+                "type": "boolean"
+              }
+            },
+            "type": "object"
+          },
+          "rating": {
+            "additionalProperties": false,
+            "properties": {
+              "eq": {
+                "type": "number"
+              },
+              "ne": {
+                "type": "number"
+              },
+              "in": {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              "notIn": {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              "lt": {
+                "type": "number"
+              },
+              "lte": {
+                "type": "number"
+              },
+              "gt": {
+                "type": "number"
+              },
+              "gte": {
+                "type": "number"
+              },
+              "exists": {
+                "type": "boolean"
+              }
+            },
+            "type": "object"
+          },
+          "featured": {
+            "additionalProperties": false,
+            "properties": {
+              "eq": {
+                "type": "boolean"
+              },
+              "ne": {
+                "type": "boolean"
+              },
+              "in": {
+                "items": {
+                  "type": "boolean"
+                },
+                "type": "array"
+              },
+              "notIn": {
+                "items": {
+                  "type": "boolean"
+                },
+                "type": "array"
+              },
+              "exists": {
+                "type": "boolean"
+              }
+            },
+            "type": "object"
+          },
+          "publishedOn": {
+            "additionalProperties": false,
+            "properties": {
+              "eq": {
+                "type": "string"
+              },
+              "ne": {
+                "type": "string"
+              },
+              "in": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "notIn": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "lt": {
+                "type": "string"
+              },
+              "lte": {
+                "type": "string"
+              },
+              "gt": {
+                "type": "string"
+              },
+              "gte": {
+                "type": "string"
+              },
+              "exists": {
+                "type": "boolean"
+              }
+            },
+            "type": "object"
+          },
+          "publishedAt": {
+            "additionalProperties": false,
+            "properties": {
+              "eq": {
+                "type": "string"
+              },
+              "ne": {
+                "type": "string"
+              },
+              "in": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "notIn": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "lt": {
+                "type": "string"
+              },
+              "lte": {
+                "type": "string"
+              },
+              "gt": {
+                "type": "string"
+              },
+              "gte": {
+                "type": "string"
+              },
+              "exists": {
+                "type": "boolean"
+              }
+            },
+            "type": "object"
+          },
+          "author": {
+            "additionalProperties": false,
+            "properties": {
+              "eq": {
+                "type": "string"
+              },
+              "ne": {
+                "type": "string"
+              },
+              "in": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "notIn": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "exists": {
+                "type": "boolean"
+              }
+            },
+            "type": "object"
+          },
+          "reviewer": {
+            "additionalProperties": false,
+            "properties": {
+              "eq": {
+                "type": "string"
+              },
+              "ne": {
+                "type": "string"
+              },
+              "in": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "notIn": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "exists": {
+                "type": "boolean"
+              }
+            },
+            "type": "object"
+          },
+          "tags": {
+            "additionalProperties": false,
+            "properties": {
+              "contains": {
+                "type": "string"
+              },
+              "in": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "notIn": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "exists": {
+                "type": "boolean"
+              }
+            },
+            "type": "object"
+          },
+          "labels": {
+            "additionalProperties": false,
+            "properties": {
+              "contains": {
+                "enum": [
+                  "a",
+                  "b"
+                ],
+                "type": "string"
+              },
+              "in": {
+                "items": {
+                  "enum": [
+                    "a",
+                    "b"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "notIn": {
+                "items": {
+                  "enum": [
+                    "a",
+                    "b"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "exists": {
+                "type": "boolean"
+              }
+            },
+            "type": "object"
+          },
+          "priority": {
+            "additionalProperties": false,
+            "properties": {
+              "eq": {
+                "enum": [
+                  "low",
+                  "high"
+                ],
+                "type": "string"
+              },
+              "ne": {
+                "enum": [
+                  "low",
+                  "high"
+                ],
+                "type": "string"
+              },
+              "in": {
+                "items": {
+                  "enum": [
+                    "low",
+                    "high"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "notIn": {
+                "items": {
+                  "enum": [
+                    "low",
+                    "high"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "exists": {
+                "type": "boolean"
+              }
+            },
+            "type": "object"
+          },
+          "meta": {
+            "additionalProperties": false,
+            "properties": {
+              "exists": {
+                "type": "boolean"
+              }
+            },
+            "type": "object"
+          },
+          "extra": {
+            "additionalProperties": false,
+            "properties": {
+              "exists": {
+                "type": "boolean"
+              }
+            },
+            "type": "object"
+          },
+          "body": {
+            "additionalProperties": false,
+            "properties": {
+              "eq": {
+                "type": "string"
+              },
+              "ne": {
+                "type": "string"
+              },
+              "in": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "notIn": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "lt": {
+                "type": "string"
+              },
+              "lte": {
+                "type": "string"
+              },
+              "gt": {
+                "type": "string"
+              },
+              "gte": {
+                "type": "string"
+              },
+              "contains": {
+                "type": "string"
+              },
+              "startsWith": {
+                "type": "string"
+              },
+              "exists": {
+                "type": "boolean"
+              }
+            },
+            "type": "object"
+          },
+          "and": {
+            "items": {
+              "$ref": "#/components/schemas/PostWhere"
+            },
+            "type": "array"
+          },
+          "or": {
+            "items": {
+              "$ref": "#/components/schemas/PostWhere"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "Tag": {
+        "description": "A tag.",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "color": {
+            "default": "gray",
+            "enum": [
+              "gray",
+              "blue"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "color"
+        ],
+        "type": "object"
+      },
+      "TagInput": {
+        "description": "A tag.",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "color": {
+            "default": "gray",
+            "enum": [
+              "gray",
+              "blue"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "bearerFormat": "JWT",
+        "scheme": "bearer",
+        "type": "http"
+      },
+      "session": {
+        "in": "cookie",
+        "name": "sid",
+        "type": "apiKey"
+      }
+    }
+  }
+}
