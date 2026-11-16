@@ -353,6 +353,7 @@ describe("list search and filters", () => {
   });
 
   it("filters derived state and use across every page with request access", async () => {
+    actAs(admin);
     // Tiny pages exercise the same boundaries as the production 500/1000-row limits.
     const find = qb.find.bind(qb);
     vi.spyOn(qb, "find").mockImplementation((slug, options, ctx) =>
