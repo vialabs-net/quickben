@@ -43,7 +43,7 @@
  * Utilities the admin no longer uses itself but plugin pages may (they were in earlier
  * releases), and utilities only plugin pages use.
  */
-@source inline("qb:min-w-56 qb:overflow-x-auto qb:p-5 qb:rounded-b-lg qb:gap-x-3 qb:gap-y-1 qb:basis-48");
+@source inline("qb:min-w-56 qb:overflow-x-auto qb:p-5 qb:rounded-b-lg qb:gap-x-3 qb:gap-y-1 qb:basis-48 qb:w-28");
 
 @theme inline {
   --color-surface: var(--qb-surface);
