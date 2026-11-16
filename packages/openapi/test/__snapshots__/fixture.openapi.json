@@ -1804,7 +1804,8 @@
               "description": "Id of a authors document, or the document with `depth` above 0."
             },
             "title": "Tags",
-            "type": "array"
+            "type": "array",
+            "uniqueItems": true
           },
           "labels": {
             "items": {
@@ -1815,7 +1816,8 @@
               "type": "string"
             },
             "title": "Labels",
-            "type": "array"
+            "type": "array",
+            "uniqueItems": true
           },
           "priority": {
             "enum": [
@@ -1944,7 +1946,8 @@
               "type": "string"
             },
             "title": "Tags",
-            "type": "array"
+            "type": "array",
+            "uniqueItems": true
           },
           "labels": {
             "items": {
@@ -1955,7 +1958,8 @@
               "type": "string"
             },
             "title": "Labels",
-            "type": "array"
+            "type": "array",
+            "uniqueItems": true
           },
           "priority": {
             "enum": [
@@ -2135,7 +2139,8 @@
               "type": "string"
             },
             "title": "Tags",
-            "type": "array"
+            "type": "array",
+            "uniqueItems": true
           },
           "labels": {
             "items": {
@@ -2146,7 +2151,8 @@
               "type": "string"
             },
             "title": "Labels",
-            "type": "array"
+            "type": "array",
+            "uniqueItems": true
           },
           "priority": {
             "enum": [

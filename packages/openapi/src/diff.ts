@@ -207,7 +207,7 @@ function covers(wide: ReadonlySet<string>, narrow: ReadonlySet<string>): boolean
   return [...narrow].every((type) => wide.has(type) || (type === "integer" && wide.has("number")));
 }
 
-function enumOf(schema: JsonSchema): unknown[] | undefined {
+function enumOf(doc: OpenApiDocument, schema: JsonSchema): unknown[] | undefined {
   if ("const" in schema) return [schema.const];
   if (Array.isArray(schema.enum)) return schema.enum as unknown[];
   const list = branches(schema);
@@ -218,7 +218,7 @@ function enumOf(schema: JsonSchema): unknown[] | undefined {
       values.push(null);
       continue;
     }
-    const inner = enumOf(branch);
+    const inner = enumOf(doc, resolvePointer(doc, branch) as JsonSchema);
     if (!inner) return undefined;
     values.push(...inner);
   }
@@ -265,8 +265,8 @@ function compareTypes(scope: Scope, pair: SchemaPair, b: JsonSchema, h: JsonSche
 }
 
 function compareEnums(scope: Scope, pair: SchemaPair, b: JsonSchema, h: JsonSchema): void {
-  const be = enumOf(b);
-  const he = enumOf(h);
+  const be = enumOf(scope.base, b);
+  const he = enumOf(scope.head, h);
   if (!be && !he) return;
   const where = `${pair.where} ${label(pair.at)}`;
   const request = pair.direction === "request";
@@ -475,6 +475,51 @@ function compareInner(
   }
 }
 
+function intersectProperties(previous: JsonSchema, item: JsonSchema): JsonSchema {
+  const result = { ...previous };
+  for (const [name, schema] of Object.entries(item)) {
+    result[name] = Object.hasOwn(previous, name) ? { allOf: [previous[name], schema] } : schema;
+  }
+  return result;
+}
+
+function intersectValue(key: string, previous: unknown, item: unknown): unknown {
+  if (previous === undefined || JSON.stringify(previous) === JSON.stringify(item)) return item;
+  if (Array.isArray(previous) && Array.isArray(item)) {
+    const before: unknown[] = previous;
+    const after: unknown[] = item;
+    if (key === "required") return [...new Set([...before, ...after])];
+    if (key === "enum") return before.filter((entry) => after.includes(entry));
+  }
+  if (key === "properties" && isObject(previous) && isObject(item))
+    return intersectProperties(previous, item);
+  if (
+    typeof previous === "number" &&
+    typeof item === "number" &&
+    /^(min|max|exclusive)/.test(key)
+  ) {
+    return key.includes("ax") ? Math.min(previous, item) : Math.max(previous, item);
+  }
+  if (["title", "description", "$id"].includes(key)) return item;
+  throw new Error(`Cannot compare conflicting allOf constraint: ${key}`);
+}
+
+/** Flatten object intersections; repeated property constraints remain conjunctive. */
+function intersection(doc: OpenApiDocument, value: unknown, seen = new Set<unknown>()): unknown {
+  const resolved = resolvePointer(doc, value);
+  if (!isObject(resolved) || !Array.isArray(resolved.allOf) || seen.has(resolved)) return resolved;
+  const next = new Set(seen).add(resolved);
+  const { allOf, ...own } = resolved;
+  const result: JsonSchema = { ...own };
+  for (const branch of allOf as unknown[]) {
+    const part = intersection(doc, branch, next);
+    if (!isObject(part)) continue;
+    for (const [key, item] of Object.entries(part))
+      result[key] = intersectValue(key, result[key], item);
+  }
+  return result;
+}
+
 function compareSchema(scope: Scope, pair: SchemaPair, seen = new Set<string>()): void {
   const bRef = isObject(pair.base) && typeof pair.base.$ref === "string" ? pair.base.$ref : "";
   const hRef = isObject(pair.head) && typeof pair.head.$ref === "string" ? pair.head.$ref : "";
@@ -484,8 +529,8 @@ function compareSchema(scope: Scope, pair: SchemaPair, seen = new Set<string>())
     if (seen.has(visit)) return;
     seen.add(visit);
   }
-  const b = resolvePointer(scope.base, pair.base);
-  const h = resolvePointer(scope.head, pair.head);
+  const b = intersection(scope.base, pair.base);
+  const h = intersection(scope.head, pair.head);
   if (isObject(b) && isObject(h) && !compareTypes(scope, pair, b, h)) {
     compareEnums(scope, pair, b, h);
     const bInner = unwrap(scope.base, b);

@@ -6,8 +6,8 @@ export interface ConstraintChange {
   message: string;
 }
 
-const upperBounds = ["maximum", "exclusiveMaximum", "maxLength", "maxItems", "maxProperties"];
-const lowerBounds = ["minimum", "exclusiveMinimum", "minLength", "minItems", "minProperties"];
+const upperBounds = ["maxLength", "maxItems", "maxProperties"];
+const lowerBounds = ["minLength", "minItems", "minProperties"];
 
 function numberAt(schema: JsonSchema, key: string): number | undefined {
   const value = schema[key];
@@ -30,6 +30,30 @@ function boundChange(
   else if (bv === undefined) narrowed = true;
   else narrowed = upper ? hv < bv : hv > bv;
   return { narrowed, message: `${key} changed from ${from} to ${to}` };
+}
+
+function numericBound(schema: JsonSchema, upper: boolean): { value: number; exclusive: boolean } {
+  const fallback = upper ? Infinity : -Infinity;
+  const inclusive = numberAt(schema, upper ? "maximum" : "minimum") ?? fallback;
+  const exclusive = numberAt(schema, upper ? "exclusiveMaximum" : "exclusiveMinimum");
+  if (exclusive === undefined) return { value: inclusive, exclusive: false };
+  const stricter = upper ? exclusive <= inclusive : exclusive >= inclusive;
+  return stricter ? { value: exclusive, exclusive: true } : { value: inclusive, exclusive: false };
+}
+
+function numericChange(b: JsonSchema, h: JsonSchema, upper: boolean): ConstraintChange[] {
+  const before = numericBound(b, upper);
+  const after = numericBound(h, upper);
+  if (before.value === after.value && before.exclusive === after.exclusive) return [];
+  let narrowed = after.exclusive;
+  if (before.value !== after.value)
+    narrowed = upper ? after.value < before.value : after.value > before.value;
+  return [
+    {
+      narrowed,
+      message: `${upper ? "maximum" : "minimum"} bound changed from ${before.exclusive ? "exclusive " : ""}${String(before.value)} to ${after.exclusive ? "exclusive " : ""}${String(after.value)}`,
+    },
+  ];
 }
 
 function textChange(key: string, b: JsonSchema, h: JsonSchema): ConstraintChange[] {
@@ -66,7 +90,7 @@ function multipleChanges(b: JsonSchema, h: JsonSchema): ConstraintChange[] {
 
 /** Changes of bounds (`maximum`, `maxLength`, …), `pattern` and `format`. */
 export function constraintChanges(b: JsonSchema, h: JsonSchema): ConstraintChange[] {
-  const changes: ConstraintChange[] = [];
+  const changes: ConstraintChange[] = [...numericChange(b, h, true), ...numericChange(b, h, false)];
   for (const key of upperBounds) {
     const change = boundChange(key, b, h, true);
     if (change) changes.push(change);

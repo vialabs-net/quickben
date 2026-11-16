@@ -2129,7 +2129,8 @@
               "description": "Id of a tags document, or the document with `depth` above 0."
             },
             "title": "Tags",
-            "type": "array"
+            "type": "array",
+            "uniqueItems": true
           },
           "featured": {
             "title": "Featured",
@@ -2199,7 +2200,8 @@
               "type": "string"
             },
             "title": "Tags",
-            "type": "array"
+            "type": "array",
+            "uniqueItems": true
           },
           "featured": {
             "title": "Featured",
@@ -2320,7 +2322,8 @@
               "type": "string"
             },
             "title": "Tags",
-            "type": "array"
+            "type": "array",
+            "uniqueItems": true
           },
           "featured": {
             "title": "Featured",

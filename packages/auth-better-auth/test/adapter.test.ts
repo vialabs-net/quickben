@@ -51,6 +51,19 @@ describe("betterAuthAdapter with a real Better Auth instance", () => {
     ).toMatchObject({ name: "override" });
   });
 
+  it("uses the effective HTTPS URL from the environment", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("BETTER_AUTH_URL", "https://app.test");
+    try {
+      const auth = await createTestAuth({ baseURL: undefined });
+      const name = (await auth.$context).authCookies.sessionToken.name;
+      expect(name).toBe("__Secure-better-auth.session_token");
+      expect(betterAuthAdapter({ auth }).securitySchemes?.session).toMatchObject({ name });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("maps the session user", async () => {
     const auth = await createTestAuth();
     const headers = await signUp(auth, "ada@example.com");

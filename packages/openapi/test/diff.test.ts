@@ -1,6 +1,9 @@
+import { defineConfig, defineEndpoint } from "@quickben/core";
+import { memoryAdapter } from "@quickben/db-memory";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
-import { diffOpenApi, formatDiff } from "../src";
+import { diffOpenApi, formatDiff, generateOpenApi } from "../src";
 
 import type { JsonSchema, OpenApiDocument, OpenApiOperation, OpenApiPathItem } from "../src";
 
@@ -46,6 +49,61 @@ const object = (properties: Record<string, JsonSchema>, required: string[] = [])
 });
 
 describe("diffOpenApi", () => {
+  it("detects new required fields in generated referenced intersections", () => {
+    const shared = z.object({ name: z.string() }).meta({ id: "IntersectionBody" });
+    const document = (required: boolean) =>
+      generateOpenApi(
+        defineConfig({
+          db: memoryAdapter(),
+          collections: [],
+          endpoints: [
+            defineEndpoint({
+              method: "POST",
+              path: "/x",
+              input: {
+                body: z.intersection(
+                  shared,
+                  z.object({ extra: required ? z.string() : z.string().optional() }),
+                ),
+              },
+              handler: () => ({ ok: true }),
+            }),
+          ],
+        }),
+      );
+    expect(diffOpenApi(document(false), document(true)).breaking).toBeGreaterThan(0);
+    expect(diffOpenApi(document(true), document(false)).breaking).toBe(0);
+  });
+
+  it("resolves nullable enum references in requests and responses", () => {
+    const schema = { anyOf: [{ $ref: "#/components/schemas/State" }, { type: "null" }] };
+    const withEnum = (response: boolean, values: string[]) => {
+      const document = response ? withResponse(schema) : withBody(schema);
+      document.components = { schemas: { State: { type: "string", enum: values } } };
+      return document;
+    };
+    expect(diffOpenApi(withEnum(true, ["a"]), withEnum(true, ["a", "b"])).breaking).toBeGreaterThan(
+      0,
+    );
+    expect(
+      diffOpenApi(withEnum(false, ["a", "b"]), withEnum(false, ["a"])).breaking,
+    ).toBeGreaterThan(0);
+  });
+
+  it("compares effective inclusive and exclusive numeric bounds", () => {
+    for (const [exclusive, inclusive] of [
+      ["exclusiveMinimum", "minimum"],
+      ["exclusiveMaximum", "maximum"],
+    ] as const) {
+      const strict = { type: "number", [exclusive]: 0 };
+      const loose = { type: "number", [inclusive]: 0 };
+      expect(diffOpenApi(withBody(strict), withBody(loose)).breaking).toBe(0);
+      expect(diffOpenApi(withBody(loose), withBody(strict)).breaking).toBeGreaterThan(0);
+      expect(diffOpenApi(withResponse(strict), withResponse(loose)).breaking).toBeGreaterThan(0);
+      expect(diffOpenApi(withResponse(loose), withResponse(strict)).breaking).toBe(0);
+    }
+  });
+
   it("finds no changes in the same document", () => {
     const base = doc({ "/x": { get: op() } });
     const result = diffOpenApi(base, structuredClone(base));

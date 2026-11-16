@@ -126,7 +126,9 @@ function valueSchema(field: AnyField, mode: Mode, context: CollectionContext): J
 
 function fieldSchema(field: SanitizedField, mode: Mode, context: CollectionContext): JsonSchema {
   const value = valueSchema(field, mode, context);
-  const schema = field.many ? { type: "array", items: value } : value;
+  const schema = field.many
+    ? { type: "array", items: value, uniqueItems: true, ...(field.required ? { minItems: 1 } : {}) }
+    : value;
   const described: JsonSchema = { ...schema, title: localize(field.label, "en") };
   const description = localize(field.description, "en");
   if (description !== "" && described.description === undefined) {

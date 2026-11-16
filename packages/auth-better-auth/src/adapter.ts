@@ -106,7 +106,8 @@ interface CookieConfig {
 function usesSecureCookie(config: CookieConfig | undefined): boolean {
   const secure = config?.advanced?.useSecureCookies;
   if (secure !== undefined) return secure;
-  const base = config?.baseURL;
+  const base =
+    config?.baseURL ?? (typeof process === "undefined" ? undefined : process.env.BETTER_AUTH_URL);
   if (typeof base === "string") return base.startsWith("https://");
   if (base?.protocol === "https") return true;
   if (base?.protocol === "http") return false;

@@ -50,28 +50,39 @@ interface ObjectParts {
   required: readonly string[];
 }
 
+function combinedProperties(
+  parts: ObjectParts[],
+  conjunction: boolean,
+): Record<string, JsonSchema> {
+  const properties: Record<string, JsonSchema> = {};
+  for (const part of parts) {
+    for (const [name, schema] of Object.entries(part.properties)) {
+      const previous = properties[name];
+      if (previous === undefined) properties[name] = schema;
+      else if (JSON.stringify(previous) !== JSON.stringify(schema)) {
+        properties[name] = { [conjunction ? "allOf" : "anyOf"]: [previous, schema] };
+      }
+    }
+  }
+  return properties;
+}
+
 /**
  * Properties and required names of an object schema, following `$ref`s. For a union of
  * objects: every property, required when every branch requires it.
  */
 function objectParts(registry: SchemaRegistry, schema: JsonSchema): ObjectParts {
   const resolved = registry.resolve(schema);
-  const list = resolved.anyOf ?? resolved.oneOf;
+  const conjunction = Array.isArray(resolved.allOf);
+  const list = resolved.allOf ?? resolved.anyOf ?? resolved.oneOf;
   if (Array.isArray(list)) {
     const parts = list.filter(isObject).map((branch) => objectParts(registry, branch));
-    const properties: Record<string, JsonSchema> = {};
-    for (const part of parts) {
-      for (const [name, schema] of Object.entries(part.properties)) {
-        const previous = properties[name];
-        if (previous === undefined) properties[name] = schema;
-        else if (JSON.stringify(previous) !== JSON.stringify(schema)) {
-          properties[name] = { anyOf: [previous, schema] };
-        }
-      }
-    }
-    const required = Object.keys(properties).filter((name) =>
-      parts.every((part) => part.required.includes(name)),
-    );
+    const properties = combinedProperties(parts, conjunction);
+    const required = conjunction
+      ? [...new Set(parts.flatMap((part) => part.required))]
+      : Object.keys(properties).filter((name) =>
+          parts.every((part) => part.required.includes(name)),
+        );
     return { properties, required };
   }
   const properties = isObject(resolved.properties)
@@ -115,7 +126,7 @@ function parameters(endpoint: AnyEndpoint, registry: SchemaRegistry): OpenApiPar
 
 /** A body schema that accepts `undefined` (optional or with a default) is not required. */
 function bodyRequired(schema: z.ZodType): boolean {
-  return schema._zod.optin === undefined;
+  return !schema.safeParse(undefined).success;
 }
 
 function successDescription(status: string): string {
@@ -141,7 +152,9 @@ function responses(
     for (const [status, schema] of Object.entries(output as Record<string, z.ZodType>)) {
       byStatus[status] = {
         description: successDescription(status),
-        content: { "application/json": { schema: registry.fromZod(schema, "output") } },
+        ...(status === "204" || status === "304"
+          ? {}
+          : { content: { "application/json": { schema: registry.fromZod(schema, "output") } } }),
       };
     }
   }

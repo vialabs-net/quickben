@@ -4,6 +4,7 @@ import {
   defineEndpoint,
   fields,
   getQuickben,
+  reply,
 } from "@quickben/core";
 import { memoryAdapter } from "@quickben/db-memory";
 import { describe, expect, it } from "vitest";
@@ -32,6 +33,67 @@ function operation(
 }
 
 describe("generateOpenApi", () => {
+  it("keeps intersected query properties, required names and shared constraints", () => {
+    const shared = z.object({ q: z.string().min(1) }).meta({ id: "QueryIntersection" });
+    const endpoint = defineEndpoint({
+      method: "GET",
+      path: "/search",
+      input: {
+        query: z.intersection(shared, z.object({ q: z.string().max(5), page: z.string() })),
+      },
+      handler: () => ({ ok: true }),
+    });
+    const op = operation(generateOpenApi(config([endpoint])), "/search", "get");
+    expect(op.parameters?.map((p) => [p.name, p.required])).toEqual([
+      ["q", true],
+      ["page", true],
+    ]);
+    expect(op.parameters?.[0]?.schema).toEqual({
+      allOf: [
+        { type: "string", minLength: 1 },
+        { type: "string", maxLength: 5 },
+      ],
+    });
+  });
+
+  it("documents optional union and unknown bodies and bodyless statuses", () => {
+    for (const body of [z.union([z.object({ name: z.string() }), z.undefined()]), z.unknown()]) {
+      const endpoint = defineEndpoint({
+        method: "POST",
+        path: "/optional",
+        access: true,
+        input: { body },
+        output: { 204: z.undefined(), 304: z.undefined() },
+        handler: () => reply(204, undefined),
+      });
+      const cfg = config([endpoint]);
+      const op = operation(generateOpenApi(cfg), "/optional", "post");
+      expect(op.requestBody?.required).toBe(false);
+      expect(op.responses["204"]?.content).toBeUndefined();
+      expect(op.responses["304"]?.content).toBeUndefined();
+    }
+  });
+
+  it("documents unique, nonempty required multiple fields like core", async () => {
+    const collection = defineCollection({
+      slug: "choices",
+      api: { openapi: true },
+      fields: {
+        labels: fields.select({ options: ["a", "b"], many: true, required: true }),
+      },
+    });
+    const cfg = defineConfig({ db: memoryAdapter(), collections: [collection] });
+    const schemas = generateOpenApi(cfg).components?.schemas;
+    const props = schemas?.ChoiceCreateInput?.properties as Record<string, unknown>;
+    expect(props.labels).toMatchObject({ uniqueItems: true, minItems: 1 });
+    const qb = await getQuickben(cfg);
+    for (const labels of [[], ["a", "a"]]) {
+      await expect(
+        qb.create("choices", { labels } as never, { user: { id: "u" } }),
+      ).rejects.toMatchObject({ code: "VALIDATION" });
+    }
+  });
+
   it("builds a valid OpenAPI 3.1 document", async () => {
     const doc = generateOpenApi(fixtureConfig());
     expect(doc.openapi).toBe("3.1.0");
