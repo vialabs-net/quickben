@@ -1,5 +1,61 @@
 # @quickben/plugin-doc-reader
 
+## 0.4.0
+
+### Minor Changes
+
+- 932d404: Doc reader: what the first app on it needed.
+  
+  - Field keys may be camelCase words joined by `.` (`vehicle.make`). `nestValues` and `flattenValues` convert between dotted keys and nested JSON; `importSamples` reads nested expected values by dotted key.
+  - `vision-llm` options: `includeText` and `textBoxes` (send the PDF's text layer with the images), `maxOutputTokens`, `temperature` (`null` sends none), `reasoning`, `providerOptions` (e.g. `{ anthropic: { effort: "low" } }`), `output` (`structured` or `json`), `groupSize` and `repair`.
+  - Connections by name: steps and variants take `connection` instead of `connectionId`. New option `resolveConnectionId`, provided by `connectionModels()`. Connections: `findConnectionIdByName`.
+  - Variants take `options` with the `vision-llm` options above.
+  - Extractor context has `qb` and `user`; `runPipeline` takes them.
+  - Large types: fields are read in groups (default 24 with structured outputs), in parallel, with cost added up. A group whose schema the provider refuses as too large is split, then asked as plain JSON.
+  - Repairs: fields missing, invalid, or required and empty are asked again once by default (`repair`). Attempts record `repairs`; run metrics add `repaired`, `repairs` and `stepErrors`. A structured reply that fails the schema keeps its valid fields.
+  - Provider errors show their HTTP status and fixed diagnostics for recognized schema-size or token-limit errors. Raw messages are never persisted because they may echo credentials.
+  - Types in `types` that changed in the code become a draft (never touching the published version), logged as `type-changed-in-code` and shown in the admin.
+  
+  **Migration**
+  
+  - Types with more than 24 fields on a model with structured outputs now make one call per group of 24 fields. Set `groupSize` to the field count to keep one call, or `output: "json"`.
+  - `repair` defaults to 1: a reading with missing or invalid fields, or required fields left empty, makes one more call and costs more. Set `repair: 0` to keep one call.
+  - A provider error that is not a timeout, 429 or 5xx is no longer `transient`: test runs do not retry it and score the sample as read. The error text now starts with `the model provider rejected the request` and adds the status and message.
+  - A changed type in `types` now creates a draft at start. Before, the change was ignored.
+  - `visionConfigSchema.connectionId` is optional; a step needs `connectionId` or `connection`.
+- df2049b: Doc reader: evaluate document types on datasets of hundreds or thousands of samples.
+  
+  - Samples get a `split` (`dev`, `validation`, `test`, `unseen`), a `group` and `attributes`. `splitSamples` splits them from a saved seed, stratified, with unseen groups; a new split is a new version (`resplit: true`).
+  - `importSamples` adds or updates samples by key, with an optional mapping of nested expected JSON. `@quickben/plugin-doc-reader/node` reads folders and manifests. New CLI: `quickben-doc-reader import | split | run | export`.
+  - `startTestRun` takes `split`, `heldOut`, `concurrency`, `maxCostUsd`, `retries`, `baseline` and up to 8 variants of version, connection and model. Samples go through the runner's queue. Provider failures are retried and counted apart.
+  - Runs keep `metrics`: right, wrong, missed and hallucinated by field, group, attribute and split; p50/p95 latency and wall time; tokens and cost per document, cached input included. `compareTestRuns`, `exportTestRun` (CSV, JSON). Fields with `scored: false` are reported, not counted. Empty values are configurable per type (`evaluation.emptyValues`).
+  - Once a type is split, publishing needs a `validation` run no worse than the published version (`evaluation.gate`), then runs `test` and `unseen` and stores them on the version. Few-shot `examples` must be `dev` samples.
+  - Admin: test bench by split, run options, metrics, run comparison with the cases that got worse, publish check, history, and a sample view with each field drawn on the page.
+  - Connections: models take `cachedInputPerMTokUsd`; `callCost` takes cached input tokens.
+  
+  **Migration**
+  
+  - New collections `doc-splits`, `doc-test-results` and `doc-eval-claims`, and new fields on `doc-samples`, `doc-test-runs`, `doc-types` and `doc-usage`. With `@quickben/db-drizzle`, regenerate the schema and migrate.
+  - Test runs now read their samples through the runner. With `bullmqRunner`, a worker process must be running for test runs to progress, as for readings.
+  - `Variant.connectionId` is optional and `Variant.version` is new. Code that reads `run.variant.connectionId` must handle `undefined`.
+  - `summarize` returns more keys; `FieldCheck` and `SampleResult` have new optional keys.
+  - A vision-LLM provider error or timeout now has `problems.transient: true`.
+  - Types that are not split publish as before.
+  
+  - Evaluations claim each sample before calling providers, so repeated queue delivery cannot bill it twice. Dataset changes and publication share durable locks. If a process crashes while holding a dataset lock, confirm it has stopped before deleting that `dataset:<type>` claim through the trusted local API; item claims must never be cleared to retry uncertain provider calls. Interrupted runs should be replaced with a new run. Published examples use private file copies and their source samples must remain in dev on resplit.
+
+### Patch Changes
+
+- Updated dependencies [932d404]
+- Updated dependencies [6d8e9cb]
+- Updated dependencies [932d404]
+- Updated dependencies [df2049b]
+- Updated dependencies [42af925]
+  - @quickben/admin@0.4.0
+  - @quickben/plugin-connections@0.4.0
+  - @quickben/core@0.4.0
+  - @quickben/next@0.4.0
+
 ## 0.3.1
 
 ### Patch Changes

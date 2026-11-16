@@ -1,5 +1,12 @@
 # @quickben/openapi
 
+## 0.4.0
+
+### Patch Changes
+
+- Updated dependencies [42af925]
+  - @quickben/core@0.4.0
+
 ## 0.3.1
 
 ### Patch Changes
