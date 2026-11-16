@@ -1,5 +1,16 @@
 # @quickben/auth-firebase
 
+## 0.4.0
+
+### Patch Changes
+
+- Updated dependencies [932d404]
+- Updated dependencies [6d8e9cb]
+- Updated dependencies [42af925]
+  - @quickben/admin@0.4.0
+  - @quickben/core@0.4.0
+  - @quickben/next@0.4.0
+
 ## 0.3.1
 
 ### Patch Changes

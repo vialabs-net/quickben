@@ -1,5 +1,18 @@
 # @quickben/admin
 
+## 0.4.0
+
+### Minor Changes
+
+- 932d404: Admin theme without CSS: `createAdminPage` takes `theme`, a typed object for the `--qb-*` tokens, and `logo`, shown before the title in the sidebar. New optional tokens: `--qb-heading-text`, `--qb-border-strong`, `--qb-accent-hover`, `--qb-selected`, `--qb-danger-strong`, `--qb-success-strong`, `--qb-button-radius` (pill buttons with `9999px`) and `--qb-card-shadow`. Defaults keep the current look. `themeStyle` and `AdminTheme` are exported.
+
+### Patch Changes
+
+- 6d8e9cb: Connection and credential pages use the width they have. The form takes the free width and the status card stays 17rem; under 84rem of container width (an admin embedded in a host's settings column) the status card goes under the form. The models row editor sizes its inputs to their content: id and name columns share the free width, numbers and checkboxes stay narrow, headers wrap. It scrolls only when the columns still do not fit. The page header has the provider mark (a key on credential pages) next to the title, the provider under it, and the actions on the same line. New CSS classes in `@quickben/admin/styles.css`: `qb-detail` and `qb-detail-columns`.
+- Updated dependencies [42af925]
+  - @quickben/core@0.4.0
+  - @quickben/next@0.4.0
+
 ## 0.3.1
 
 ### Patch Changes
