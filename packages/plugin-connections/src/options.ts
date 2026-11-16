@@ -2,10 +2,12 @@ import { ConfigError, pluginState } from "@quickben/core";
 
 import { parseMasterKey } from "./crypto";
 import { providerMap } from "./provider";
-import { builtinProviders } from "./providers";
+import { builtinProviders, llmModelSchema } from "./providers";
+import { withModelSchema } from "./providers/shared";
 
 import type { MasterKey, MasterKeyInput } from "./crypto";
 import type { AnyProvider, FetchLike } from "./provider";
+import type { ModelSchema } from "./providers/shared";
 import type { LocalizedText, Quickben, QuickbenConfig, QuickbenUser } from "@quickben/core";
 
 /** Slugs of the collections the plugin adds. */
@@ -42,6 +44,12 @@ export interface ConnectionsOptions {
    * `Integrations` (`Integraciones` in Spanish).
    */
   group?: LocalizedText;
+  /**
+   * Add keys to the model entries of the built-in LLM providers. The connection form and
+   * `resolveLanguageModel` keep them:
+   * `modelSchema: (base) => base.extend({ maxPages: z.number().int().min(1).default(4) })`.
+   */
+  modelSchema?: (base: typeof llmModelSchema) => ModelSchema;
 }
 
 /** Options after defaults are applied. Read them with `getConnectionsOptions(qb)`. */
@@ -54,6 +62,8 @@ export interface ResolvedConnections {
   readonly fetch: FetchLike;
   readonly testTimeoutMs: number;
   readonly group: LocalizedText;
+  /** Schema of one model entry: `llmModelSchema`, or the one from `modelSchema`. */
+  readonly modelSchema: ModelSchema;
 }
 
 function hasRole(role: string): (user: QuickbenUser) => boolean {
@@ -88,9 +98,14 @@ export function resolveOptions(options: ConnectionsOptions): ResolvedConnections
   if (!Number.isInteger(timeout) || timeout <= 0) {
     throw new ConfigError("connections: testTimeoutMs must be a positive integer");
   }
+  const modelSchema = options.modelSchema ? options.modelSchema(llmModelSchema) : llmModelSchema;
+  const builtIn = builtins(options.builtins).map((provider) =>
+    options.modelSchema ? withModelSchema(provider, modelSchema) : provider,
+  );
   return {
     keys,
-    providers: providerMap([...builtins(options.builtins), ...(options.providers ?? [])]),
+    modelSchema,
+    providers: providerMap([...builtIn, ...(options.providers ?? [])]),
     canManage,
     canRead: options.canRead ?? ((user) => canManage(user) || staff(user)),
     fetch: options.fetch ?? ((input, init) => globalThis.fetch(input, init)),

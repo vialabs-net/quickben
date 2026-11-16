@@ -36,6 +36,7 @@ export {
   llmFields,
   llmModelSchema,
   llmModelsSchema,
+  modelListSchema,
   OPENAI_URL,
   openaiCompatible,
   parseServiceAccount,
@@ -62,7 +63,7 @@ export type { ConnectionsCollection, CredentialsCollection, LastTest } from "./c
 export type { MasterKey, MasterKeyInput } from "./crypto";
 export type { ConnectionErrorReason } from "./errors";
 export type { ConnectionsOptions, ResolvedConnections } from "./options";
-export type { ConnectionsPlugin } from "./plugin";
+export type { ConnectionsPlugin, ModelOf } from "./plugin";
 export type {
   AnyProvider,
   CredentialKind,
@@ -74,4 +75,4 @@ export type {
   TestContext,
   TestResult,
 } from "./provider";
-export type { LlmModel, ServiceAccount } from "./providers";
+export type { LlmModel, ModelSchema, ServiceAccount } from "./providers";
