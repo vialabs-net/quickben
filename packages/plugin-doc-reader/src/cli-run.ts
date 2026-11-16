@@ -14,6 +14,7 @@ import { exportTestRun, getTestRun, startTestRun } from "./bench";
 import { SPLITS } from "./collections";
 import { importSamples } from "./import";
 import { loadFolder, loadManifest } from "./node";
+import { getDocReader } from "./options";
 import { splitSamples } from "./splits";
 
 import type { Split } from "./collections";
@@ -223,7 +224,7 @@ async function runRun(qb: Quickben, type: string, values: Values, io: CliIo): Pr
   });
   if (!run) return 1;
   io.stderr(`Run ${run.id}: ${String(run.total)} samples\n`);
-  if (!values.wait) {
+  if (!values.wait && !getDocReader(qb).runner.inProcess) {
     io.stdout(`${run.id}\n`);
     return 0;
   }
@@ -232,6 +233,10 @@ async function runRun(qb: Quickben, type: string, values: Values, io: CliIo): Pr
     await new Promise((done) => setTimeout(done, io.pollMs ?? 2000));
     current = await getTestRun(qb, CLI_CONTEXT, run.id);
     io.stderr(`${String(current.results.length)}/${String(current.total)}\n`);
+  }
+  if (!values.wait) {
+    io.stdout(`${run.id}\n`);
+    return current.state === "done" ? 0 : 1;
   }
   io.stdout(
     `${JSON.stringify({ id: current.id, state: current.state, summary: current.summary, metrics: current.metrics }, null, 2)}\n`,
@@ -278,11 +283,16 @@ async function dispatch(command: string, values: Values, io: CliIo): Promise<num
   const file = resolve(io.cwd, values.config);
   const config = configOf(await (io.importModule ?? importModule)(file), values.config);
   const qb = await getQuickben(config);
-  if (command === "export") return runExport(qb, values, io);
-  if (values.type === undefined) throw new UsageError("--type <key> is required");
-  if (command === "import") return runImport(qb, values.type, values, io);
-  if (command === "split") return runSplit(qb, values.type, values, io);
-  return runRun(qb, values.type, values, io);
+  try {
+    if (command === "export") return await runExport(qb, values, io);
+    if (values.type === undefined) throw new UsageError("--type <key> is required");
+    if (command === "import") return await runImport(qb, values.type, values, io);
+    if (command === "split") return await runSplit(qb, values.type, values, io);
+    return await runRun(qb, values.type, values, io);
+  } finally {
+    await getDocReader(qb).runner.close?.();
+    await qb.config.db.close?.();
+  }
 }
 
 /** Run the CLI. Returns the exit code. */

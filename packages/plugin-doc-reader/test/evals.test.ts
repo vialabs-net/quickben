@@ -8,6 +8,7 @@ import {
   createDraft,
   currentSplit,
   DOC_SAMPLES,
+  DOC_TEST_RESULTS,
   exportTestRun,
   getTestRun,
   getVersion,
@@ -83,6 +84,14 @@ async function finished(made: Bench, runs: TestRun[]): Promise<TestRun[]> {
 }
 
 describe("import", () => {
+  it("keeps explicit empty expectations without configured markers", async () => {
+    const made = await setup({ types: [{ ...receiptInput, evaluation: { emptyValues: [] } }] });
+    await importSamples(made.qb, admin, "receipt", [
+      { ...importItems()[0]!, expected: { code: null } },
+    ]);
+    expect((await listSamples(made.qb, admin, "receipt"))[0]?.expected).toEqual({ code: "" });
+  });
+
   it("imports by key with a mapping, and updates instead of adding twice", async () => {
     const { qb } = await bench();
     const progress = vi.fn();
@@ -142,6 +151,32 @@ describe("import", () => {
 });
 
 describe("splits", () => {
+  it("rolls back assignments when saving a split fails", async () => {
+    const { qb } = await bench();
+    await importSamples(qb, admin, "receipt", importItems(dataset.slice(0, 10)), {
+      map: mapReceipt,
+    });
+    const transaction = qb.transaction.bind(qb);
+    vi.spyOn(qb, "transaction").mockImplementationOnce((work) =>
+      transaction(async (tx) => {
+        const update = tx.update.bind(tx);
+        let writes = 0;
+        vi.spyOn(tx, "update").mockImplementation(async (...args) => {
+          if (args[0] === DOC_SAMPLES && ++writes === 2) throw new Error("write failed");
+          return update(...args);
+        });
+        return work(tx);
+      }),
+    );
+    await expect(splitSamples(qb, admin, "receipt", { seed: "rollback" })).rejects.toThrow(
+      "write failed",
+    );
+    expect(await currentSplit(qb, admin, "receipt")).toBeNull();
+    expect((await listSamples(qb, admin, "receipt")).every((sample) => sample.split === null)).toBe(
+      true,
+    );
+  });
+
   it("uses the same stratum order for Unicode groups on every host", () => {
     const subjects = [
       { key: "accented", group: "ä", attributes: {} },
@@ -230,6 +265,38 @@ describe("splits", () => {
 });
 
 describe("runs at scale", () => {
+  it("fails the run when a result cannot be persisted", async () => {
+    const made = await loaded();
+    const create = made.qb.create.bind(made.qb);
+    vi.spyOn(made.qb, "create").mockImplementation((...args) => {
+      if (args[0] === DOC_TEST_RESULTS) return Promise.reject(new Error("storage offline"));
+      return create(...args);
+    });
+    const [run] = await finished(
+      made,
+      await startTestRun(made.qb, admin, "receipt", 1, { split: "dev" }),
+    );
+    expect(run?.state).toBe("failed");
+    expect(run?.error).toContain("storage offline");
+  });
+
+  it("bounds result rows transferred while checking a large run's budget", async () => {
+    const made = await loaded();
+    const find = made.qb.find.bind(made.qb);
+    let transferred = 0;
+    vi.spyOn(made.qb, "find").mockImplementation(async (...args) => {
+      const page = await find(...args);
+      if (args[0] === DOC_TEST_RESULTS) transferred += page.docs.length;
+      return page;
+    });
+    const [run] = await finished(
+      made,
+      await startTestRun(made.qb, admin, "receipt", 1, { split: "dev", maxCostUsd: 100 }),
+    );
+    expect(run?.state).toBe("done");
+    expect(transferred).toBeLessThan(10 * run!.total);
+  });
+
   it("reads a split through the queue, retries the provider and scores against the oracle", async () => {
     const made = await loaded();
     const { qb, models } = made;
@@ -416,6 +483,12 @@ describe("publishing", () => {
     await finished(made, await startTestRun(qb, admin, "receipt", 2, { split: "validation" }));
     expect(await rule(publishDraft(qb, admin, "receipt", 2))).toBe("no-baseline");
 
+    await finished(
+      made,
+      await startTestRun(qb, admin, "receipt", 1, { split: "validation", maxCostUsd: 0 }),
+    );
+    expect(await rule(publishDraft(qb, admin, "receipt", 2))).toBe("no-baseline");
+
     // The baseline: the published version on the same split.
     const runs = await startTestRun(qb, admin, "receipt", 2, {
       split: "validation",
@@ -448,9 +521,18 @@ describe("publishing", () => {
     };
     await saveDraft(qb, admin, "receipt", 2, lenient);
     expect(await rule(publishDraft(qb, admin, "receipt", 2))).toBe("not-validated");
-    await finished(made, await startTestRun(qb, admin, "receipt", 2, { split: "validation" }));
+    await finished(made, await startTestRun(qb, admin, "receipt", 2));
     expect((await publishCheck(qb, admin, "receipt", 2)).ok).toBe(true);
 
+    await expect(publishDraft(qb, admin, "receipt", 2, { concurrency: 0 })).rejects.toThrow(
+      ValidationError,
+    );
+    expect((await getVersion(qb, admin, "receipt", 2)).state).toBe("draft");
+    const enqueue = vi
+      .spyOn(made.runner, "enqueue")
+      .mockRejectedValueOnce(new Error("queue offline"));
+    await expect(publishDraft(qb, admin, "receipt", 2)).rejects.toThrow("queue offline");
+    enqueue.mockRestore();
     const published = await publishDraft(qb, admin, "receipt", 2, { concurrency: 4 });
     expect(published).toMatchObject({
       state: "published",
@@ -511,11 +593,16 @@ describe("publishing", () => {
       seed: "other",
       ratios: { dev: 0, validation: 1, test: 0 },
     });
+    const beforeResplitRun = models.prompts.length;
     const [rerun] = await finished(
       made,
       await startTestRun(qb, admin, "receipt", 2, { split: "validation" }),
     );
     expect(rerun?.state).toBe("done");
+    expect((models.prompts[beforeResplitRun] as { role: string }[]).map((m) => m.role)).toEqual([
+      "system",
+      "user",
+    ]);
     await finished(made, await startTestRun(qb, admin, "receipt", 1, { split: "validation" }));
     expect((await publishCheck(qb, admin, "receipt", 2)).ok).toBe(true);
     await expect(publishDraft(qb, admin, "receipt", 2)).rejects.toThrow(ValidationError);

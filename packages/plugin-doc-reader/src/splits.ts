@@ -265,6 +265,15 @@ export async function splitSamples(
     );
   }
   const options = parsed.data;
+  return qb.transaction((tx) => assignSplitVersion(tx, ctx, typeKey, options));
+}
+
+async function assignSplitVersion(
+  qb: Quickben,
+  ctx: RequestContext,
+  typeKey: string,
+  options: z.infer<typeof splitInputSchema>,
+): Promise<SplitVersion> {
   const current = await currentSplit(qb, ctx, typeKey);
   if (current && options.resplit !== true) {
     throw new StudioError(
@@ -289,7 +298,6 @@ export async function splitSamples(
   for (const record of samples) {
     const split = splits.get(subjectOf(record).key) ?? "dev";
     counts[split] += 1;
-    await qb.update(DOC_SAMPLES, record.id, { split, splitVersion: version }, ctx);
   }
   const record = await qb.create(
     DOC_SPLITS,
@@ -304,6 +312,11 @@ export async function splitSamples(
     },
     ctx,
   );
+  // Claim the unique version before moving samples: concurrent assignments roll back together.
+  for (const sample of samples) {
+    const split = splits.get(subjectOf(sample).key) ?? "dev";
+    await qb.update(DOC_SAMPLES, sample.id, { split, splitVersion: version }, ctx);
+  }
   return toSplitVersion(record as unknown as SplitRecord);
 }
 

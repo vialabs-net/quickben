@@ -132,6 +132,8 @@ describe("metrics", () => {
     expect(csvCell('say "hi", ok')).toBe('"say ""hi"", ok"');
     expect(csvCell("=SUM(A1)")).toBe("'=SUM(A1)");
     expect(csvCell("-1")).toBe("-1");
+    expect(csvCell("-SUM(1,2)")).toBe('"\'-SUM(1,2)"');
+    expect(csvCell("-1+2")).toBe("'-1+2");
     expect(csvCell("line\nbreak")).toBe('"line\nbreak"');
   });
 });
@@ -162,6 +164,12 @@ describe("publish gate", () => {
     expect(
       gateReasons(gate, comparison({ accuracy: { a: 0.9, b: 0.895, delta: -0.005 } })),
     ).toEqual([]);
+  });
+
+  it("rejects paid candidates against a free baseline", () => {
+    expect(
+      gateReasons(gate, comparison({ costPerDocUsd: { a: 0, b: 0.01, delta: 0.01 } })),
+    ).toHaveLength(1);
   });
 
   it("names every failed check", () => {

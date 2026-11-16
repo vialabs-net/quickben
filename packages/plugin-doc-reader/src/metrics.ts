@@ -539,7 +539,11 @@ const CSV_COLUMNS = [
 export function csvCell(value: unknown): string {
   if (value === null || value === undefined) return "";
   let text = typeof value === "string" ? value : JSON.stringify(value);
-  if (/^[=+@\t\r]/u.test(text)) text = `'${text}`;
+  if (
+    /^[=+@\t\r]/u.test(text) ||
+    (text.startsWith("-") && !/^-\d+(?:\.\d+)?(?:e[+-]?\d+)?$/iu.test(text))
+  )
+    text = `'${text}`;
   return /[",\n\r]/u.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 

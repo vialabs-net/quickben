@@ -66,7 +66,7 @@ export async function loadExamples(qb: Quickben, type: DocumentType): Promise<Ex
   const out: ExtractorExample[] = [];
   for (const example of type.examples) {
     const record = records.get(example.sampleId);
-    if (!record) continue;
+    if (record?.split !== "dev") continue;
     const bytes = await state.files.getBytes(record.fileRef).catch(() => undefined);
     if (!bytes) continue;
     const values = Object.fromEntries(

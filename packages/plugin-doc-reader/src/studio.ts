@@ -11,6 +11,7 @@
 import { ConflictError, NotFoundError, ValidationError } from "@quickben/core";
 import { z } from "zod";
 
+import { startTestRunSchema } from "./bench";
 import { DOC_SAMPLES, DOC_TYPES } from "./collections";
 import { documentTypeSchema, parseDocumentType, TYPE_KEY } from "./definition";
 import { StudioError } from "./errors";
@@ -352,7 +353,13 @@ export async function publishDraft(
   version: number,
   options: PublishOptions = {},
 ): Promise<TypeVersion> {
+  const parsed = startTestRunSchema.safeParse(options);
+  if (!parsed.success) throw new ValidationError(zodIssues(parsed.error));
   const record = await versionRecord(qb, ctx, key, version);
+  if (record.state === "published" && record.evaluation) {
+    const evaluation = await startHeldOutRuns(qb, ctx, record, record.evaluation, options);
+    return { ...toVersion(record), evaluation };
+  }
   if (record.state !== "draft")
     throw new StudioError("published", `v${String(version)} is already published`);
   const check = await checkPublish(qb, ctx, record);
@@ -442,12 +449,14 @@ function noteOf(note: string | null | undefined): string | null {
 
 export const expectedSchema = z.record(z.string().max(64), z.string().max(500));
 
-export function parseExpected(expected: unknown): Record<string, string> {
+export function parseExpected(expected: unknown, keepEmpty = false): Record<string, string> {
   const parsed = expectedSchema.safeParse(expected ?? {});
   if (!parsed.success)
     throw new ValidationError([{ path: "expected", message: "Expected values are text" }]);
   // Blank means "not checked".
-  return Object.fromEntries(Object.entries(parsed.data).filter(([, value]) => value.trim() !== ""));
+  return Object.fromEntries(
+    Object.entries(parsed.data).filter(([, value]) => keepEmpty || value.trim() !== ""),
+  );
 }
 
 /** Samples of a type (optionally of some splits), oldest first. */

@@ -139,6 +139,8 @@ export function docTestResultsCollection(isStaff: IsStaff) {
       /** Position of the sample in the run. `run:index` is unique. */
       index: f.number({ required: true, integer: true, min: 0 }),
       slot: f.text({ required: true, unique: true, maxLength: 80 }),
+      lane: f.number({ required: true, integer: true, min: 0, index: true }),
+      laneCostUsd: f.number({ required: true, min: 0 }),
       sampleId: f.text({ required: true, index: true, maxLength: 64 }),
       costUsd: f.number({ required: true, default: 0, min: 0 }),
       result: f.json({ required: true }),

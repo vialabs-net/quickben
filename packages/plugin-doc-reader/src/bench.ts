@@ -543,18 +543,33 @@ interface ResultRow {
   readonly index: number;
   readonly costUsd: number;
   readonly result: SampleResult;
+  readonly laneCostUsd: number;
   readonly createdAt: string;
 }
 
-async function spent(qb: Quickben, runId: string): Promise<number> {
-  const rows = await findAll<Pick<ResultRow, "costUsd">>(
-    qb,
+async function laneCost(qb: Quickben, run: TestRunRecord, lane: number, before?: number) {
+  const page = await qb.find(
     DOC_TEST_RESULTS,
-    { run: { eq: runId } },
+    {
+      where: {
+        run: { eq: run.id },
+        lane: { eq: lane },
+        ...(before === undefined ? {} : { index: { lt: before } }),
+      },
+      sort: "-index",
+      limit: 1,
+      select: ["laneCostUsd"],
+    },
     SYSTEM,
-    { select: ["costUsd"] },
   );
-  return rows.reduce((total, row) => total + row.costUsd, 0);
+  return Number(page.docs[0]?.laneCostUsd ?? 0);
+}
+
+async function spent(qb: Quickben, run: TestRunRecord): Promise<number> {
+  const costs = await Promise.all(
+    Array.from({ length: run.concurrency ?? 1 }, (_, lane) => laneCost(qb, run, lane)),
+  );
+  return costs.reduce((total, cost) => total + cost, 0);
 }
 
 async function writeResult(
@@ -572,13 +587,17 @@ async function writeResult(
         index,
         slot: `${run.id}:${String(index)}`,
         sampleId,
+        lane: index % (run.concurrency ?? 1),
+        laneCostUsd:
+          (await laneCost(qb, run, index % (run.concurrency ?? 1), index)) + result.costUsd,
         costUsd: result.costUsd,
         result,
       },
       SYSTEM,
     );
   } catch (error) {
-    // A second delivery of the same item: the first one's row stands.
+    // Ignore only a duplicate that actually has a persisted result.
+    if (!(await hasResult(qb, run.id, index))) throw error;
     getDocReader(qb).log("test-run-duplicate", { runId: run.id, index, error: String(error) });
   }
 }
@@ -618,7 +637,7 @@ async function processItem(
     return;
   }
   const limit = run.maxCostUsd ?? null;
-  if (limit !== null && (await spent(qb, run.id)) >= limit) {
+  if (limit !== null && (await spent(qb, run)) >= limit) {
     await writeResult(qb, run, index, sampleId, {
       ...sampleBase(sample),
       status: "ERROR",

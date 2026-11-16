@@ -87,7 +87,7 @@ export function expectedValues(
   unknown: Set<string>,
 ): Record<string, string> {
   const fields = new Set(type.fields.map((field) => field.key));
-  const marker = type.evaluation.emptyValues[0];
+  const marker = type.evaluation.emptyValues[0] ?? "";
   const out: Record<string, string> = {};
   for (const [key, value] of Object.entries(values)) {
     if (value === undefined) continue;
@@ -96,7 +96,7 @@ export function expectedValues(
       continue;
     }
     if (isEmptyRaw(value)) {
-      if (marker !== undefined) out[key] = marker;
+      out[key] = marker;
       continue;
     }
     out[key] = typeof value === "string" ? value : String(value);
@@ -175,7 +175,7 @@ function sampleData(
     : ((item.expected ?? {}) as ExpectedValues);
   const note = item.note?.trim().slice(0, 500) ?? "";
   return {
-    expected: parseExpected(expectedValues(type, mapped, unknown)),
+    expected: parseExpected(expectedValues(type, mapped, unknown), true),
     params: parseParams(item.params),
     note: note === "" ? null : note,
     group,

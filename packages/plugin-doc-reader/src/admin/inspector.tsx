@@ -359,7 +359,14 @@ export function SampleInspector({
             </tbody>
           </Table>
           {current ? (
-            <Detail field={current} hidden={hidden} correct={correct} annotate={annotate} t={t} />
+            <Detail
+              key={`${hidden.sampleId ?? ""}:${current.key}`}
+              field={current}
+              hidden={hidden}
+              correct={correct}
+              annotate={annotate}
+              t={t}
+            />
           ) : (
             <p className="qb:text-sm qb:text-fg-muted">{t("inspect.pick")}</p>
           )}

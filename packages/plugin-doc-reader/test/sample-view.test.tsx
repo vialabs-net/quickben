@@ -140,7 +140,8 @@ describe("sample view", () => {
     act(() => {
       fireEvent.click(within(table).getByRole("button", { name: "Total" }));
     });
-    expect(screen.getByRole("region", { name: "Details of Total" })).toBeTruthy();
+    const totalDetail = screen.getByRole("region", { name: "Details of Total" });
+    expect(totalDetail.querySelector<HTMLInputElement>('input[name="value"]')!.value).toBe("12");
     act(() => {
       fireEvent.click(screen.getByRole("button", { name: "Low confidence (1)" }));
     });

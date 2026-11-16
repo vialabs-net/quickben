@@ -12,11 +12,12 @@
  * 4. Publishing starts runs of `test` and `unseen`, recorded on the version. They never decide
  *    the publication: judging on them would tune the type to them.
  */
-import { listTestRuns, startRuns } from "./bench";
+import { listTestRuns, startRuns, TEST_RUN_JOB } from "./bench";
 import { DOC_SAMPLES, DOC_TYPES } from "./collections";
 import { StudioError } from "./errors";
 import { checkExamples } from "./examples";
-import { compareResults, runMetrics } from "./metrics";
+import { compareResults, runMetrics, summarize } from "./metrics";
+import { getDocReader } from "./options";
 import { currentSplit } from "./splits";
 import { findAll, SYSTEM, toDefinition } from "./store";
 
@@ -116,7 +117,7 @@ export function gateReasons(gate: PublishGate, comparison: RunComparison): strin
     }
   }
   const cost = comparison.costPerDocUsd;
-  if (gate.maxCostIncrease !== null && cost.a > 0 && cost.b > cost.a * (1 + gate.maxCostIncrease)) {
+  if (gate.maxCostIncrease !== null && cost.b > cost.a * (1 + gate.maxCostIncrease)) {
     reasons.push(
       `cost per document ${String(cost.b)} USD vs ${String(cost.a)} (allowed increase ${pct(gate.maxCostIncrease)})`,
     );
@@ -254,7 +255,9 @@ export async function checkExamplesForPublish(
 }
 
 const summaryOf = (run: TestRun | null): EvaluationRun | null =>
-  run ? { runId: run.id, summary: run.summary } : null;
+  run
+    ? { runId: run.id, summary: summarize(onValidation(run.results), run.summary?.wallMs ?? null) }
+    : null;
 
 /** What a publication stores before its held-out runs start. */
 export function initialEvaluation(check: PublishCheck): VersionEvaluation {
@@ -281,6 +284,46 @@ export interface PublishOptions {
   readonly maxCostUsd?: number;
 }
 
+async function publicationRun(
+  qb: Quickben,
+  ctx: RequestContext,
+  record: DocTypeRecord,
+  splitVersion: number,
+  split: "test" | "unseen",
+  options: PublishOptions,
+): Promise<TestRun | undefined> {
+  const previous = (await listTestRuns(qb, ctx, record.key, record.version, 200)).find(
+    (run) =>
+      run.purpose === "publish" &&
+      run.splitVersion === splitVersion &&
+      run.splits?.length === 1 &&
+      run.splits[0] === split,
+  );
+  if (previous) {
+    if (previous.state === "running") {
+      for (let lane = 1; lane <= previous.concurrency; lane += 1) {
+        await getDocReader(qb).runner.enqueue(`${TEST_RUN_JOB}${previous.id}`, lane);
+      }
+    }
+    return previous;
+  }
+
+  const [run] = await startRuns(
+    qb,
+    ctx,
+    record.key,
+    record.version,
+    {
+      split,
+      heldOut: true,
+      ...(options.concurrency === undefined ? {} : { concurrency: options.concurrency }),
+      ...(options.maxCostUsd === undefined ? {} : { maxCostUsd: options.maxCostUsd }),
+    },
+    "publish",
+  );
+  return run;
+}
+
 /** Start the `test` and `unseen` runs of a publication and record them on the version. */
 export async function startHeldOutRuns(
   qb: Quickben,
@@ -294,21 +337,11 @@ export async function startHeldOutRuns(
     ...evaluation,
   };
   for (const split of ["test", "unseen"] as const) {
+    if (next[split]) continue;
     try {
-      const [run] = await startRuns(
-        qb,
-        ctx,
-        record.key,
-        record.version,
-        {
-          split,
-          heldOut: true,
-          ...(options.concurrency === undefined ? {} : { concurrency: options.concurrency }),
-          ...(options.maxCostUsd === undefined ? {} : { maxCostUsd: options.maxCostUsd }),
-        },
-        "publish",
-      );
+      const run = await publicationRun(qb, ctx, record, evaluation.splitVersion, split, options);
       if (run) next[split] = { runId: run.id, summary: null };
+      await qb.update(DOC_TYPES, record.id, { evaluation: next }, SYSTEM);
     } catch (error) {
       // A split with no samples has nothing to measure.
       if (!(error instanceof StudioError && error.rule === "no-samples")) throw error;
