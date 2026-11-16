@@ -1,4 +1,4 @@
-import { ConfigError } from "@quickben/core";
+import { chainAuth, ConfigError, customAuth } from "@quickben/core";
 import { describe, expect, it, vi } from "vitest";
 
 import { firebaseAuth } from "../src";
@@ -97,6 +97,50 @@ describe("host session", () => {
       "network down",
     );
   });
+
+  it.each(["auth/internal-error", "auth/insufficient-permission", "app/network-error"])(
+    "does not grant a fallback user on a Firebase %s error",
+    async (code) => {
+      const error = firebaseError(code);
+      const { auth } = setup({ u1: error });
+      const fallback = vi.fn(() => ({ id: "fallback", roles: ["admin"] }));
+      const chained = chainAuth(firebaseAuth({ auth, session }), customAuth({ getUser: fallback }));
+      await expect(chained.getUser(withSid("u1"))).rejects.toBe(error);
+      expect(fallback).not.toHaveBeenCalled();
+    },
+  );
+
+  it("does not grant a fallback user when the host session reader fails", async () => {
+    const { auth } = setup();
+    const error = new Error("session store down");
+    const fallback = vi.fn(() => ({ id: "fallback" }));
+    const chained = chainAuth(
+      firebaseAuth({ auth, session: { read: () => Promise.reject(error) } }),
+      customAuth({ getUser: fallback }),
+    );
+    await expect(chained.getUser(withSid("u1"))).rejects.toBe(error);
+    expect(fallback).not.toHaveBeenCalled();
+  });
+
+  it.each(["cookie", "bearer"])(
+    "does not grant a fallback user when %s verification has a server error",
+    async (source) => {
+      const { auth } = setup();
+      const error = firebaseError("auth/internal-error");
+      auth.verifySessionCookie.mockRejectedValue(error);
+      auth.verifyIdToken.mockRejectedValue(error);
+      const fallback = vi.fn(() => ({ id: "fallback" }));
+      const chained = chainAuth(
+        firebaseAuth({ auth, bearer: true }),
+        customAuth({ getUser: fallback }),
+      );
+      const req = new Request("http://localhost/", {
+        headers: source === "cookie" ? { cookie: "__session=c1" } : { authorization: "Bearer t1" },
+      });
+      await expect(chained.getUser(req)).rejects.toBe(error);
+      expect(fallback).not.toHaveBeenCalled();
+    },
+  );
 
   it("uses the uid only with loadUser: false, and runs resolveUser", async () => {
     const { auth } = setup();

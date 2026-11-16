@@ -54,7 +54,7 @@ describe("modelSchema", () => {
       expect(parsed.models[0]?.maxPages).toBe(4);
     }
     expect(providers.get("http")).toBe(http);
-    expect(withModelSchema(http, schema)).toBe(http);
+    expect(withModelSchema(http, schema ?? llmModelSchema)).toBe(http);
   });
 
   it("keeps the form description of the models field", async () => {

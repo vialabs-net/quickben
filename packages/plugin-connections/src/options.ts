@@ -63,7 +63,7 @@ export interface ResolvedConnections {
   readonly testTimeoutMs: number;
   readonly group: LocalizedText;
   /** Schema of one model entry: `llmModelSchema`, or the one from `modelSchema`. */
-  readonly modelSchema: ModelSchema;
+  readonly modelSchema?: ModelSchema;
 }
 
 function hasRole(role: string): (user: QuickbenUser) => boolean {

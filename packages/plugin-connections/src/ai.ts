@@ -7,7 +7,7 @@ import { getConnection, systemContext } from "./api";
 import { ConnectionError } from "./errors";
 import { getConnectionsOptions } from "./options";
 import { parseServiceAccount } from "./providers/google-auth";
-import { pickModel } from "./providers/shared";
+import { llmModelSchema, pickModel } from "./providers/shared";
 
 import type { ConnectionRecord, ResolvedConnection } from "./api";
 import type { LlmModel, ModelSchema } from "./providers/shared";
@@ -97,7 +97,7 @@ export async function resolveLanguageModel<TModel extends LlmModel = LlmModel>(
   if (!provider.capabilities.includes("llm") || !factory) {
     throw new ConnectionError("not-llm", `Connection "${connection.name}" is not an LLM`);
   }
-  const schema = getConnectionsOptions(qb).modelSchema as ModelSchema<TModel>;
+  const schema = (getConnectionsOptions(qb).modelSchema ?? llmModelSchema) as ModelSchema<TModel>;
   const model = pickModel(resolved.metadata, options.model, schema);
   if (!model) {
     throw new ConnectionError(

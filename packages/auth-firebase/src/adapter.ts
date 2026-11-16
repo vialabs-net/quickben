@@ -143,6 +143,21 @@ function firebaseCode(error: unknown): string | null {
   return typeof code === "string" && code.includes("/") ? code : null;
 }
 
+/** Only credential rejection is anonymous; SDK, network and permission failures must surface. */
+const rejectedCredentials = new Set([
+  "auth/argument-error",
+  "auth/invalid-argument",
+  "auth/invalid-id-token",
+  "auth/id-token-expired",
+  "auth/id-token-revoked",
+  "auth/invalid-session-cookie",
+  "auth/session-cookie-expired",
+  "auth/session-cookie-revoked",
+  "auth/tenant-id-mismatch",
+  "auth/user-disabled",
+  "auth/user-not-found",
+]);
+
 function json(body: unknown, status = 200, headers: HeadersInit = {}): Response {
   const response = Response.json(body, { status, headers });
   response.headers.set("cache-control", "no-store");
@@ -253,7 +268,8 @@ export function firebaseAuth(options: FirebaseAuthOptions = {}): FirebaseAuth {
     } catch (error) {
       // Expired, revoked or malformed tokens make the request anonymous. Anything else, such
       // as missing credentials, is a server error and is not hidden.
-      if (firebaseCode(error) !== null) return null;
+      const code = firebaseCode(error);
+      if (code !== null && rejectedCredentials.has(code)) return null;
       throw error;
     }
   }
@@ -268,7 +284,8 @@ export function firebaseAuth(options: FirebaseAuthOptions = {}): FirebaseAuth {
     try {
       record = await auth.getUser(uid);
     } catch (error) {
-      if (firebaseCode(error) !== null) return null;
+      const code = firebaseCode(error);
+      if (code === "auth/user-not-found" || code === "auth/user-disabled") return null;
       throw error;
     }
     return record.disabled ? null : recordClaims(record);

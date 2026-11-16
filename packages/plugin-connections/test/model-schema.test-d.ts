@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { connections } from "../src";
 
-import type { LlmModel, ModelOf, ModelSchema } from "../src";
+import type { LlmModel, ModelOf, ModelSchema, ResolvedConnections } from "../src";
 import type { ResolvedLanguageModel } from "../src/ai";
 
 export const extended = connections({
@@ -22,6 +22,10 @@ describe("modelSchema", () => {
   test("defaults to LlmModel", () => {
     expectTypeOf<ModelOf<typeof plain>>().toEqualTypeOf<LlmModel>();
     expectTypeOf<ResolvedLanguageModel["model"]>().toEqualTypeOf<LlmModel>();
+  });
+
+  test("existing resolved options remain assignable without a model schema", () => {
+    expectTypeOf<Omit<ResolvedConnections, "modelSchema">>().toExtend<ResolvedConnections>();
   });
 
   test("the extension must keep the base keys", () => {
