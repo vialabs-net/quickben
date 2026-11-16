@@ -209,6 +209,10 @@ A connection model takes `inputPerMTokUsd`, `outputPerMTokUsd` and, optionally, 
 Register an extractor that calls your service and returns the fields. Steps name it by `key`, and test runs compare it like any other step.
 
 ```ts
+import { docReader } from "@quickben/plugin-doc-reader";
+
+import type { Extractor, FieldValue } from "@quickben/plugin-doc-reader";
+
 const external: Extractor = {
   key: "acme-ocr",
   paid: true, // skipped over budget
@@ -216,14 +220,16 @@ const external: Extractor = {
     const response = await fetch(String(ctx.config.url), {
       method: "POST",
       headers: { "content-type": input.mime },
-      body: input.bytes,
+      body: new Blob([new Uint8Array(input.bytes)]),
       ...(ctx.signal ? { signal: ctx.signal } : {}),
     });
     if (!response.ok) throw new Error(`HTTP ${String(response.status)}`); // counted as a failure, retried in test runs
-    const body = (await response.json()) as Record<string, { value: string; confidence: number }>;
-    const fields = Object.fromEntries(
-      type.fields.flatMap((f) => (body[f.key] ? [[f.key, body[f.key]]] : [])),
-    );
+    const body = (await response.json()) as Partial<Record<string, FieldValue>>;
+    const fields: Record<string, FieldValue> = {};
+    for (const field of type.fields) {
+      const value = body[field.key];
+      if (value) fields[field.key] = value;
+    }
     return {
       status: Object.keys(fields).length > 0 ? "OK" : "NO_MATCH",
       fields,
@@ -310,10 +316,15 @@ Refusals throw `StudioError` (409) with a `rule`: `type-exists`, `draft-exists`,
 
 ```ts
 import { importSamples } from "@quickben/plugin-doc-reader";
-import { loadFolder, loadManifest } from "@quickben/plugin-doc-reader/node";
+import { loadManifest } from "@quickben/plugin-doc-reader/node";
 
+const ctx = { user: { id: "u1" } };
+type Raw = { totals: { amount: number }; header: { date: string } };
 const report = await importSamples(qb, ctx, "receipt", loadManifest("data/manifest.jsonl"), {
-  map: (raw) => ({ total: raw.totals.amount, issuedOn: raw.header.date }), // nested JSON → fields
+  map: (expected) => {
+    const raw = expected as Raw;
+    return { total: raw.totals.amount, issuedOn: raw.header.date };
+  }, // nested JSON → fields
 });
 // { created, updated, unchanged, failed: [{ key, error }], unknownFields }
 ```
@@ -328,6 +339,9 @@ Expected `null`, `""`, `"-"` and `-1` mean "expected empty" and are stored as th
 **2. Split.** `dev` is for tuning and few-shot examples, `validation` decides publishing, `test` and `unseen` run only when publishing.
 
 ```ts
+import { splitSamples } from "@quickben/plugin-doc-reader";
+
+const ctx = { user: { id: "u1" } };
 await splitSamples(qb, ctx, "receipt", {
   seed: "2026-11", // default: random, saved
   ratios: { dev: 0.6, validation: 0.2, test: 0.2 }, // default
@@ -341,6 +355,9 @@ The same seed and samples give the same split. A second call needs `resplit: tru
 **3. Run.** Samples go through the runner (in process or BullMQ), `concurrency` at a time.
 
 ```ts
+import { startTestRun } from "@quickben/plugin-doc-reader";
+
+const ctx = { user: { id: "u1" } };
 const [run] = await startTestRun(qb, ctx, "receipt", 3, {
   split: "validation", // default: every sample outside test and unseen
   concurrency: 8, // default 3, at most 32
@@ -373,7 +390,7 @@ Values are normalized by field type before they are compared. `null`, blank and 
 
 Publishing then starts runs of `test` and `unseen` and stores them on the version (`getVersion(...).evaluation`). Use `publishCheck(qb, ctx, key, version)` to see the result before publishing.
 
-```ts
+```ts nocheck
 evaluation: {
   emptyValues: ["-", "-1"],
   gate: { maxAccuracyDrop: 0.01, maxFieldDrop: 0.05, maxCostIncrease: 0.2, maxLatencyIncrease: null },

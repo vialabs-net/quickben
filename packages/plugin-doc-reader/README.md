@@ -171,6 +171,10 @@ A connection model takes `inputPerMTokUsd`, `outputPerMTokUsd` and, optionally, 
 Register an extractor that calls your service and returns the fields. Steps name it by `key`, and test runs compare it like any other step.
 
 ```ts
+import { docReader } from "@quickben/plugin-doc-reader";
+
+import type { Extractor, FieldValue } from "@quickben/plugin-doc-reader";
+
 const external: Extractor = {
   key: "acme-ocr",
   paid: true, // skipped over budget
@@ -178,14 +182,16 @@ const external: Extractor = {
     const response = await fetch(String(ctx.config.url), {
       method: "POST",
       headers: { "content-type": input.mime },
-      body: input.bytes,
+      body: new Blob([new Uint8Array(input.bytes)]),
       ...(ctx.signal ? { signal: ctx.signal } : {}),
     });
     if (!response.ok) throw new Error(`HTTP ${String(response.status)}`); // counted as a failure, retried in test runs
-    const body = (await response.json()) as Record<string, { value: string; confidence: number }>;
-    const fields = Object.fromEntries(
-      type.fields.flatMap((f) => (body[f.key] ? [[f.key, body[f.key]]] : [])),
-    );
+    const body = (await response.json()) as Partial<Record<string, FieldValue>>;
+    const fields: Record<string, FieldValue> = {};
+    for (const field of type.fields) {
+      const value = body[field.key];
+      if (value) fields[field.key] = value;
+    }
     return {
       status: Object.keys(fields).length > 0 ? "OK" : "NO_MATCH",
       fields,
@@ -348,7 +354,7 @@ evaluation: {
 quickben-doc-reader import --config quickben.config.ts --type receipt --manifest data/manifest.jsonl --map map.ts
 quickben-doc-reader split  --config quickben.config.ts --type receipt --seed 2026-11 --unseen issuer-42
 quickben-doc-reader run    --config quickben.config.ts --type receipt --version 3 --split validation --concurrency 8 --wait
-quickben-doc-reader export --config quickben.config.ts --run <id> --format csv --out run.csv
+quickben-doc-reader export --config quickben.config.ts --run <id> --format csv --out run.csv # --out stays inside the working directory
 ```
 
 The CLI runs as trusted server code against the config's database. `--map` names a module whose default export maps expected JSON to fields. TypeScript configs load through `tsx` when the app has it.

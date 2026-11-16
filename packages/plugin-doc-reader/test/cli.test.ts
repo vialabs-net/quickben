@@ -222,6 +222,9 @@ describe("quickben-doc-reader", () => {
     expect(
       await cli("export", "--config", "quickben.config.ts", "--run", run.id, "--format", "xml"),
     ).toBe(2);
+    expect(
+      await cli("export", "--config", "quickben.config.ts", "--run", run.id, "--out", "../x.csv"),
+    ).toBe(2);
     expect(await cli("import", ...base, "--dir", "docs", "--map", "map.ts", "--bogus")).toBe(2);
   });
 });

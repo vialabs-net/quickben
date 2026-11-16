@@ -80,7 +80,7 @@ export const connectionsMessages = defineMessages("connections", {
     "field.models.column.structuredOutput": "Structured output",
     "field.models.column.inputPerMTokUsd": "Input USD / 1M tokens",
     "field.models.column.outputPerMTokUsd": "Output USD / 1M tokens",
-    "field.models.column.cachedInputPerMTokUsd": "Cached input USD / 1M tokens",
+    "field.models.column.cachedInputPerMTokUsd": "Cache read USD / 1M tokens",
     "field.models.column.default": "Default",
     "filter.search": "Search by name",
     "filter.provider": "Provider",

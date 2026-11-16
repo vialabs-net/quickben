@@ -4,7 +4,7 @@
  */
 import { writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { resolve } from "node:path";
+import { resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 
@@ -239,6 +239,16 @@ async function runRun(qb: Quickben, type: string, values: Values, io: CliIo): Pr
   return current.state === "done" ? 0 : 1;
 }
 
+/** `--out` resolved inside the working directory. A path that leaves it is refused. */
+function outputPath(cwd: string, out: string): string {
+  const base = resolve(cwd);
+  const file = resolve(base, out);
+  if (!file.startsWith(base + sep)) {
+    throw new UsageError("--out must be a file inside the working directory");
+  }
+  return file;
+}
+
 async function runExport(qb: Quickben, values: Values, io: CliIo): Promise<number> {
   if (values.run === undefined) throw new UsageError("export needs --run <id>");
   const format = values.format ?? "csv";
@@ -246,7 +256,7 @@ async function runExport(qb: Quickben, values: Values, io: CliIo): Promise<numbe
   const text = await exportTestRun(qb, CLI_CONTEXT, values.run, format);
   if (values.out === undefined) io.stdout(text);
   else {
-    await writeFile(resolve(io.cwd, values.out), text);
+    await writeFile(outputPath(io.cwd, values.out), text);
     io.stderr(`Wrote ${values.out}\n`);
   }
   return 0;
