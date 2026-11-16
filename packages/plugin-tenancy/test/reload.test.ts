@@ -1,7 +1,6 @@
 import { createQuickben } from "@quickben/core";
 import { describe, expect, it, vi } from "vitest";
 
-
 import { getTenancy } from "../src/options";
 
 import { makeConfig } from "./setup";
