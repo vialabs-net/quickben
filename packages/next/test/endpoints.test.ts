@@ -96,3 +96,34 @@ describe("custom endpoints in createRouteHandlers", () => {
     expect(crud.status).toBe(200);
   });
 });
+
+describe("openapi option of createRouteHandlers", () => {
+  it("is off by default", async () => {
+    const { api } = handlers();
+    const response = await api.GET(request("GET", "/api/openapi.json", { user: editor }));
+    expect(response.status).toBe(404);
+  });
+
+  it("serves GET /openapi.json to signed-in users", async () => {
+    const { api } = handlers({
+      basePath: "/rest",
+      maxLimit: 25,
+      openapi: { serve: true, info: { version: "1.2.3" }, include: { collections: ["posts"] } },
+    });
+    expect((await api.GET(request("GET", "/rest/openapi.json"))).status).toBe(401);
+    const response = await api.GET(request("GET", "/rest/openapi.json", { user: editor }));
+    expect(response.status).toBe(200);
+    const doc = (await response.json()) as {
+      info: { version: string };
+      servers: unknown;
+      paths: Record<string, { get?: { parameters?: { name: string; schema?: unknown }[] } }>;
+    };
+    expect(doc.info.version).toBe("1.2.3");
+    expect(doc.servers).toEqual([{ url: "/rest" }]);
+    expect(Object.keys(doc.paths)).toContain("/v1/posts-count");
+    const limit = doc.paths["/posts"]?.get?.parameters?.find((p) => p.name === "limit");
+    expect(limit?.schema).toEqual({ type: "integer", minimum: 1, maximum: 25 });
+    // Other routes still work.
+    expect((await api.GET(request("GET", "/rest/posts"))).status).toBe(200);
+  });
+});

@@ -59,7 +59,7 @@ export type {
   WhereNode,
   WhereOperator,
 } from "./adapter";
-export type { AuthAdapter, DevAuthOptions, QuickbenUser } from "./auth";
+export type { AuthAdapter, AuthSecurityScheme, DevAuthOptions, QuickbenUser } from "./auth";
 export type { PluginDefinition } from "./config";
 export type {
   AnyEndpoint,
@@ -132,6 +132,7 @@ export type {
   Collection,
   CollectionAccess,
   CollectionAdmin,
+  CollectionApi,
   CollectionConfig,
   CollectionHooks,
   ConfigInput,

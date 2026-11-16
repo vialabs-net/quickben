@@ -85,6 +85,8 @@ See [ARCHITECTURE.md](../../ARCHITECTURE.md) for the query model and the adapter
 | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `defineEndpoint({ method, path, … })` | `version`, `input: { params, query, body }`, `output`, `access`, `transactional`, `deprecated`, `sunset`, `handler`.    |
 | `defineConfig({ endpoints })`         | Register endpoints. Plugins use `definePlugin({ endpoints })`.                                                          |
+| `operationId`, `api: { openapi }`     | Names for OpenAPI documents, and collections whose CRUD routes `@quickben/openapi` documents.                           |
+| `AuthAdapter.securitySchemes`         | How clients send credentials, for generated documents. `devAuth` describes its header.                                  |
 | `@quickben/core/http`                 | `handleEndpointRequest(config, request)`: `Response`, or `null` when no path matches. Mount it in any Fetch API server. |
 
-Docs: [Endpoints](https://quickben.vialabs.net/docs/concepts/endpoints).
+Docs: [Endpoints](https://quickben.vialabs.net/docs/concepts/endpoints), [OpenAPI](https://quickben.vialabs.net/docs/concepts/openapi).

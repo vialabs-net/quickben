@@ -7,3 +7,6 @@ CHANGELOG.md
 CODE_OF_CONDUCT.md
 apps/docs/samples/generated/
 apps/docs/public/_pagefind/
+# Generated OpenAPI documents: byte-for-byte output of quickben-openapi.
+**/openapi.json
+packages/openapi/test/__snapshots__/

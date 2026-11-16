@@ -37,6 +37,7 @@ Custom endpoints (`defineConfig({ endpoints })`) are served first, with `handleE
 | `maxBodyBytes`   | `1048576` (1 MB)   | Largest `POST` / `PATCH` body. Larger bodies get `413`.                 |
 | `maxUploadBytes` | `10485760` (10 MB) | Largest multipart body. Larger bodies get `413`.                        |
 | `validateOutput` | not in production  | Validate the results of custom endpoints.                               |
+| `openapi`        | off                | `{ serve: true, … }` serves `GET /openapi.json` (`@quickben/openapi`).  |
 
 - The user comes from `config.auth.getUser(req)` on every request.
 - Bodies are JSON objects (`application/json`), or `multipart/form-data` with a `_payload` JSON part and one file part per file field. `id`, `createdAt` and `updatedAt` are removed from bodies.

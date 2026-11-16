@@ -16,6 +16,18 @@ describe("betterAuthAdapter with a real Better Auth instance", () => {
     expect(await adapter.getUser(request(bad))).toBeNull();
   });
 
+  it("describes the session cookie as a security scheme", async () => {
+    const auth = await createTestAuth();
+    expect(betterAuthAdapter({ auth }).securitySchemes?.session).toMatchObject({
+      type: "apiKey",
+      in: "cookie",
+      name: "better-auth.session_token",
+    });
+    expect(
+      betterAuthAdapter({ auth, cookieName: "__Secure-s" }).securitySchemes?.session,
+    ).toMatchObject({ name: "__Secure-s" });
+  });
+
   it("maps the session user", async () => {
     const auth = await createTestAuth();
     const headers = await signUp(auth, "ada@example.com");

@@ -34,6 +34,7 @@
     "@quickben/db-memory": "workspace:^",
     "@quickben/eslint-config": "workspace:*",
     "@quickben/next": "workspace:^",
+    "@quickben/openapi": "workspace:^",
     "@quickben/plugin-connections": "workspace:^",
     "@quickben/plugin-doc-reader": "workspace:^",
     "@quickben/plugin-templates": "workspace:^",
