@@ -61,8 +61,9 @@ function unwrap(node: Node): { node: Node; nullable: boolean } {
   if (!node.anyOf) return { node, nullable: false };
   const branches = node.anyOf.filter((branch) => branch.type !== "null");
   if (branches.length !== 1 || !branches[0]) return { node, nullable: false };
-  const { anyOf: _anyOf, ...outer } = node;
-  return { node: { ...branches[0], ...outer }, nullable: branches.length < node.anyOf.length };
+  const merged: Node = { ...branches[0], ...node };
+  delete merged.anyOf;
+  return { node: merged, nullable: branches.length < node.anyOf.length };
 }
 
 function typeOf(node: Node): string | undefined {
