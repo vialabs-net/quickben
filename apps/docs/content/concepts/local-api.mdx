@@ -25,18 +25,19 @@ await qb.delete("posts", post.id, { user });
 
 ## Methods
 
-| Method                           | Returns                 | Notes                                                   |
-| -------------------------------- | ----------------------- | ------------------------------------------------------- |
-| `find(slug, query, ctx)`         | `FindResult<Doc>`       | See [Query model](/docs/concepts/query-model).          |
-| `findById(slug, id, query, ctx)` | `Doc`                   | `query` is `{ select, depth }`. Throws `NotFoundError`. |
-| `count(slug, { where }, ctx)`    | `number`                | Applies read access.                                    |
-| `create(slug, data, ctx)`        | `Doc`                   | Validation and hooks in one transaction.                |
-| `update(slug, id, data, ctx)`    | `Doc`                   | Partial update.                                         |
-| `delete(slug, id, ctx)`          | `Doc`                   | Returns the deleted document.                           |
-| `transaction(fn)`                | result of `fn`          | `fn` gets a `qb` bound to the transaction.              |
-| `readFile(slug, id, field, ctx)` | `{ file, body, size }`  | A file field's bytes. See [Files](/docs/storage).       |
-| `collections[slug]`              | `SanitizedCollection`   | Collection metadata.                                    |
-| `db.raw`                         | adapter's native client | For custom queries.                                     |
+| Method                           | Returns                         | Notes                                                   |
+| -------------------------------- | ------------------------------- | ------------------------------------------------------- |
+| `find(slug, query, ctx)`         | `FindResult<Doc>`               | See [Query model](/docs/concepts/query-model).          |
+| `findById(slug, id, query, ctx)` | `Doc`                           | `query` is `{ select, depth }`. Throws `NotFoundError`. |
+| `count(slug, { where }, ctx)`    | `number`                        | Applies read access.                                    |
+| `create(slug, data, ctx)`        | `Doc`                           | Validation and hooks in one transaction.                |
+| `update(slug, id, data, ctx)`    | `Doc`                           | Partial update.                                         |
+| `delete(slug, id, ctx)`          | `Doc`                           | Returns the deleted document.                           |
+| `transaction(fn)`                | result of `fn`                  | `fn` gets a `qb` bound to the transaction.              |
+| `withTransaction(db)`            | `{ qb, committed, rolledBack }` | `qb` on a transaction your app opened.                  |
+| `readFile(slug, id, field, ctx)` | `{ file, body, size }`          | A file field's bytes. See [Files](/docs/storage).       |
+| `collections[slug]`              | `SanitizedCollection`           | Collection metadata.                                    |
+| `db.raw`                         | adapter's native client         | For custom queries.                                     |
 
 The context is always the last argument and is never merged with query options, so a query built from user input cannot set `overrideAccess`.
 
@@ -89,6 +90,18 @@ await qb.transaction(async (tx) => {
 ```
 
 If `fn` throws, both writes are rolled back. Calling `transaction` inside `fn` joins the same transaction.
+
+### Transactions of your app
+
+`qb.withTransaction(db)` takes an adapter bound to a transaction your code opened, for example `adapter.fromTransaction(tx)` of the [Drizzle adapter](/docs/database-adapters/drizzle#transactions-of-your-app). Your code commits or rolls back.
+
+| Returned       | Use                                                                 |
+| -------------- | ------------------------------------------------------------------- |
+| `qb`           | Reads and writes in your transaction. Hooks get it as `qb`.         |
+| `committed()`  | Call after your commit: runs the `afterCommit` hooks of the writes. |
+| `rolledBack()` | Call after your rollback: removes files the writes stored.          |
+
+Each settles once; later calls do nothing.
 
 ## Result types
 
