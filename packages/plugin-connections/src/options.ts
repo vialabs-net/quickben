@@ -1,4 +1,4 @@
-import { ConfigError } from "@quickben/core";
+import { ConfigError, pluginState } from "@quickben/core";
 
 import { parseMasterKey } from "./crypto";
 import { providerMap } from "./provider";
@@ -99,7 +99,8 @@ export function resolveOptions(options: ConnectionsOptions): ResolvedConnections
   };
 }
 
-const registered = new WeakMap<QuickbenConfig, ResolvedConnections>();
+/** Kept on `globalThis`, so lookups survive dev hot reloads of this module. */
+const registered = pluginState<ResolvedConnections>("@quickben/plugin-connections");
 
 export function register(config: QuickbenConfig, resolved: ResolvedConnections): void {
   registered.set(config, resolved);

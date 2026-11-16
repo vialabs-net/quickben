@@ -1,4 +1,4 @@
-import { ConfigError } from "@quickben/core";
+import { ConfigError, pluginState } from "@quickben/core";
 
 import { CUSTOM_FONT, systemFonts } from "./brand";
 import { resolveKind } from "./kinds";
@@ -108,7 +108,8 @@ export function resolveOptions(options: TemplatesOptions): ResolvedTemplates {
   };
 }
 
-const registered = new WeakMap<QuickbenConfig, ResolvedTemplates>();
+/** Kept on `globalThis`, so lookups survive dev hot reloads of this module. */
+const registered = pluginState<ResolvedTemplates>("@quickben/plugin-templates");
 
 export function register(config: QuickbenConfig, templates: ResolvedTemplates): void {
   registered.set(config, templates);
