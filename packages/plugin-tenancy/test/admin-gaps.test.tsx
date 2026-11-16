@@ -37,7 +37,13 @@ async function build(basePath: string, options: Partial<TenancyOptions<"posts" |
       tenancy({ scope: ["posts", "notes"], ...options }),
       definePlugin({
         name: "member-fields",
-        addFields: { memberships: { title: f.text({ maxLength: 50 }) } },
+        addFields: {
+          memberships: {
+            title: f.text({ maxLength: 50 }),
+            // Hidden from users; hooks still get it.
+            hostRef: f.text({ access: { read: () => false } }),
+          },
+        },
       }),
     ],
     auth: devAuth(),
@@ -130,7 +136,8 @@ describe("tenancy admin with member hooks", () => {
 
   it("runs onUpdate for the member details dialog", async () => {
     const onUpdate = vi.fn();
-    const { ids } = await build("/details", { memberHooks: { onUpdate } });
+    const { ids, qb } = await build("/details", { memberHooks: { onUpdate } });
+    await qb.update("memberships", ids.carol, { hostRef: "crm-42" }, system);
     actAs(alice);
     incoming.set("x-quickben-organization", ids.acme);
     expect(
@@ -143,6 +150,8 @@ describe("tenancy admin with member hooks", () => {
     expect(onUpdate).toHaveBeenCalledTimes(1);
     const [event] = onUpdate.mock.calls[0] as [MemberEvent];
     expect([event.before?.title, event.after?.title]).toEqual([null, "Sales lead"]);
+    // Events carry stored records, also fields the user cannot read.
+    expect([event.before?.hostRef, event.after?.hostRef]).toEqual(["crm-42", "crm-42"]);
   });
 });
 
@@ -204,6 +213,22 @@ describe("tenancy admin with canManageMember", () => {
         form({ membershipId: ids.dave, role: "member", status: "active" }),
       ),
     ).toBe("/scoped/members?error=cannot-manage");
+  });
+});
+
+describe("tenancy admin with separate update and remove rules", () => {
+  it("shows Save and Remove by their own answer", async () => {
+    const { ids, renderPage } = await build("/split", {
+      // Admins may remove viewers but not change them.
+      canManageMember: ({ allowedByRank, action, target }) =>
+        allowedByRank && !(action === "update" && target.role === "viewer"),
+    });
+    actAs(bob);
+    incoming.set("x-quickben-organization", ids.acme);
+    await renderPage();
+    expect(screen.queryByRole("combobox", { name: "Role of dave@example.com" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Remove dave@example.com" })).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Role of carol@example.com" })).toBeTruthy();
   });
 });
 

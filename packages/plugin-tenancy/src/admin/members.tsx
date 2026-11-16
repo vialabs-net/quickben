@@ -15,7 +15,7 @@ import {
 import { getQuickben } from "@quickben/core";
 import { getRequestContext } from "@quickben/next";
 
-import { canManageMember } from "../api";
+import { memberManager } from "../api";
 import { isExpired, moduleKeys } from "../entitlements";
 import { ALL_MODULES, MEMBERSHIPS, getTenancy } from "../options";
 
@@ -130,6 +130,8 @@ interface RowProps {
   emptyModules: EmptyModules;
   /** The user may change and remove this member (`members:manage` and `canManageMember`). */
   canManage: boolean;
+  /** The user may remove this member. */
+  canRemove: boolean;
   /** The table has an Actions column (the user has `members:manage`). */
   actionsColumn: boolean;
   update: (formData: FormData) => Promise<void>;
@@ -146,6 +148,7 @@ function MemberRow({
   modules,
   emptyModules,
   canManage,
+  canRemove,
   actionsColumn,
   update,
   remove,
@@ -251,30 +254,33 @@ function MemberRow({
           />
         </Td>
       ) : null}
-      {canManage ? (
+      {actionsColumn ? (
         <Td>
           <div className="qb:flex qb:gap-2">
-            <form id={formId} action={update}>
-              <input type="hidden" name="membershipId" value={membership.id} />
-              <Button type="submit" size="sm" variant="secondary">
-                {t("members.save")}
-              </Button>
-            </form>
-            <form action={remove}>
-              <input type="hidden" name="membershipId" value={membership.id} />
-              <Button
-                type="submit"
-                size="sm"
-                variant="danger"
-                aria-label={t("members.removeWho", { who })}
-              >
-                {t("members.remove")}
-              </Button>
-            </form>
+            {canManage ? (
+              <form id={formId} action={update}>
+                <input type="hidden" name="membershipId" value={membership.id} />
+                <Button type="submit" size="sm" variant="secondary">
+                  {t("members.save")}
+                </Button>
+              </form>
+            ) : null}
+            {canRemove ? (
+              <form action={remove}>
+                <input type="hidden" name="membershipId" value={membership.id} />
+                <Button
+                  type="submit"
+                  size="sm"
+                  variant="danger"
+                  aria-label={t("members.removeWho", { who })}
+                >
+                  {t("members.remove")}
+                </Button>
+              </form>
+            ) : null}
           </div>
         </Td>
       ) : null}
-      {!canManage && actionsColumn ? <Td /> : null}
     </Tr>
   );
 }
@@ -359,18 +365,20 @@ export function createMembersPage(config: QuickbenConfig, key: string) {
       { where: { organization: { eq: tenant.organization.id } }, sort: "email", limit: 500 },
       ctx,
     );
-    // Rows the user may change: `members:manage`, then the rank rule or `canManageMember`.
-    const manageable = new Set(
+    // What the user may do per row: `members:manage`, then the rank rule or `canManageMember`.
+    const check = await memberManager(qb, ctx, tenant.organization.id);
+    const allowed = new Map(
       canManage
-        ? (
-            await Promise.all(
-              page.docs.map(async (doc) =>
-                (await canManageMember(qb, ctx, doc as unknown as MembershipRecord))
-                  ? doc.id
-                  : null,
-              ),
-            )
-          ).filter((id): id is string => id !== null)
+        ? await Promise.all(
+            page.docs.map(async (doc) => {
+              const membership = doc as unknown as MembershipRecord;
+              const [update, remove] = await Promise.all([
+                check(membership, "update"),
+                check(membership, "remove"),
+              ]);
+              return [doc.id, { update, remove }] as const;
+            }),
+          )
         : [],
     );
     const added = await addedFields(qb, ctx, MEMBERSHIPS, ownMembershipFields, i18n.locale);
@@ -421,7 +429,8 @@ export function createMembersPage(config: QuickbenConfig, key: string) {
                   roles={roles}
                   modules={modules}
                   emptyModules={tenancy.emptyModules}
-                  canManage={manageable.has(doc.id)}
+                  canManage={allowed.get(doc.id)?.update ?? false}
+                  canRemove={allowed.get(doc.id)?.remove ?? false}
                   actionsColumn={canManage}
                   update={update}
                   remove={remove}
