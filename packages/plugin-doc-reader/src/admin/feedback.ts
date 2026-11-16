@@ -17,6 +17,7 @@ export const toastCodes = [
   "sample-removed",
   "test-started",
   "split-made",
+  "note-saved",
   "budget-saved",
   "budget-removed",
   "cap-saved",

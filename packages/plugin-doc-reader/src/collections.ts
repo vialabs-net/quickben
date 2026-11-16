@@ -98,6 +98,8 @@ export function docSamplesCollection(isStaff: IsStaff) {
       group: f.text({ index: true, maxLength: 200 }),
       /** Other properties to stratify and slice by, e.g. `{ hasTextLayer: true }`. */
       attributes: f.json({ required: true, default: () => ({}) }),
+      /** Notes for prompt work, by field: `[{ field, text, by, at }]`. */
+      annotations: f.json({ required: true, default: () => [] }),
     },
     access: staffOnly(isStaff),
     admin: { useAsTitle: "fileName", ...hidden },
@@ -137,7 +139,7 @@ export function docTestResultsCollection(isStaff: IsStaff) {
       /** Position of the sample in the run. `run:index` is unique. */
       index: f.number({ required: true, integer: true, min: 0 }),
       slot: f.text({ required: true, unique: true, maxLength: 80 }),
-      sampleId: f.text({ required: true, maxLength: 64 }),
+      sampleId: f.text({ required: true, index: true, maxLength: 64 }),
       costUsd: f.number({ required: true, default: 0, min: 0 }),
       result: f.json({ required: true }),
     },

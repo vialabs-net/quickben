@@ -403,6 +403,17 @@ export interface Sample {
   readonly splitVersion: number | null;
   readonly group: string | null;
   readonly attributes: SampleAttributes;
+  /** Notes for prompt work. */
+  readonly annotations: readonly SampleAnnotation[];
+}
+
+/** A note on a sample for prompt work: what the model should do with a field. */
+export interface SampleAnnotation {
+  /** A field key, or `null` for the whole document. */
+  readonly field: string | null;
+  readonly text: string;
+  readonly by: string | null;
+  readonly at: string;
 }
 
 const toSample = (record: SampleRecord): Sample => ({
@@ -421,6 +432,7 @@ const toSample = (record: SampleRecord): Sample => ({
   splitVersion: record.splitVersion ?? null,
   group: record.group ?? null,
   attributes: record.attributes ?? {},
+  annotations: record.annotations ?? [],
 });
 
 function noteOf(note: string | null | undefined): string | null {
@@ -466,6 +478,11 @@ export interface SampleInput {
   readonly group?: string | null;
   /** Properties to stratify and slice by, e.g. `{ hasTextLayer: true }`. */
   readonly attributes?: Readonly<Record<string, string | number | boolean | null>>;
+  /**
+   * A document uploaded to look at it: it goes to `dev` (once looked at, it is no longer
+   * unseen), whatever its hash says.
+   */
+  readonly inspect?: boolean;
 }
 
 const attributesSchema = z
@@ -499,7 +516,11 @@ export async function addSample(
   const fileRef = storageRef(`samples/${typeKey}`, upload.mime);
   const group = groupOf(input.group);
   const attributes = parseAttributes(input.attributes);
-  const split = await splitFieldsFor(qb, typeKey, { key: fileRef, group, attributes });
+  const assigned = await splitFieldsFor(qb, typeKey, { key: fileRef, group, attributes });
+  const split =
+    input.inspect === true && assigned.split !== null
+      ? { ...assigned, split: "dev" as const }
+      : assigned;
   await state.files.put(fileRef, upload.bytes, { contentType: upload.mime });
   const record = await qb.create(
     DOC_SAMPLES,
@@ -542,6 +563,51 @@ export async function updateSample(
   if (input.params !== undefined) data.params = parseParams(input.params);
   if (input.note !== undefined) data.note = noteOf(input.note);
   return toSample((await qb.update(DOC_SAMPLES, id, data, ctx)) as unknown as SampleRecord);
+}
+
+/** One sample. */
+export async function getSample(qb: Quickben, ctx: RequestContext, id: string): Promise<Sample> {
+  return toSample((await qb.findById(DOC_SAMPLES, id, {}, ctx)) as unknown as SampleRecord);
+}
+
+/** Add a note for prompt work to a sample. Notes are kept in order, at most 50. */
+export async function annotateSample(
+  qb: Quickben,
+  ctx: RequestContext,
+  id: string,
+  input: { field?: string | null; text: string },
+): Promise<Sample> {
+  const text = input.text.trim().slice(0, 1000);
+  if (!text) throw new ValidationError([{ path: "text", message: "Write the note" }]);
+  const record = (await qb.findById(DOC_SAMPLES, id, {}, ctx)) as unknown as SampleRecord;
+  const note: SampleAnnotation = {
+    field: input.field?.trim() ? input.field.trim().slice(0, 64) : null,
+    text,
+    by: actorOf(ctx),
+    at: new Date().toISOString(),
+  };
+  const annotations = [...(record.annotations ?? []), note].slice(-50);
+  return toSample(
+    (await qb.update(DOC_SAMPLES, id, { annotations }, ctx)) as unknown as SampleRecord,
+  );
+}
+
+/** Notes for prompt work on a type's samples, newest first. */
+export async function listAnnotations(
+  qb: Quickben,
+  ctx: RequestContext,
+  typeKey: string,
+): Promise<(SampleAnnotation & { sampleId: string; fileName: string })[]> {
+  const samples = await listSamples(qb, ctx, typeKey);
+  return samples
+    .flatMap((sample) =>
+      sample.annotations.map((note) => ({
+        ...note,
+        sampleId: sample.id,
+        fileName: sample.key ?? sample.fileName,
+      })),
+    )
+    .sort((a, b) => b.at.localeCompare(a.at));
 }
 
 /** Remove a sample and its file. */

@@ -1,6 +1,7 @@
 import { ConfigError, memoryStorage, pluginState } from "@quickben/core";
 
 import { parseDocumentType } from "./definition";
+import { rasterize as defaultRasterize } from "./extractors/page-images";
 import { createTextLayerExtractor } from "./extractors/text-layer";
 import { createVisionLlmExtractor } from "./extractors/vision-llm";
 import { fromFileStore, isStorageAdapter } from "./files";
@@ -89,6 +90,8 @@ export interface DocReaderState {
   readonly maxFileBytes: number;
   readonly onReadingDone: DocReaderOptions["onReadingDone"];
   readonly retryDelayMs: number;
+  /** Page rendering, also for the admin's sample view. */
+  readonly rasterize: Rasterize;
   readonly log: (event: string, data: Record<string, unknown>) => void;
   rootQb: Quickben | undefined;
 }
@@ -157,6 +160,7 @@ export function resolveOptions(options: DocReaderOptions): DocReaderState {
     maxFileBytes: options.maxFileBytes ?? 20 * 1024 * 1024,
     onReadingDone: options.onReadingDone,
     retryDelayMs: options.testRetryDelayMs ?? 1000,
+    rasterize: options.rasterize ?? defaultRasterize,
     log:
       options.log ??
       ((event, data) => {

@@ -6,6 +6,7 @@ import type { ExtractionStatus, FieldValue } from "./extractor";
 import type { RunMetrics, RunSummary, SampleAttributes, SampleResult } from "./metrics";
 import type { PipelineAttempt } from "./pipeline";
 import type { VersionEvaluation } from "./publish";
+import type { SampleAnnotation } from "./studio";
 
 interface System {
   readonly id: string;
@@ -47,6 +48,7 @@ export interface SampleRecord extends System {
   readonly splitVersion?: number | null;
   readonly group?: string | null;
   readonly attributes?: SampleAttributes | null;
+  readonly annotations?: SampleAnnotation[] | null;
 }
 
 export interface TestRunRecord extends System {

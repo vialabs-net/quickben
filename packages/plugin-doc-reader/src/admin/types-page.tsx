@@ -19,6 +19,7 @@ import { listDocTypes } from "../studio";
 
 import { createTypeAction } from "./actions";
 import { docReaderT } from "./messages";
+import { SamplePage } from "./sample-page";
 import {
   AlignedSubmit,
   EMPTY,
@@ -82,7 +83,23 @@ export function createTypesPage(config: QuickbenConfig, key: string) {
         </>
       );
     }
-    const [typeKey] = segments;
+    const [typeKey, section, sampleId] = segments;
+    if (typeKey && section === "samples" && sampleId) {
+      return (
+        <>
+          {await SamplePage({
+            config,
+            adminKey: key,
+            basePath,
+            typeKey,
+            sampleId,
+            searchParams,
+            i18n,
+          })}
+          {feedback}
+        </>
+      );
+    }
     if (typeKey) {
       return (
         <>

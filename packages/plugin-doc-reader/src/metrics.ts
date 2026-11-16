@@ -21,8 +21,8 @@ import { sameFieldValue } from "./field-values";
 
 import type { Split } from "./collections";
 import type { DocumentType, FieldDefinition } from "./definition";
-import type { ExtractionStatus } from "./extractor";
-import type { PipelineResult } from "./pipeline";
+import type { ExtractionStatus, FieldEvidence, FieldValue } from "./extractor";
+import type { PipelineAttempt, PipelineResult } from "./pipeline";
 
 export const FIELD_OUTCOMES = [
   "correct",
@@ -45,6 +45,16 @@ export interface FieldCheck {
   readonly outcome?: FieldOutcome | null;
   /** `false`: reported, not counted. */
   readonly scored?: boolean;
+  /** Where the value is: page, nearby text and, when known, its box. */
+  readonly evidence?: CheckEvidence | null;
+  /** The pipeline step whose value was kept. */
+  readonly step?: { readonly index: number; readonly extractor: string } | null;
+}
+
+/** Evidence of a read value. `source` says where the box comes from. */
+export interface CheckEvidence extends FieldEvidence {
+  /** `text-layer`: found in the PDF's own text. `model`: drawn by the vision model. */
+  readonly source?: "text-layer" | "model";
 }
 
 export type SampleAttributes = Readonly<Record<string, string | number | boolean | null>>;
@@ -71,6 +81,8 @@ export interface SampleResult {
   readonly failed?: boolean;
   /** Not read: the run hit its spending limit. */
   readonly skipped?: "budget";
+  /** Pages sent to paid extractors, all tries. */
+  readonly pages?: number;
 }
 
 export interface RunSummary {
@@ -181,7 +193,7 @@ const isRight = (outcome: FieldOutcome | null | undefined) =>
 export function checkFields(
   type: DocumentType,
   expected: Readonly<Record<string, string>>,
-  result: Pick<PipelineResult, "fields">,
+  result: Pick<PipelineResult, "fields"> & { readonly attempts?: readonly PipelineAttempt[] },
 ): FieldCheck[] {
   const emptyValues = type.evaluation.emptyValues;
   return type.fields.map((field) => {
@@ -197,8 +209,23 @@ export function checkFields(
       match: outcome === null ? null : isRight(outcome),
       outcome,
       scored: isScored(field),
+      ...(read?.evidence ? { evidence: read.evidence } : {}),
+      ...(read && result.attempts ? { step: stepOf(result.attempts, field.key, read) } : {}),
     };
   });
+}
+
+/** The first step that read the value the pipeline kept. */
+function stepOf(
+  attempts: readonly PipelineAttempt[],
+  key: string,
+  kept: FieldValue,
+): { index: number; extractor: string } | null {
+  const attempt = attempts.find((a) => {
+    const value = Object.hasOwn(a.fields, key) ? a.fields[key] : undefined;
+    return value?.value === kept.value && value.confidence === kept.confidence;
+  });
+  return attempt ? { index: attempt.step, extractor: attempt.extractor } : null;
 }
 
 /** Outcome of a check written before outcomes existed: from `match` alone. */

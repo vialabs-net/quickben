@@ -2,6 +2,7 @@ export {
   compareTestRuns,
   DEFAULT_CONCURRENCY,
   exportTestRun,
+  listSampleRuns,
   MAX_CONCURRENCY,
   startTestRunSchema,
 } from "./bench";
@@ -31,7 +32,12 @@ export {
 } from "./definition";
 export { EXTRACTION_STATUSES } from "./extractor";
 export { rasterize, UnsupportedFileError } from "./extractors/page-images";
-export { createTextLayerExtractor, pdfPagesText, TEXT_LAYER } from "./extractors/text-layer";
+export {
+  createTextLayerExtractor,
+  locateEvidence,
+  pdfPagesText,
+  TEXT_LAYER,
+} from "./extractors/text-layer";
 export {
   answerSchemaFor,
   buildPrompt,
@@ -79,13 +85,16 @@ export {
 export { inProcessRunner } from "./runner";
 export {
   addSample,
+  annotateSample,
   canPublish,
   checkFields,
   createDocType,
   createDraft,
   deleteDraft,
+  getSample,
   getTestRun,
   getVersion,
+  listAnnotations,
   listDocTypes,
   listSamples,
   listTestRuns,
@@ -133,6 +142,8 @@ export type {
   FieldValue,
 } from "./extractor";
 export type { PageImage, Rasterize } from "./extractors/page-images";
+export type { LocatedEvidence } from "./extractors/text-layer";
+export type { TestRunHead } from "./bench";
 export type { VisionLlmOptions } from "./extractors/vision-llm";
 export type { FileStore } from "./files";
 export type {
@@ -145,6 +156,7 @@ export type {
 } from "./import";
 export type {
   CaseChange,
+  CheckEvidence,
   FieldDelta,
   FieldMetrics,
   FieldOutcome,
@@ -168,6 +180,7 @@ export type {
   FieldCheck,
   RunSummary,
   Sample,
+  SampleAnnotation,
   SampleInput,
   SampleResult,
   StartTestRunInput,

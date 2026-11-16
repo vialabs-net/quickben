@@ -9,9 +9,11 @@ import { cancelReading, readDocument, retryReading } from "../readings";
 import { splitSamples } from "../splits";
 import {
   addSample,
+  annotateSample,
   createDocType,
   createDraft,
   deleteDraft,
+  getSample,
   getVersion,
   publishDraft,
   removeSample,
@@ -254,6 +256,110 @@ export async function splitAction(key: string, formData: FormData): Promise<void
       splitSamples(scope.qb, scope.ctx, typeKey, splitFromForm(formData)),
     ),
   );
+}
+
+function samplePath(
+  basePath: string,
+  typeKey: string,
+  sampleId: string,
+  query: Record<string, string>,
+) {
+  const path = `${basePath}/document-types/${encodeURIComponent(typeKey)}/samples/${encodeURIComponent(sampleId)}`;
+  return withQuery(path, query);
+}
+
+/** Read one sample now with a chosen version and model: a one-sample test run. */
+export async function inspectSampleAction(key: string, formData: FormData): Promise<void> {
+  const scope = await scopeFor(key);
+  const typeKey = text(formData, "typeKey") ?? "";
+  const sampleId = text(formData, "sampleId") ?? "";
+  const number = version(formData);
+  const path = samplePath(scope.basePath, typeKey, sampleId, { v: String(number) });
+  const variant = variantFromForm(formData, "m");
+  redirect(
+    await attempt(
+      path,
+      "test-started",
+      () =>
+        startTestRun(scope.qb, scope.ctx, typeKey, number, {
+          sampleIds: [sampleId],
+          retries: 0,
+          ...(variant ? { variants: [{ ...variant, version: number }] } : {}),
+          ...(formData.get("heldOut") === "on" ? { heldOut: true } : {}),
+        }),
+      (runs) => withQuery(path, { run: runs[0]?.id ?? "" }),
+    ),
+  );
+}
+
+/** Upload a document to look at: it becomes a `dev` sample and is read at once. */
+export async function inspectUploadAction(key: string, formData: FormData): Promise<void> {
+  const scope = await scopeFor(key);
+  const typeKey = text(formData, "typeKey") ?? "";
+  const number = version(formData);
+  const back = typePath(scope.basePath, typeKey, { v: String(number), tab: "bench" });
+  const [file] = filesOf(formData, "file");
+  if (!file) redirect(withQuery(back, { error: "no-file" }));
+  const variant = variantFromForm(formData, "m");
+  redirect(
+    await attempt(
+      back,
+      "test-started",
+      async () => {
+        const sample = await addSample(scope.qb, scope.ctx, typeKey, { file, inspect: true });
+        const [run] = await startTestRun(scope.qb, scope.ctx, typeKey, number, {
+          sampleIds: [sample.id],
+          retries: 0,
+          ...(variant ? { variants: [{ ...variant, version: number }] } : {}),
+        });
+        return { sample, run };
+      },
+      ({ sample, run }) =>
+        samplePath(scope.basePath, typeKey, sample.id, { v: String(number), run: run?.id ?? "" }),
+    ),
+  );
+}
+
+/** Set one expected value of a sample, from the sample view. */
+export async function correctExpectedAction(key: string, formData: FormData): Promise<void> {
+  const scope = await scopeFor(key);
+  const typeKey = text(formData, "typeKey") ?? "";
+  const sampleId = text(formData, "sampleId") ?? "";
+  const field = text(formData, "field") ?? "";
+  const back = text(formData, "back") ?? samplePath(scope.basePath, typeKey, sampleId, {});
+  redirect(
+    await attempt(safeBack(scope.basePath, back), "sample-saved", async () => {
+      const sample = await getSample(scope.qb, scope.ctx, sampleId);
+      const expected: Record<string, string> = { ...sample.expected };
+      const value = text(formData, "value");
+      if (value === undefined) Reflect.deleteProperty(expected, field);
+      else expected[field] = value;
+      return updateSample(scope.qb, scope.ctx, sampleId, { expected });
+    }),
+  );
+}
+
+/** Add a note for prompt work to a sample, from the sample view. */
+export async function annotateAction(key: string, formData: FormData): Promise<void> {
+  const scope = await scopeFor(key);
+  const typeKey = text(formData, "typeKey") ?? "";
+  const sampleId = text(formData, "sampleId") ?? "";
+  const back = text(formData, "back") ?? samplePath(scope.basePath, typeKey, sampleId, {});
+  redirect(
+    await attempt(safeBack(scope.basePath, back), "note-saved", () =>
+      annotateSample(scope.qb, scope.ctx, sampleId, {
+        field: text(formData, "field") ?? null,
+        text: text(formData, "note") ?? "",
+      }),
+    ),
+  );
+}
+
+/** A return path from a form, kept inside the admin. */
+function safeBack(basePath: string, back: string): string {
+  return back.startsWith(`${basePath}/document-types/`) && !back.includes("//", 1)
+    ? back
+    : `${basePath}/document-types`;
 }
 
 // ---------------------------------------------------------------------------------------------

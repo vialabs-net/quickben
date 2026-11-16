@@ -580,6 +580,15 @@ function Editor({
   save: Action;
   t: DocReaderT;
 }>) {
+  const notes = samples
+    .flatMap((sample) =>
+      sample.annotations.map((note) => ({
+        ...note,
+        sampleId: sample.id,
+        fileName: sample.key ?? sample.fileName,
+      })),
+    )
+    .sort((a, b) => b.at.localeCompare(a.at));
   const gate = version.definition.evaluation.gate;
   const points = (value: number | null) => (value === null ? "" : String(value * 100));
   const type: DocumentType = version.definition;
@@ -646,6 +655,20 @@ function Editor({
             name="instructions"
             defaultValue={type.instructions}
           />
+          {notes.length > 0 ? (
+            <div className="qb:mt-5 qb:space-y-2 qb:text-sm">
+              <h3 className="qb:font-semibold">{t("editor.notes")}</h3>
+              <p className="qb:text-fg-muted">{t("editor.notesDescription")}</p>
+              <ul className="qb:space-y-1">
+                {notes.slice(0, 30).map((note) => (
+                  <li key={`${note.sampleId}-${note.at}`}>
+                    <span className="qb:font-mono">{note.fileName}</span>
+                    {note.field ? ` · ${note.field}` : ""}: {note.text}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </Section>
         <Section title={t("editor.recognition")} description={t("editor.recognitionDescription")}>
           <div className="qb:grid qb:grid-cols-1 qb:gap-4 qb:sm:grid-cols-2">
@@ -848,7 +871,17 @@ function variantLabel(t: DocReaderT, run: TestRun, models: readonly ModelChoice[
 /** Rows of a run's result table. Larger runs: the metrics, the comparison and the export. */
 const RESULT_ROWS = 100;
 
-function RunCard({ run, label, i18n }: Readonly<{ run: TestRun; label: string; i18n: AdminI18n }>) {
+function RunCard({
+  run,
+  label,
+  i18n,
+  inspectHref,
+}: Readonly<{
+  run: TestRun;
+  label: string;
+  i18n: AdminI18n;
+  inspectHref: (sampleId: string) => string;
+}>) {
   const t = docReaderT(i18n);
   const summary = run.summary;
   const fields = run.results[0]?.fields.map((f) => f.label) ?? [];
@@ -894,7 +927,9 @@ function RunCard({ run, label, i18n }: Readonly<{ run: TestRun; label: string; i
             {run.results.slice(0, RESULT_ROWS).map((result) => (
               <Tr key={result.sampleId}>
                 <Td>
-                  <p className="qb:font-medium qb:text-fg">{result.fileName}</p>
+                  <Link href={inspectHref(result.sampleId)} className={linkClass}>
+                    {result.sampleKey ?? result.fileName}
+                  </Link>
                   <StatusBadge status={result.status} i18n={i18n} />
                   {result.split ? (
                     <>
@@ -1014,6 +1049,8 @@ function Bench({
   else if (selected) shown = [selected];
   const keys = { typeKey: version.key, version: version.version };
   const filtered = splitFilter ? samples.filter((s) => s.split === splitFilter) : samples;
+  const inspectHref = (sampleId: string, runId?: string) =>
+    `${basePath}/document-types/${encodeURIComponent(version.key)}/samples/${encodeURIComponent(sampleId)}?${new URLSearchParams({ v: String(version.version), ...(runId ? { run: runId } : {}) }).toString()}`;
   const listed = filtered.slice((page - 1) * SAMPLES_PER_PAGE, page * SAMPLES_PER_PAGE);
   const baseline = hasPublished && version.state === "draft";
   return (
@@ -1062,6 +1099,9 @@ function Bench({
                   </Td>
                   <Td>{sample.note ?? ""}</Td>
                   <Td>
+                    <Link href={inspectHref(sample.id)} className={linkClass}>
+                      {t("bench.inspect")}
+                    </Link>
                     <form action={actions.removeSample}>
                       <Hidden values={{ ...keys, sampleId: sample.id }} />
                       <Button
@@ -1149,7 +1189,13 @@ function Bench({
           style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(24rem, 100%), 1fr))" }}
         >
           {shown.map((run) => (
-            <RunCard key={run.id} run={run} label={variantLabel(t, run, models)} i18n={i18n} />
+            <RunCard
+              key={run.id}
+              run={run}
+              label={variantLabel(t, run, models)}
+              i18n={i18n}
+              inspectHref={(sampleId) => inspectHref(sampleId, run.id)}
+            />
           ))}
         </div>
       ) : null}
@@ -1158,7 +1204,7 @@ function Bench({
           comparison={comparison.view}
           labelA={`${formatWhen(i18n, comparison.a.createdAt)} · ${variantLabel(t, comparison.a, models)}`}
           labelB={`${formatWhen(i18n, comparison.b.createdAt)} · ${variantLabel(t, comparison.b, models)}`}
-          sampleHref={(sampleId) => href({ sample: sampleId })}
+          sampleHref={(sampleId) => inspectHref(sampleId, comparison.b.id)}
           i18n={i18n}
         />
       ) : null}

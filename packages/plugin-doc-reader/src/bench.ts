@@ -24,6 +24,7 @@ import {
 } from "./collections";
 import { StudioError } from "./errors";
 import { loadExamples } from "./examples";
+import { locateEvidence } from "./extractors/text-layer";
 import { VISION_LLM } from "./extractors/vision-llm";
 import { checkFields, compareResults, resultsToCsv, runMetrics, summarize } from "./metrics";
 import { getDocReader } from "./options";
@@ -400,6 +401,7 @@ interface Tried {
   readonly inputTokens: number;
   readonly cachedInputTokens: number;
   readonly outputTokens: number;
+  readonly pages: number;
   readonly durationMs: number;
 }
 
@@ -416,7 +418,7 @@ async function tryPipeline(
 ): Promise<Tried> {
   const state = getDocReader(qb);
   const limit = run.retries ?? 0;
-  const totals = { costUsd: 0, inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 };
+  const totals = { costUsd: 0, inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, pages: 0 };
   for (let attempt = 0; ; attempt += 1) {
     // Test runs count against the platform cap only.
     const skip = await skipHook(qb, null, state.log);
@@ -443,6 +445,7 @@ async function tryPipeline(
       totals.inputTokens += step.usage?.inputTokens ?? 0;
       totals.cachedInputTokens += step.usage?.cachedInputTokens ?? 0;
       totals.outputTokens += step.usage?.outputTokens ?? 0;
+      totals.pages += step.usage?.pages ?? 0;
     }
     if (!isTransientFailure(result) || attempt >= limit) {
       return {
@@ -504,7 +507,14 @@ async function readSample(
     cachedInputTokens: tried.cachedInputTokens,
     outputTokens: tried.outputTokens,
     retries: tried.retries,
-    fields: checkFields(type, sample.expected, result),
+    pages: tried.pages,
+    fields: checkFields(type, sample.expected, {
+      attempts: result.attempts,
+      // Boxes only help the viewer: failing to place them never fails the read.
+      fields: await locateEvidence(bytes, sample.mime, type.pages, result.fields).catch(
+        () => result.fields,
+      ),
+    }),
     ...(isTransientFailure(result) ? { failed: true } : {}),
     ...(errors.length > 0 ? { error: errors.join("; ").slice(0, 500) } : {}),
   };
@@ -529,6 +539,7 @@ async function runType(qb: Quickben, run: TestRunRecord): Promise<DocumentType> 
 
 interface ResultRow {
   readonly id: string;
+  readonly run: string;
   readonly index: number;
   readonly costUsd: number;
   readonly result: SampleResult;
@@ -796,4 +807,38 @@ export async function exportTestRun(
   const run = await getTestRun(qb, ctx, id);
   if (format === "csv") return resultsToCsv(run.results);
   return JSON.stringify(run, null, 2);
+}
+
+/** A run without its results: what a list of runs needs. */
+export type TestRunHead = Omit<TestRun, "results" | "metrics">;
+
+/** A sample's result in each run that read it, newest first. */
+export async function listSampleRuns(
+  qb: Quickben,
+  ctx: RequestContext,
+  sampleId: string,
+  limit = 20,
+): Promise<{ run: TestRunHead; result: SampleResult }[]> {
+  const page = await qb.find(
+    DOC_TEST_RESULTS,
+    { where: { sampleId: { eq: sampleId } }, sort: "-createdAt", limit },
+    ctx,
+  );
+  const rows = page.docs as unknown as ResultRow[];
+  if (rows.length === 0) return [];
+  const runs = await findAll<TestRunRecord>(
+    qb,
+    DOC_TEST_RUNS,
+    { id: { in: [...new Set(rows.map((row) => row.run))] } },
+    ctx,
+  );
+  const byId = new Map(runs.map((record) => [record.id, record]));
+  return rows.flatMap((row) => {
+    const record = byId.get(row.run);
+    if (!record) return [];
+    const full: { -readonly [K in keyof TestRun]?: TestRun[K] } = { ...toRun(record) };
+    delete full.results;
+    delete full.metrics;
+    return [{ run: full as TestRunHead, result: row.result }];
+  });
 }
