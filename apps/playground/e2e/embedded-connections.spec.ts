@@ -97,6 +97,27 @@ test("edit the models of a connection as rows, in embedded mode", async ({ page 
   await page.getByRole("link", { name: "Clear" }).click();
   await expect(page.getByRole("link", { name: connectionName })).toBeVisible();
 
+  // At 1024 px of content (the host column, up to 72rem), the row editor shows every column,
+  // the host's Max pages included, and the status card goes under the form.
+  await page.setViewportSize({ width: 1072, height: 900 });
+  await page.goto(editUrl);
+  const scroller = page.locator(".qb-rows .qb-table-scroll");
+  await expect(
+    page.getByRole("group", { name: "Models" }).getByLabel("Max pages, row 1"),
+  ).toBeVisible();
+  expect(
+    await scroller.evaluate((element) => element.scrollWidth - element.clientWidth),
+  ).toBeLessThanOrEqual(0);
+  const form = await page.locator(".qb-detail-columns > *").first().boundingBox();
+  const status = await page.locator(".qb-detail-columns > *").nth(1).boundingBox();
+  expect(form && status && status.y >= form.y + form.height).toBe(true);
+  // One header row: the provider mark next to the subtitle, the Test button on the same line.
+  const mark = await page.locator("main header img").boundingBox();
+  const test = await page.getByRole("button", { name: "Test" }).boundingBox();
+  expect(
+    mark && test && Math.abs(mark.y + mark.height / 2 - (test.y + test.height / 2)),
+  ).toBeLessThan(8);
+
   // On a phone, tables and the row editor scroll inside their box; the page never does.
   await page.setViewportSize({ width: 390, height: 844 });
   for (const url of ["/embedded/connections", "/embedded/credentials", editUrl]) {

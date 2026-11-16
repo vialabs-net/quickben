@@ -2,6 +2,7 @@ import { defineCollection, defineConfig, definePlugin, fields as f } from "@quic
 import { connections } from "@quickben/plugin-connections";
 import { templates, TEMPLATE_COLLECTIONS } from "@quickben/plugin-templates";
 import { tenancy } from "@quickben/plugin-tenancy";
+import { z } from "zod";
 
 import { playgroundAuth } from "./lib/auth";
 import { connectionsEnabled, demoMasterKey } from "./lib/connections";
@@ -212,7 +213,14 @@ const tenancyFields = definePlugin({
 });
 
 // With QUICKBEN_CONNECTIONS=1, the admin gets Integrations: connections and credentials.
-const integrations = connections({ masterKey: demoMasterKey });
+// A host column on the models, as an app that reads documents would add.
+const integrations = connections({
+  masterKey: demoMasterKey,
+  modelSchema: (base) =>
+    base.extend({
+      maxPages: z.number().int().min(1).optional().meta({ title: "Max pages" }),
+    }),
+});
 
 const config = defineConfig({
   db: createDb(),
