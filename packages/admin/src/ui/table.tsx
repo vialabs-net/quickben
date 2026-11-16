@@ -2,10 +2,14 @@ import { cn } from "./cn";
 
 import type { HTMLAttributes, TdHTMLAttributes, ThHTMLAttributes } from "react";
 
-/** A data table that scrolls horizontally when it is wider than its container. */
+/**
+ * A data table that scrolls horizontally inside its own box when it is wider than its
+ * container, with shadows at the edges that can scroll. It never widens the page. Rows are
+ * at least `--qb-table-row-height` high.
+ */
 export function Table({ className, ...props }: Readonly<HTMLAttributes<HTMLTableElement>>) {
   return (
-    <div className="qb:w-full qb:overflow-x-auto">
+    <div className="qb-table-scroll qb:w-full">
       <table className={cn("qb:w-full qb:border-collapse qb:text-sm", className)} {...props} />
     </div>
   );

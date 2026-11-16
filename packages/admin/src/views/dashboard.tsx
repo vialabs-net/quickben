@@ -17,6 +17,11 @@ export interface DashboardProps {
   collections: ReadonlyMap<string, CollectionMeta>;
   /** Document count per collection slug. */
   counts: Readonly<Record<string, number>>;
+  /**
+   * Whether the config has collections the admin shows. Without any, an empty dashboard says
+   * that nothing is set up yet instead of that the user has no access. Default `true`.
+   */
+  configured?: boolean;
   i18n: AdminI18n;
 }
 
@@ -27,6 +32,7 @@ export function Dashboard({
   groups,
   collections,
   counts,
+  configured = true,
   i18n,
 }: Readonly<DashboardProps>) {
   const sections = groups
@@ -41,7 +47,9 @@ export function Dashboard({
     <>
       <PageHeader title={title} description={i18n.t("dashboard.description")} />
       {sections.length === 0 ? (
-        <p className="qb:text-sm qb:text-fg-muted">{i18n.t("dashboard.empty")}</p>
+        <p className="qb:text-sm qb:text-fg-muted">
+          {configured ? i18n.t("dashboard.empty") : i18n.t("dashboard.unconfigured")}
+        </p>
       ) : null}
       <div className="qb:space-y-8">
         {sections.map((section) => (
@@ -55,7 +63,7 @@ export function Dashboard({
             <ul className="qb:grid qb:gap-4 qb:sm:grid-cols-2 qb:xl:grid-cols-3 qb:2xl:grid-cols-4">
               {section.items.map((collection) => (
                 <li key={collection.slug}>
-                  <Card className="qb:flex qb:h-full qb:flex-col qb:p-5">
+                  <Card className="qb-card-padding qb:flex qb:h-full qb:flex-col">
                     <div className="qb:flex qb:items-baseline qb:justify-between qb:gap-3">
                       <Link
                         href={`${basePath}/${collection.slug}`}

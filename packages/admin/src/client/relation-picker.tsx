@@ -104,7 +104,7 @@ export function RelationPicker(props: Readonly<RelationPickerProps>) {
   const activeOption = showList ? visible[active] : undefined;
 
   return (
-    <div className="qb:relative qb:space-y-2">
+    <div className="qb:relative qb:min-w-0 qb:space-y-2">
       {selected.map((option) => (
         <input key={option.id} type="hidden" name={name} value={option.id} />
       ))}
@@ -121,9 +121,11 @@ export function RelationPicker(props: Readonly<RelationPickerProps>) {
           {selected.map((option) => (
             <li
               key={option.id}
-              className="qb:inline-flex qb:items-center qb:gap-1 qb:rounded-md qb:bg-surface-strong qb:py-0.5 qb:pr-1 qb:pl-2 qb:text-sm qb:text-fg"
+              className="qb:inline-flex qb:max-w-full qb:min-w-0 qb:items-center qb:gap-1 qb:rounded-md qb:bg-surface-strong qb:py-0.5 qb:pr-1 qb:pl-2 qb:text-sm qb:text-fg"
             >
-              {option.label}
+              <span className="qb:min-w-0 qb:truncate" title={option.label}>
+                {option.label}
+              </span>
               {disabled ? null : (
                 <button
                   type="button"
@@ -186,7 +188,7 @@ export function RelationPicker(props: Readonly<RelationPickerProps>) {
               role="option"
               aria-selected={index === active}
               className={cn(
-                "qb:cursor-pointer qb:px-3 qb:py-2",
+                "qb:cursor-pointer qb:px-3 qb:py-2 qb:break-words",
                 index === active ? "qb:bg-surface-strong qb:text-fg" : "qb:text-fg",
               )}
               onMouseDown={(event) => {

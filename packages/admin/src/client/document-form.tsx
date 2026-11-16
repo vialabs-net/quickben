@@ -86,8 +86,9 @@ export function DocumentForm({
     if (state.status !== "error") return;
     let firstInvalid: HTMLElement | null = null;
     for (const name of Object.keys(state.fieldErrors)) {
-      const element = form.querySelector<HTMLElement>(`#${controlId(scope, name)}`);
-      if (!element) continue;
+      // By id, not by selector: cell errors of row editors have dots in their names.
+      const element = form.ownerDocument.getElementById(controlId(scope, name));
+      if (!element || !form.contains(element)) continue;
       element.setAttribute("aria-invalid", "true");
       firstInvalid ??= element;
     }
@@ -116,9 +117,9 @@ export function DocumentForm({
               {state.message}
             </div>
           ) : null}
-          <div className="qb:p-5">{children}</div>
+          <div className="qb-card-padding">{children}</div>
           {readOnly ? null : (
-            <div className="qb:flex qb:items-center qb:gap-3 qb:border-t qb:border-line qb:bg-surface-muted qb:px-5 qb:py-3 qb:rounded-b-lg">
+            <div className="qb:flex qb:items-center qb:gap-3 qb:border-t qb:border-line qb:bg-surface-muted qb:px-(--qb-card-padding) qb:py-3 qb:rounded-b-(--qb-card-radius)">
               <Button type="submit" variant="primary" disabled={pending || !ready}>
                 {pending ? i18n.t("edit.saving") : submitLabel}
               </Button>
@@ -143,3 +144,11 @@ export function FieldError({ name }: Readonly<{ name: string }>) {
     </p>
   );
 }
+
+/** Field errors of the last submit of the enclosing {@link DocumentForm}, `{}` outside one. */
+export function useFieldErrors(): Readonly<Record<string, string>> {
+  const state = use(FormStateContext);
+  return state.status === "error" ? state.fieldErrors : noErrors;
+}
+
+const noErrors: Readonly<Record<string, string>> = Object.freeze({});

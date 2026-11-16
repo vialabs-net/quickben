@@ -2,6 +2,7 @@ import { FieldError } from "../client/document-form";
 import { FileInput } from "../client/file-input";
 import { JsonEditor } from "../client/json-editor";
 import { RelationPicker } from "../client/relation-picker";
+import { RowsEditor } from "../client/rows-editor";
 import { isStoredFile } from "../files";
 import { toDatetimeLocal, toJsonText } from "../form-data";
 import { controlId } from "../ids";
@@ -220,6 +221,20 @@ function Control({
     case "file":
       return <FileControl field={field} value={value} props={props} context={context} />;
     case "json":
+      if (field.rows) {
+        return (
+          <RowsEditor
+            id={props.id}
+            name={props.name}
+            errorKey={field.name}
+            columns={field.rows}
+            defaultValue={value}
+            required={props.required}
+            disabled={props.disabled}
+            describedBy={props["aria-describedby"]}
+          />
+        );
+      }
       return (
         <JsonEditor
           id={props.id}
@@ -241,6 +256,11 @@ function Control({
         />
       );
   }
+}
+
+/** Whether the built-in control is a group of controls, named by a text label. */
+function labelsGroup(field: FieldMeta): boolean {
+  return (field.type === "select" && field.many) || (field.type === "json" && !!field.rows);
 }
 
 /** Label, input, hint and error of one field. Hidden fields render nothing. */
@@ -288,7 +308,7 @@ export function FieldInput({
     (field.type === "datetime" && !Custom
       ? context.i18n.t("edit.timeZone", { zone: context.i18n.timeZone })
       : null);
-  const group = field.type === "select" && field.many && !Custom;
+  const group = !Custom && labelsGroup(field);
   const label = (
     <>
       {field.label}

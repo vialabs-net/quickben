@@ -17,6 +17,10 @@
  *
  *   .qb-root { --qb-accent: var(--brand-600); --qb-radius: 0.5rem; }
  *
+ * Layout tokens: `--qb-card-radius`, `--qb-card-padding`, `--qb-title-size` and
+ * `--qb-title-weight` (page titles), `--qb-heading-size` and `--qb-heading-weight` (card and
+ * section titles), `--qb-table-row-height` (smallest height of a table row).
+ *
  * Defaults use `light-dark()`, so they follow `color-scheme`. `.qb-root` does not set it:
  * it inherits the page's (`:root { color-scheme: light dark }` follows the system).
  */
@@ -83,6 +87,13 @@
     --qb-info: light-dark(#1d4ed8, #60a5fa);
     --qb-focus-ring: light-dark(#2563eb, #60a5fa);
     --qb-radius: 0.375rem;
+    --qb-card-radius: calc(var(--qb-radius) + 2px);
+    --qb-card-padding: 1.25rem;
+    --qb-title-size: 1.5rem;
+    --qb-title-weight: 600;
+    --qb-heading-size: 0.875rem;
+    --qb-heading-weight: 600;
+    --qb-table-row-height: 2.5rem;
     --qb-font-sans:
       ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
       "Segoe UI Symbol", "Noto Color Emoji";
@@ -137,4 +148,65 @@
   .qb-root :where(textarea) {
     resize: vertical;
   }
+}
+
+/* Component classes. Unlayered like the utilities, so app resets do not override them. */
+/* Page titles. Hidden with `pageTitle: "none"`, where the host shows its own title. */
+.qb-page-title {
+  font-size: var(--qb-title-size);
+  font-weight: var(--qb-title-weight);
+  line-height: 1.25;
+}
+
+.qb-root[data-qb-page-title="none"] .qb-page-title {
+  display: none;
+}
+
+.qb-heading {
+  font-size: var(--qb-heading-size);
+  font-weight: var(--qb-heading-weight);
+}
+
+.qb-card {
+  border-radius: var(--qb-card-radius);
+}
+
+.qb-card-padding {
+  padding: var(--qb-card-padding);
+}
+
+.qb-card-header {
+  padding: calc(var(--qb-card-padding) * 0.8) var(--qb-card-padding);
+}
+
+/*
+ * Tables scroll inside their own box and never widen the page: `contain: inline-size`
+ * keeps the table's width out of the parent's sizing (grid and flex items included).
+ * Shadows at the edges show that there is more to scroll (`background-attachment: local`
+ * covers them at the ends of the scroll range).
+ */
+.qb-table-scroll {
+  contain: inline-size;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  background:
+    linear-gradient(to right, var(--qb-surface) 30%, transparent) left / 2.5rem 100% no-repeat local,
+    linear-gradient(to left, var(--qb-surface) 30%, transparent) right / 2.5rem 100% no-repeat local,
+    radial-gradient(
+        farthest-side at 0 50%,
+        color-mix(in oklab, var(--qb-text) 14%, transparent),
+        transparent
+      )
+      left / 0.75rem 100% no-repeat scroll,
+    radial-gradient(
+        farthest-side at 100% 50%,
+        color-mix(in oklab, var(--qb-text) 14%, transparent),
+        transparent
+      )
+      right / 0.75rem 100% no-repeat scroll;
+}
+
+.qb-table-scroll td {
+  height: var(--qb-table-row-height);
 }

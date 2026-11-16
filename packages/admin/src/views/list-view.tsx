@@ -12,9 +12,9 @@ import {
   searchField,
 } from "../list-query";
 import { Badge } from "../ui/badge";
-import { Button, ButtonLink } from "../ui/button";
+import { ButtonLink } from "../ui/button";
 import { Card } from "../ui/card";
-import { Input, Label, Select } from "../ui/input";
+import { ListToolbar } from "../ui/list-toolbar";
 import { Table, Td, Th, Tr } from "../ui/table";
 
 import { PageHeader } from "./panels";
@@ -85,96 +85,38 @@ function SortHeader({ props, column }: Readonly<{ props: ListViewProps; column: 
   );
 }
 
-function FilterSelect({
-  slug,
-  field,
-  value,
-  i18n,
-}: Readonly<{ slug: string; field: FieldMeta; value: string | undefined; i18n: AdminI18n }>) {
-  // Per collection: Next.js can keep the lists of other collections mounted but hidden.
-  const id = `qb-${slug}-filter-${field.name}`;
-  const options = field.type === "boolean" ? ["true", "false"] : (field.options ?? []);
-  const optionLabel = (option: string) => {
-    if (field.type !== "boolean") return option;
-    return option === "true" ? i18n.t("value.yes") : i18n.t("value.no");
-  };
-  return (
-    <div className="qb:space-y-1">
-      <Label htmlFor={id} className="qb:block qb:text-xs qb:text-fg-muted">
-        {field.label}
-      </Label>
-      <Select
-        id={id}
-        name={`${filterPrefix}${field.name}`}
-        defaultValue={value ?? ""}
-        className="qb:w-40"
-      >
-        <option value="">{i18n.t("list.any")}</option>
-        {options.map((option) => (
-          <option key={option} value={option}>
-            {optionLabel(option)}
-          </option>
-        ))}
-      </Select>
-    </div>
-  );
-}
-
 function Toolbar(props: Readonly<ListViewProps>) {
   const { collection, basePath, state, i18n } = props;
   const search = searchField(collection);
-  const filters = filterFields(collection);
-  const active = state.q !== "" || Object.keys(state.filters).length > 0;
-  if (!search && filters.length === 0) return null;
+  const optionLabel = (field: FieldMeta, option: string) => {
+    if (field.type !== "boolean") return option;
+    return option === "true" ? i18n.t("value.yes") : i18n.t("value.no");
+  };
+  const hidden: Record<string, string> = {};
+  if (state.sort) hidden.sort = state.sort;
+  if (state.limit !== 20) hidden.limit = String(state.limit);
   return (
-    <form
-      method="get"
+    <ListToolbar
       action={`${basePath}/${collection.slug}`}
-      role="search"
-      className="qb:flex qb:flex-wrap qb:items-end qb:gap-3 qb:border-b qb:border-line qb:px-4 qb:py-3"
-    >
-      {search ? (
-        <div className="qb:min-w-56 qb:flex-1 qb:space-y-1 qb:lg:max-w-sm">
-          <Label
-            htmlFor={`qb-${collection.slug}-search`}
-            className="qb:block qb:text-xs qb:text-fg-muted"
-          >
-            {i18n.t("list.search", { field: i18n.lower(search.label) })}
-          </Label>
-          <Input
-            id={`qb-${collection.slug}-search`}
-            type="search"
-            name="q"
-            defaultValue={state.q}
-            placeholder={i18n.t("list.searchPlaceholder")}
-          />
-        </div>
-      ) : null}
-      {filters.map((field) => (
-        <FilterSelect
-          key={field.name}
-          slug={collection.slug}
-          field={field}
-          value={state.filters[field.name]}
-          i18n={i18n}
-        />
-      ))}
-      {state.sort ? <input type="hidden" name="sort" value={state.sort} /> : null}
-      {state.limit === 20 ? null : <input type="hidden" name="limit" value={state.limit} />}
-      <div className="qb:flex qb:gap-2">
-        <Button type="submit" variant="secondary">
-          {i18n.t("list.apply")}
-        </Button>
-        {active ? (
-          <ButtonLink
-            href={listHref(basePath, collection.slug, state, { q: "", filters: {}, page: 1 })}
-            variant="ghost"
-          >
-            {i18n.t("list.clear")}
-          </ButtonLink>
-        ) : null}
-      </div>
-    </form>
+      // Per collection: Next.js can keep the lists of other collections mounted but hidden.
+      idPrefix={`qb-${collection.slug}`}
+      search={
+        search
+          ? { label: i18n.t("list.search", { field: i18n.lower(search.label) }), value: state.q }
+          : null
+      }
+      filters={filterFields(collection).map((field) => ({
+        name: `${filterPrefix}${field.name}`,
+        label: field.label,
+        value: state.filters[field.name] ?? "",
+        options: (field.type === "boolean" ? ["true", "false"] : (field.options ?? [])).map(
+          (option) => ({ value: option, label: optionLabel(field, option) }),
+        ),
+      }))}
+      hidden={hidden}
+      clearHref={listHref(basePath, collection.slug, state, { q: "", filters: {}, page: 1 })}
+      i18n={i18n}
+    />
   );
 }
 

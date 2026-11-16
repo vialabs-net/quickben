@@ -20,6 +20,20 @@ export interface NavGroup {
   links: NavLink[];
 }
 
+/** A breadcrumb of the current admin page. The last one is the page itself and has no link. */
+export interface AdminCrumb {
+  label: string;
+  href?: string;
+}
+
+/** Title and breadcrumb of the current admin page, for a host layout that shows them. */
+export interface AdminPageInfo {
+  /** The title the page shows as its `<h1>`, e.g. `Posts`, `New post`, a document title. */
+  title: string;
+  /** Breadcrumb from the first level under the dashboard, ending with the current page. */
+  crumbs: AdminCrumb[];
+}
+
 /** The admin navigation for the current user, to render in your own layout. */
 export interface AdminNav {
   /** Admin title (`admin.title`). */
@@ -31,6 +45,11 @@ export interface AdminNav {
   groups: NavGroup[];
   /** Key of the current collection or page, `null` on the dashboard or outside the admin. */
   current: string | null;
+  /**
+   * Title and breadcrumb of the page at `pathname`. Absent without `pathname`, `null` outside
+   * the admin or for an unknown path. Custom and plugin pages give their nav label.
+   */
+  page?: AdminPageInfo | null;
 }
 
 /** Resolve an {@link AdminText}. */

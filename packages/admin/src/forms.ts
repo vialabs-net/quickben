@@ -22,6 +22,7 @@ export { editableFields, issuesToErrors, parseFormData } from "./form-data";
 export { controlId, formScope } from "./ids";
 export { FieldInput } from "./views/field-input";
 
+export type { IssuesToErrorsOptions } from "./form-data";
 export type { FieldInputContext } from "./views/field-input";
 
 /** Arguments of {@link loadFieldContext}. */

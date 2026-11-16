@@ -135,6 +135,15 @@ export function parseFormData(
   return { data, errors };
 }
 
+/** Options of {@link issuesToErrors}. */
+export interface IssuesToErrorsOptions {
+  /**
+   * Fields whose issues also keep their full path as a key, e.g. `models.0.id` besides
+   * `models`, for the cells of a row editor. Default none.
+   */
+  nested?: readonly string[];
+}
+
 /**
  * Map validation issues to fields. The issue path `tags.0` belongs to the field `tags`.
  * Issues for unknown paths become the form message.
@@ -142,12 +151,15 @@ export function parseFormData(
 export function issuesToErrors(
   issues: readonly ValidationIssue[],
   fieldNames: readonly string[],
+  options: IssuesToErrorsOptions = {},
 ): { fieldErrors: Record<string, string>; formError: string | null } {
   const known = new Set(fieldNames);
+  const nested = new Set(options.nested);
   const fieldErrors: Record<string, string> = {};
   let formError: string | null = null;
   for (const issue of issues) {
     const name = issue.path.split(".")[0] ?? "";
+    if (nested.has(name) && issue.path !== name) fieldErrors[issue.path] ??= issue.message;
     if (known.has(name)) fieldErrors[name] ??= issue.message;
     else formError ??= issue.path ? `${issue.path}: ${issue.message}` : issue.message;
   }

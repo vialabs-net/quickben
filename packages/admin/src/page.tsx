@@ -12,6 +12,7 @@ import { listQuery, parseListState } from "./list-query";
 import { loadCounts, loadRelationOptions } from "./load";
 import { buildNav } from "./nav";
 import { registerAdmin } from "./registry";
+import { resolveRoute } from "./route";
 import { Toast } from "./ui/toast";
 import { Dashboard } from "./views/dashboard";
 import { EditView } from "./views/edit-view";
@@ -20,46 +21,19 @@ import { NotAllowed } from "./views/panels";
 import { AdminFrame, Shell } from "./views/shell";
 
 import type { AdminI18n } from "./i18n/translator";
-import type {
-  AdminOptions,
-  AdminPageDefinition,
-  AdminServerFunction,
-  ResolvedExtensions,
-  SearchParams,
-} from "./types";
+import type { AdminRoute } from "./route";
+import type { AdminOptions, AdminServerFunction, ResolvedExtensions, SearchParams } from "./types";
 import type { Quickben, QuickbenConfig, RequestContext } from "@quickben/core";
 import type { CollectionMeta, MetaResponse } from "@quickben/next";
 import type { ReactElement, ReactNode } from "react";
+
+export { resolveRoute } from "./route";
+export type { AdminRoute } from "./route";
 
 /** Props Next.js passes to `app/admin/[[...segments]]/page.tsx`. */
 export interface AdminPageProps {
   params: Promise<{ segments?: string[] }>;
   searchParams: Promise<SearchParams>;
-}
-
-/** Where a URL inside the admin points. */
-export type AdminRoute =
-  | { kind: "dashboard" }
-  | { kind: "list"; slug: string }
-  | { kind: "create"; slug: string }
-  | { kind: "edit"; slug: string; id: string }
-  | { kind: "page"; page: AdminPageDefinition; segments: string[] }
-  | { kind: "notFound" };
-
-/** Resolve the path segments after the base path. */
-export function resolveRoute(
-  segments: readonly string[],
-  slugs: ReadonlySet<string>,
-  pages: readonly AdminPageDefinition[],
-): AdminRoute {
-  const [first, second, ...rest] = segments;
-  if (first === undefined) return { kind: "dashboard" };
-  const page = pages.find((candidate) => candidate.path === first);
-  if (page) return { kind: "page", page, segments: segments.slice(1) };
-  if (!slugs.has(first) || rest.length > 0) return { kind: "notFound" };
-  if (second === undefined) return { kind: "list", slug: first };
-  if (second === "new") return { kind: "create", slug: first };
-  return { kind: "edit", slug: first, id: second };
 }
 
 /** `?toast=` codes of the admin and their messages. */
@@ -108,6 +82,9 @@ async function renderDashboard(args: RenderArgs): Promise<ReactNode> {
       groups={buildNav(meta, extensions, basePath, i18n)}
       collections={metas}
       counts={counts}
+      configured={Object.values(qb.collections).some(
+        (collection) => collection.admin.hidden !== true,
+      )}
       i18n={i18n}
     />
   );
@@ -330,7 +307,7 @@ export function createAdminContent(
     const toast = toastFor(route, searchParams, metas, i18n);
     if (options.chrome === "none") {
       return (
-        <AdminFrame i18n={i18n}>
+        <AdminFrame i18n={i18n} pageTitle={options.pageTitle}>
           {content}
           {toast}
         </AdminFrame>
@@ -345,6 +322,7 @@ export function createAdminContent(
         current={current}
         user={ctx.user}
         i18n={i18n}
+        pageTitle={options.pageTitle}
         sidebarTop={
           extensions.sidebar.length > 0
             ? extensions.sidebar.map((Sidebar, index) => (

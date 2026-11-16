@@ -94,6 +94,7 @@ async function save(
       error,
       meta.fields.map((field) => field.name),
       i18n,
+      meta.fields.filter((field) => field.rows !== undefined).map((field) => field.name),
     );
   }
 }

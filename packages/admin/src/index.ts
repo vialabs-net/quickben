@@ -5,7 +5,13 @@ export { navKeyForPath } from "./nav";
 export { handleAdminRequest } from "./server-function";
 
 export type { AdminNavOptions } from "./embed";
-export type { AdminNav, NavGroup as AdminNavGroup, NavLink as AdminNavLink } from "./nav";
+export type {
+  AdminCrumb,
+  AdminNav,
+  AdminPageInfo,
+  NavGroup as AdminNavGroup,
+  NavLink as AdminNavLink,
+} from "./nav";
 export type { AdminPageProps } from "./page";
 export type {
   AdminChrome,
@@ -13,6 +19,7 @@ export type {
   AdminNavItem,
   AdminOptions,
   AdminPageDefinition,
+  AdminPageTitle,
   AdminRequest,
   AdminResult,
   AdminServerFunction,

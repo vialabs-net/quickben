@@ -113,10 +113,21 @@ export interface AdminExtension {
  */
 export type AdminChrome = "full" | "none";
 
+/**
+ * Whether pages show their own title (`<h1>`). `render` (default) shows it. `none` hides it,
+ * for a host layout that shows the title itself: read it from `getAdminNav(…).page`.
+ */
+export type AdminPageTitle = "render" | "none";
+
 /** Options of `createAdminPage`. */
 export interface AdminOptions extends AdminExtension, AdminI18nOptions {
   /** Layout around pages. Default `full`. Use `none` to embed pages in your own layout. */
   chrome?: AdminChrome;
+  /**
+   * Page titles: `render` (default) or `none`. With `none`, the `<h1>` of the dashboard,
+   * collection pages and plugin pages is not shown; breadcrumbs, descriptions and actions stay.
+   */
+  pageTitle?: AdminPageTitle;
   /** URL path of the admin route. Default `/admin`. */
   basePath?: string;
   /**
