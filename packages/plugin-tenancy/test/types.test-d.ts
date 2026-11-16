@@ -1,9 +1,22 @@
 import { getQuickben } from "@quickben/core";
 import { describe, expectTypeOf, test } from "vitest";
 
-import { listMyOrganizations, resolveTenant, switchOrganization } from "../src";
+import {
+  listMyOrganizations,
+  organizationFromPath,
+  resolveTenant,
+  switchOrganization,
+} from "../src";
 
 import type {
+  CanManageMember,
+  ManageMemberArgs,
+  MemberEvent,
+  MemberHook,
+  MemberHooks,
+  MemberModules,
+  MembershipPatch,
+  MembershipRecord,
   ModuleEntitlement,
   MyOrganization,
   OrganizationStatus,
@@ -11,7 +24,11 @@ import type {
   TenancyOptions,
   Tenant,
 } from "../src";
-import type { OrganizationSection, OrganizationSectionProps } from "../src/admin";
+import type {
+  OrganizationSection,
+  OrganizationSectionProps,
+  TenancyAdminOptions,
+} from "../src/admin";
 import type { makeConfig } from "./setup";
 import type {
   InferCreateInput,
@@ -89,7 +106,30 @@ describe("tenancy types", () => {
     expectTypeOf<OrganizationSection["key"]>().toEqualTypeOf<string>();
   });
 
-  test("RequestContext gains organizationId", () => {
+  test("RequestContext gains organizationId and skipGuards", () => {
     expectTypeOf<RequestContext["organizationId"]>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<RequestContext["skipGuards"]>().toEqualTypeOf<boolean | undefined>();
+  });
+
+  test("0.3.2 options: emptyModules, hooks, canManageMember, activeOrganization", () => {
+    expectTypeOf<TenancyOptions["emptyModules"]>().toEqualTypeOf<"all" | "none" | undefined>();
+    expectTypeOf<MemberEvent["before"]>().toEqualTypeOf<MembershipRecord | null>();
+    expectTypeOf<MemberEvent["action"]>().toEqualTypeOf<
+      "invite" | "accept" | "update" | "remove"
+    >();
+    expectTypeOf<MemberHooks["onRoleChange"]>().toEqualTypeOf<MemberHook | undefined>();
+    expectTypeOf<ManageMemberArgs["action"]>().toEqualTypeOf<"invite" | "update" | "remove">();
+    expectTypeOf<ReturnType<CanManageMember>>().toEqualTypeOf<boolean | Promise<boolean>>();
+    expectTypeOf<TenancyOptions["activeOrganization"]>().toEqualTypeOf<
+      ((req: Request) => string | null | undefined) | undefined
+    >();
+    expectTypeOf<MemberModules>().toEqualTypeOf<readonly string[] | "all">();
+    expectTypeOf<MembershipPatch["modules"]>().toEqualTypeOf<MemberModules | undefined>();
+    expectTypeOf(organizationFromPath("/t/:organization")).returns.toEqualTypeOf<
+      string | undefined
+    >();
+    expectTypeOf<TenancyAdminOptions["organizationHref"]>().toEqualTypeOf<
+      ((organizationId: string) => string) | undefined
+    >();
   });
 });

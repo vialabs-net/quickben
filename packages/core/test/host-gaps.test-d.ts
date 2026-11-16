@@ -2,7 +2,13 @@ import { describe, expectTypeOf, test } from "vitest";
 
 import { defineCollection, fields as f } from "../src";
 
-import type { InferDoc, Quickben, RequestContext } from "../src";
+import type {
+  DatabaseAdapter,
+  InferDoc,
+  JoinedTransaction,
+  Quickben,
+  RequestContext,
+} from "../src";
 
 export const tracked = defineCollection({
   slug: "tracked",
@@ -38,5 +44,17 @@ describe("preserveTimestamps", () => {
     }>();
     expectTypeOf<Parameters<Qb["update"]>[2]>().toExtend<{ updatedAt?: string | Date }>();
     expectTypeOf<{ preserveTimestamps: true; user: null }>().toExtend<RequestContext>();
+  });
+});
+
+describe("withTransaction", () => {
+  test("returns the local API of the registry and the settle calls", () => {
+    type Qb = Quickben<{ tracked: typeof tracked }>;
+    expectTypeOf<Qb["withTransaction"]>().parameters.toEqualTypeOf<[DatabaseAdapter]>();
+    expectTypeOf<ReturnType<Qb["withTransaction"]>>().toEqualTypeOf<
+      JoinedTransaction<{ tracked: typeof tracked }>
+    >();
+    expectTypeOf<JoinedTransaction["committed"]>().returns.toEqualTypeOf<Promise<void>>();
+    expectTypeOf<JoinedTransaction<{ tracked: typeof tracked }>["qb"]>().toEqualTypeOf<Qb>();
   });
 });
