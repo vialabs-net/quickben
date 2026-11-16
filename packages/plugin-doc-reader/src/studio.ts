@@ -315,6 +315,7 @@ export async function saveDraft(
         label: parsed.data.label,
         definition: parsed.data,
         revision: newRevision(),
+        builtin: false,
         updatedBy: actorOf(ctx),
       },
       ctx,
@@ -642,7 +643,7 @@ async function annotateSampleUnlocked(
   if (!text) throw new ValidationError([{ path: "text", message: "Write the note" }]);
   const record = (await qb.findById(DOC_SAMPLES, id, {}, ctx)) as unknown as SampleRecord;
   const note: SampleAnnotation = {
-    field: input.field?.trim() ? input.field.trim().slice(0, 64) : null,
+    field: input.field?.trim() ? input.field.trim().slice(0, FIELD_KEY_MAX) : null,
     text,
     by: actorOf(ctx),
     at: new Date().toISOString(),

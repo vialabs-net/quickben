@@ -3,13 +3,14 @@ import { ConflictError } from "@quickben/core";
 
 import { DOC_TYPES } from "./collections";
 import { parseDocumentType } from "./definition";
+import { datasetWrite } from "./eval-state";
+import { SYSTEM } from "./system-context";
 
 import type { DocumentType } from "./definition";
 import type { DocTypeRecord } from "./records";
 import type { Quickben, RequestContext } from "@quickben/core";
 
-/** Trusted server code: the plugin's own writes and background work. */
-export const SYSTEM: RequestContext = { user: null, overrideAccess: true };
+export { SYSTEM } from "./system-context";
 
 /** Every document that matches, page by page. */
 export async function findAll<T>(
@@ -208,11 +209,28 @@ async function proposeDraft(
   const definition = { ...type, version, state: "draft" as const };
   try {
     if (draft) {
-      await qb.update(
-        DOC_TYPES,
-        draft.id,
-        { label: type.label, definition, revision: newRevision(), updatedBy: "code" },
-        SYSTEM,
+      await datasetWrite(qb, type.key, () =>
+        qb.transaction(async (tx) => {
+          const current = (await tx.findById(
+            DOC_TYPES,
+            draft.id,
+            {},
+            SYSTEM,
+          )) as unknown as DocTypeRecord;
+          if (
+            current.state !== "draft" ||
+            current.builtin !== true ||
+            current.revision !== draft.revision
+          ) {
+            throw new ConflictError("The code draft changed during startup; leave it alone");
+          }
+          await tx.update(
+            DOC_TYPES,
+            draft.id,
+            { label: type.label, definition, revision: newRevision(), updatedBy: "code" },
+            SYSTEM,
+          );
+        }),
       );
     } else {
       await qb.create(

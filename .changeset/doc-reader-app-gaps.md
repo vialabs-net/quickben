@@ -12,7 +12,7 @@ Doc reader: what the first app on it needed.
 - Extractor context has `qb` and `user`; `runPipeline` takes them.
 - Large types: fields are read in groups (default 24 with structured outputs), in parallel, with cost added up. A group whose schema the provider refuses as too large is split, then asked as plain JSON.
 - Repairs: fields missing, invalid, or required and empty are asked again once by default (`repair`). Attempts record `repairs`; run metrics add `repaired`, `repairs` and `stepErrors`. A structured reply that fails the schema keeps its valid fields.
-- Provider errors show their HTTP status and message, with secret-like words removed. Auth errors show only the status.
+- Provider errors show their HTTP status and fixed diagnostics for recognized schema-size or token-limit errors. Raw messages are never persisted because they may echo credentials.
 - Types in `types` that changed in the code become a draft (never touching the published version), logged as `type-changed-in-code` and shown in the admin.
 
 **Migration**

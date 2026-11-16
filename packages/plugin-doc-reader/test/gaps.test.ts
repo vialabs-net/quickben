@@ -11,6 +11,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   answerSchemaFor,
+  addSample,
+  annotateSample,
   createDraft,
   createVisionLlmExtractor,
   describeProviderError,
@@ -24,12 +26,25 @@ import {
   parseDocumentType,
   runMetrics,
   runPipeline,
+  saveDraft,
+  usageReport,
 } from "../src";
 import { variantPipeline, variantSchema } from "../src/bench";
+import { datasetWrite } from "../src/eval-state";
 import { expectedValues } from "../src/import";
-import { definitionFingerprint } from "../src/store";
+import { recordUsage } from "../src/quotas";
+import { definitionFingerprint, seedTypes } from "../src/store";
 
-import { invoice, invoiceInput, invoiceReply, makePdf, modelInfo, PNG, system } from "./helpers";
+import {
+  invoice,
+  invoiceInput,
+  invoiceReply,
+  makePdf,
+  modelInfo,
+  PNG,
+  setup,
+  system,
+} from "./helpers";
 
 import type {
   DocumentType,
@@ -136,6 +151,7 @@ function wideType(count: number): DocumentType {
 
 describe("dotted field keys", () => {
   it("accepts camelCase segments joined by dots and nothing else", () => {
+    expect(parseDocumentType(invoiceInput)).toEqual(invoice);
     const type = wideType(3);
     expect(type.fields.map((field) => field.key)).toEqual(["group0.f1", "group1.f2", "group2.f3"]);
     for (const key of ["vehicle..make", ".make", "vehicle.", "Vehicle.make", "vehicle.make_x"]) {
@@ -157,6 +173,8 @@ describe("dotted field keys", () => {
     expect(flattenValues(nested)).toEqual(values);
     // A value and a parent with the same key: the value wins.
     expect(nestValues({ a: "1", "a.b": "2" })).toEqual({ a: "1" });
+    const leaf = Object.freeze({ value: "1", confidence: 1 });
+    expect(nestValues({ a: leaf, "a.b": { value: "2", confidence: 1 } })).toEqual({ a: leaf });
     expect(flattenValues({ list: [1, 2], none: null })).toEqual({ list: [1, 2], none: null });
   });
 
@@ -176,6 +194,18 @@ describe("dotted field keys", () => {
       "vehicle.year": "2026",
     });
     expect([...unknown]).toEqual(["vehicle.color"]);
+  });
+
+  it("keeps long field keys in sample annotations", async () => {
+    const key = `section.${"x".repeat(90)}`;
+    const { qb } = await setup({
+      types: [
+        { ...invoiceInput, fields: [...invoiceInput.fields, { key, label: "Long", type: "text" }] },
+      ],
+    });
+    const sample = await addSample(qb, system, "invoice", { file: { bytes: PNG } });
+    const noted = await annotateSample(qb, system, sample.id, { field: key, text: "Check" });
+    expect(noted.annotations[0]?.field).toBe(key);
   });
 });
 
@@ -436,7 +466,16 @@ describe("large schemas", () => {
     expect(describeProviderError(refused(429, "slow down"), false).transient).toBe(true);
     expect(
       describeProviderError(refused(400, "key sk-ant-abc123456789 is not valid"), false).message,
-    ).toBe("the model provider rejected the request (HTTP 400): key … is not valid");
+    ).toBe("the model provider rejected the request (HTTP 400)");
+    for (const status of [400, 401, 403, 500]) {
+      const secret = "sk-ant-private-secret";
+      expect(
+        describeProviderError(refused(status, `bad key ${secret}`), false).message,
+      ).not.toContain(secret);
+      expect(
+        describeProviderError(refused(status, `schema too large: ${secret}`), false).message,
+      ).not.toContain(secret);
+    }
     expect(describeProviderError(refused(401, "bad key"), false).message).toBe(
       "the model provider rejected the request (HTTP 401)",
     );
@@ -465,6 +504,21 @@ describe("large schemas", () => {
 });
 
 describe("repairs", () => {
+  it("repairs optional values that fail the field's validation", async () => {
+    const { model, calls } = fieldModel((keys, _options, call) => {
+      const values: Record<string, string> = {
+        number: "A1",
+        issuedOn: "2026-03-05",
+        total: call === 1 ? "not a number" : "10",
+      };
+      return Object.fromEntries(keys.map((key) => [key, answer(values[key] ?? "")]));
+    });
+    const result = await extractorFor(model).extractor.extract(imageInput, invoice, {}, ctx({}));
+    expect(calls).toHaveLength(2);
+    expect(askedKeys(calls[1]!)).toEqual(["total"]);
+    expect(result.fields.total?.value).toBe("10");
+  });
+
   it("asks again only for the fields left out or required and empty, and bills both calls", async () => {
     const { model, calls } = fieldModel((keys, _options, call) => {
       if (call === 1) {
@@ -529,6 +583,28 @@ describe("repairs", () => {
       { ...base, sampleId: "4" },
     ];
     expect(runMetrics(invoice, results)).toMatchObject({ repaired: 2, repairs: 3, stepErrors: 1 });
+  });
+
+  it("counts every grouped repair call and page submission in persisted usage", async () => {
+    const { model } = fieldModel((keys, _options, call) =>
+      call <= 3 ? {} : Object.fromEntries(keys.map((key) => [key, answer("read")])),
+    );
+    const result = await extractorFor(model).extractor.extract(
+      imageInput,
+      wideType(50),
+      {},
+      ctx({}),
+    );
+    expect(result).toMatchObject({ status: "OK", repairs: 3, usage: { calls: 6, pages: 6 } });
+    const { qb } = await setup();
+    await recordUsage(qb, { tenant: null, typeKey: "wide" }, [
+      { ...result, step: 0, extractor: "vision-llm", durationMs: 1 },
+    ]);
+    const report = await usageReport(qb, system);
+    expect(report.totals).toMatchObject({ calls: 6, pages: 6 });
+    expect(report.byModel[0]?.calls).toBe(6);
+    expect(report.byType[0]?.calls).toBe(6);
+    expect(report.trend.at(-1)?.calls).toBe(6);
   });
 });
 
@@ -603,6 +679,66 @@ describe("types defined in code", () => {
       "type-changed-in-code",
       expect.objectContaining({ applied: false, draft: 2 }),
     );
+  });
+
+  it("preserves manual edits to a draft originally generated by code", async () => {
+    const db = memoryAdapter();
+    await start(db, invoiceInput);
+    const code = { ...invoiceInput, instructions: "New code." };
+    const { qb } = await start(db, code);
+    await saveDraft(qb, system, "invoice", 2, { ...code, instructions: "Manual edit." });
+    const restarted = await start(db, code);
+    expect((await versions(restarted.qb)).map((v) => v.instructions)).toEqual([
+      invoiceInput.instructions,
+      "Manual edit.",
+    ]);
+    expect(restarted.log).toHaveBeenCalledWith(
+      "type-changed-in-code",
+      expect.objectContaining({ applied: false }),
+    );
+  });
+
+  it("does not change a code draft published after the startup scan", async () => {
+    const db = memoryAdapter();
+    await start(db, invoiceInput);
+    const { qb } = await start(db, { ...invoiceInput, instructions: "Reviewed draft." });
+    const find = qb.find.bind(qb);
+    const scan = vi.spyOn(qb, "find").mockImplementationOnce(async (...args) => {
+      const page = await find(...args);
+      const draft = page.docs.find((doc) => "state" in doc && doc.state === "draft");
+      expect(draft).toBeDefined();
+      if (draft) {
+        // Publication finishes while startup still holds the old scan's draft snapshot.
+        await qb.update(DOC_TYPES, draft.id, { state: "published", draftKey: null }, system);
+      }
+      return page;
+    });
+    try {
+      await seedTypes(qb, [parseDocumentType({ ...invoiceInput, instructions: "New code." })]);
+    } finally {
+      scan.mockRestore();
+    }
+    expect(await versions(qb)).toEqual([
+      { version: 1, state: "published", builtin: true, instructions: invoiceInput.instructions },
+      { version: 2, state: "published", builtin: true, instructions: "Reviewed draft." },
+    ]);
+  });
+
+  it("leaves a code draft alone while publication holds the dataset lock", async () => {
+    const db = memoryAdapter();
+    await start(db, invoiceInput);
+    const { qb } = await start(db, { ...invoiceInput, instructions: "Reviewed draft." });
+    const changed = parseDocumentType({ ...invoiceInput, instructions: "New code." });
+    await datasetWrite(qb, "invoice", () => seedTypes(qb, [changed]));
+    expect((await versions(qb)).map((v) => v.instructions)).toEqual([
+      invoiceInput.instructions,
+      "Reviewed draft.",
+    ]);
+    await seedTypes(qb, [changed]);
+    expect((await versions(qb)).map((v) => v.instructions)).toEqual([
+      invoiceInput.instructions,
+      "New code.",
+    ]);
   });
 
   it("compares definitions without their version and state", () => {

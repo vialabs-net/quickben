@@ -59,7 +59,7 @@ const round = (usd: number) => Math.round(usd * 1e6) / 1e6;
 function totalsOf(rows: readonly UsageRecord[]): UsageTotals {
   return {
     costUsd: round(rows.reduce((total, row) => total + row.costUsd, 0)),
-    calls: rows.length,
+    calls: rows.reduce((total, row) => total + (row.calls ?? 1), 0),
     pages: rows.reduce((total, row) => total + row.pages, 0),
     inputTokens: rows.reduce((total, row) => total + row.inputTokens, 0),
     outputTokens: rows.reduce((total, row) => total + row.outputTokens, 0),
@@ -132,7 +132,11 @@ export async function usageReport(
   for (let offset = -(TREND_MONTHS - 1); offset < 0; offset += 1) {
     const point = monthOf(new Date(monthRange(month, offset).from));
     const monthRows = await usageOf(qb, point);
-    trend.push({ month: point, costUsd: totalsOf(monthRows).costUsd, calls: monthRows.length });
+    trend.push({
+      month: point,
+      costUsd: totalsOf(monthRows).costUsd,
+      calls: totalsOf(monthRows).calls,
+    });
   }
   const totals = totalsOf(rows);
   trend.push({ month, costUsd: totals.costUsd, calls: totals.calls });

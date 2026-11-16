@@ -321,12 +321,14 @@ function failure(error: string): ExtractionResult {
   return { status: "ERROR", fields: {}, problems: { error } };
 }
 
-// Words of 8 or more characters with a digit look like keys or tokens; a provider may echo
-// them. Model names lose their digits too, which is fine.
-const SECRET_LIKE = /[\w.+/=-]{8,}/gu;
-const redactWord = (word: string) => (/\d/u.test(word) ? "…" : word);
-// Authentication errors are the ones that echo a key: show only their status.
-const AUTH_STATUSES = new Set([401, 403, 407]);
+// Provider text is untrusted and may echo any credential, even an ordinary word. Only emit
+// fixed diagnostics we recognize; never persist fragments of the raw message.
+function safeProviderDetail(status: number | undefined, message: string): string {
+  if (status === 400 && isSchemaTooLarge({ status, message }))
+    return "The compiled grammar is too large";
+  if (status === 400 && /^max_tokens: too big$/iu.test(message)) return "max_tokens: too big";
+  return "";
+}
 
 /** A provider error as shown in runs and readings: status and message, never a secret. */
 export function describeProviderError(
@@ -343,10 +345,7 @@ export function describeProviderError(
   } catch {
     // Not JSON: keep the SDK's message.
   }
-  const clean =
-    status !== undefined && AUTH_STATUSES.has(status)
-      ? ""
-      : detail.replaceAll(SECRET_LIKE, redactWord).replaceAll(/\s+/gu, " ").trim().slice(0, 200);
+  const clean = safeProviderDetail(status, detail);
   const code = status === undefined ? "" : ` (HTTP ${String(status)})`;
   return {
     message: clean ? `${PROVIDER_ERROR}${code}: ${clean}` : `${PROVIDER_ERROR}${code}`,
@@ -752,7 +751,7 @@ class Tally {
       inputTokens,
       outputTokens,
       ...(cachedInputTokens > 0 ? { cachedInputTokens } : {}),
-      pages: job.images.length,
+      pages: job.images.length * this.calls,
       costUsd: callCost(model, inputTokens, outputTokens, cachedInputTokens),
       model: model.id,
       connectionId: connection.id,
@@ -772,21 +771,29 @@ const REPAIR_NOTE =
 async function repair(job: ReadJob, tally: Tally): Promise<{ repairs: number; keys: string[] }> {
   const limit = job.config.repair ?? 1;
   const keys = new Set<string>();
+  let rounds = 0;
   let repairs = 0;
-  while (repairs < limit && tally.errors.length === 0) {
+  while (rounds < limit && tally.errors.length === 0) {
     const current = toFields(job.type, tally.answers, job.params);
     const ask = job.type.fields.filter(
       (field) =>
-        tally.invalid.has(field.key) || (field.required && !Object.hasOwn(current, field.key)),
+        tally.invalid.has(field.key) ||
+        (!Object.hasOwn(current, field.key) &&
+          (field.required || (tally.answers[field.key]?.value ?? "").trim() !== "")),
     );
     if (ask.length === 0) break;
-    repairs += 1;
+    rounds += 1;
     const reasons = ask.map((field) => {
       keys.add(field.key);
-      return `- ${field.key}: ${tally.invalid.get(field.key) ?? "required, and empty or not valid"}`;
+      const reason = field.required
+        ? "required, and empty or not valid"
+        : "value is not valid or is excluded";
+      return `- ${field.key}: ${tally.invalid.get(field.key) ?? reason}`;
     });
     tally.invalid = new Map();
-    tally.add(await readFields(job, ask, [REPAIR_NOTE, ...reasons].join("\n")), true);
+    const outcomes = await readFields(job, ask, [REPAIR_NOTE, ...reasons].join("\n"));
+    repairs += outcomes.filter((outcome) => outcome.usage !== null).length;
+    tally.add(outcomes, true);
   }
   return { repairs, keys: [...keys] };
 }

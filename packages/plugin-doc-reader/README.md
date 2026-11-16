@@ -123,7 +123,7 @@ docReader({
 | `providerOptions` | none                            | Passed to the AI SDK as is, e.g. `{ anthropic: { effort: "low" } }`.                       |
 | `output`          | `structured` when supported     | `structured`: the provider enforces the schema. `json`: JSON in the reply, checked by zod. |
 | `groupSize`       | 24 (`structured`), all (`json`) | Most fields in one call. More fields make more calls in parallel; each sends the pages.    |
-| `repair`          | `1`                             | Extra calls for fields missing, invalid, or required and empty. `0` turns it off.          |
+| `repair`          | `1`                             | Extra repair rounds for fields missing, invalid, or required and empty. `0` turns it off.  |
 
 ```ts nocheck
 {
@@ -143,7 +143,7 @@ docReader({
 
 **Repairs.** After the first answer, fields that are missing, not valid, or required and empty are asked again in one smaller call, with the reason per field. The attempt records `repairs` and `problems.repaired`; its `usage` includes every call (`usage.calls`). Test run metrics count `repaired` samples, `repairs` calls and `stepErrors`.
 
-**Provider errors** show in the step's `problems.error` with the HTTP status and the provider's message, for example `the model provider rejected the request (HTTP 400): The compiled grammar is too large`. Words with digits are cut out of the message, and authentication errors (401, 403) show only their status. Only timeouts, 429 and 5xx count as transient (retried by test runs); a refused request counts as an error. A test run sample lists every step error, as `step: message`, even when a later step read the document.
+**Provider errors** show in the step's `problems.error` with the HTTP status. Recognized schema-size and token-limit errors add a fixed diagnostic, for example `the model provider rejected the request (HTTP 400): The compiled grammar is too large`. Raw provider messages are never stored: they may contain credentials, including keys without digits. Only timeouts, 429 and 5xx count as transient (retried by test runs); a refused request counts as an error. A test run sample lists every step error, as `step: message`, even when a later step read the document.
 
 Results: `OK`, `INCOMPLETE` (required fields missing), `NO_MATCH`, `NO_TEXT`, `ERROR`. Each step is recorded in `attempts`, with `SKIPPED` for paid steps over budget.
 
@@ -470,4 +470,4 @@ Boxes: for a PDF with a text layer, the value (else its evidence text) is looked
 | `onReadingDone`        | none                  | Called when a reading ends.                  |
 | `log`                  | `console.warn`        | Failures that do not fail a reading.         |
 
-**Types in code.** A version of `types` not stored yet is added as published. When the code changes a stored version, the published version stays as it is: the change becomes a new draft marked as coming from the code, or updates the draft an earlier start made. The admin shows it on the types list and the version page, and `log` gets `type-changed-in-code`. A draft made in the admin is left alone and the log says so; publish or delete it to get the code's change.
+**Types in code.** A version of `types` not stored yet is added as published. When the code changes a stored version, the published version stays as it is: the change becomes a new draft marked as coming from the code, or updates the draft an earlier start made. The admin shows it on the types list and the version page, and `log` gets `type-changed-in-code`. A draft made in the admin is left alone and the log says so; publish or delete it to get the code's change. Saving a generated draft in the admin also stops automatic updates to it.

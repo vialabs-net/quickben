@@ -37,6 +37,7 @@ export function flattenValues(value: unknown, prefix = ""): Record<string, unkno
  */
 export function nestValues<T>(values: Readonly<Record<string, T>>): Record<string, unknown> {
   const out: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
+  const branches = new Set([out]);
   const keys = Object.keys(values).sort((a, b) => a.split(".").length - b.split(".").length);
   for (const key of keys) {
     const parts = key.split(".");
@@ -47,8 +48,9 @@ export function nestValues<T>(values: Readonly<Record<string, T>>): Record<strin
       if (next === undefined) {
         const child = Object.create(null) as Record<string, unknown>;
         node[part] = child;
+        branches.add(child);
         node = child;
-      } else if (isPlainObject(next)) {
+      } else if (isPlainObject(next) && branches.has(next)) {
         node = next;
       } else {
         blocked = true;
