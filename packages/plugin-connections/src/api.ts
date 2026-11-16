@@ -197,6 +197,36 @@ export async function findConnectionsByCapability(
   return docs;
 }
 
+/**
+ * The id of the connection with this name (exact, after trimming). Names are stable across
+ * databases while ids are not, so code and stored settings can name a connection. Throws
+ * `ConnectionError` with reason `not-found` or, when two connections share the name,
+ * `ambiguous`.
+ */
+export async function findConnectionIdByName(
+  qb: Quickben,
+  name: string,
+  ctx: RequestContext = systemContext,
+): Promise<string> {
+  const wanted = name.trim();
+  const page = await qb.find(
+    CONNECTIONS,
+    { where: { name: { eq: wanted } }, limit: 2, select: ["id", "name"] } as never,
+    ctx,
+  );
+  const docs = page.docs as unknown as Pick<ConnectionRecord, "id" | "name">[];
+  if (docs.length === 0) {
+    throw new ConnectionError("not-found", `No connection is named "${wanted}"`);
+  }
+  if (docs.length > 1) {
+    throw new ConnectionError(
+      "ambiguous",
+      `More than one connection is named "${wanted}": rename one or use its id`,
+    );
+  }
+  return docs[0]?.id ?? "";
+}
+
 /** Every registered provider. */
 export function listProviders(qb: Quickben): AnyProvider[] {
   return [...getConnectionsOptions(qb).providers.values()];

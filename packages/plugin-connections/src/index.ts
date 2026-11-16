@@ -1,5 +1,6 @@
 export {
   connectionState,
+  findConnectionIdByName,
   findConnectionsByCapability,
   getConnection,
   listProviders,

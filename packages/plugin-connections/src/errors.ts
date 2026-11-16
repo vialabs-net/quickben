@@ -10,7 +10,9 @@ export type ConnectionErrorReason =
   | "not-testable"
   | "pick-provider"
   | "not-llm"
-  | "no-model";
+  | "no-model"
+  | "not-found"
+  | "ambiguous";
 
 /**
  * A connection or credential cannot be used as asked (HTTP 400). `reason` tells the UI what to
