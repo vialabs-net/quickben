@@ -53,6 +53,7 @@ const page = await qb.find(
 | [`@quickben/db-memory`](packages/db-memory)           | In-memory database adapter for tests and demos.                                   |
 | [`@quickben/db-drizzle`](packages/db-drizzle)         | Drizzle ORM adapter: Postgres, PGlite and SQLite (libSQL).                        |
 | [`@quickben/next`](packages/next)                     | Next.js REST route handlers and server helpers.                                   |
+| [`@quickben/openapi`](packages/openapi)               | OpenAPI 3.1 documents and a CLI that checks API contracts.                        |
 | [`@quickben/admin`](packages/admin)                   | Admin UI generated from collections.                                              |
 | [`@quickben/plugin-tenancy`](packages/plugin-tenancy) | Multi-tenancy: organizations, memberships, roles, scoped collections.             |
 | [`create-quickben`](packages/create-quickben)         | CLI that creates a Next.js app with Quickben.                                     |

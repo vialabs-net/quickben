@@ -45,6 +45,10 @@ export function playgroundAuth(): AuthAdapter {
   if (betterAuthEnabled) return playgroundBetterAuth();
   const dev = devAuth({ allowInProduction: process.env.QUICKBEN_PLAYGROUND_DEMO === "1" });
   return {
+    securitySchemes: {
+      ...dev.securitySchemes,
+      role: { type: "apiKey", in: "cookie", name: roleCookie, description: "Demo role." },
+    },
     getUser(req) {
       if (req.headers.has("x-quickben-user")) return dev.getUser(req);
       const value = cookieValue(req.headers.get("cookie"), roleCookie);

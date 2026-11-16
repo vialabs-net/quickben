@@ -28,6 +28,7 @@ This file describes what exists. Sections marked **Planned** describe agreed des
 | `tooling/eslint-config`      | `@quickben/eslint-config` (private)         | Exists |
 | `packages/db-drizzle`        | `@quickben/db-drizzle`                      | Exists |
 | `packages/next`              | `@quickben/next`                            | Exists |
+| `packages/openapi`           | `@quickben/openapi`                         | Exists |
 | `packages/admin`             | `@quickben/admin`                           | Exists |
 | `packages/plugin-tenancy`    | `@quickben/plugin-tenancy`                  | Exists |
 | `packages/plugin-doc-reader` | `@quickben/plugin-doc-reader`               | Exists |
@@ -95,6 +96,7 @@ Common options: `required`, `unique`, `index`, `default` (value or function), `l
 Rules:
 
 - Every document has `id`, `createdAt` and `updatedAt` (ISO strings).
+- `trackAuthor: true` on a collection adds `createdBy` and `updatedBy` text fields, typed in `InferDoc`. A `beforeChange` hook (before the collection's own) sets them to `ctx.user.id`: both on create, `updatedBy` on update. Without a user, create stores `null` and update keeps the old value. Field rules deny writes from users; `overrideAccess` code can set them. The admin shows them read-only.
 - `required` fields are never `null`. Other fields are `null` when unset.
 - `many` fields are arrays, never `null` (`[]` when unset). `required` on a `many` field means at least one value. Values must be unique within the array.
 - `default` makes a field optional on create.
@@ -200,9 +202,11 @@ qb.collections.posts; // collection metadata
 qb.db.raw; // native client
 ```
 
-`ctx` is `{ user, req?, overrideAccess? }`, is required and is always the last argument (never merged with query options). `createQuickben(config)` calls `db.init(schema)`, then each plugin's `onInit`. `getQuickben` drops a failed instance so the next call retries.
+`ctx` is `{ user, req?, overrideAccess?, preserveTimestamps? }`, is required and is always the last argument (never merged with query options). `createQuickben(config)` calls `db.init(schema)`, then each plugin's `onInit`. `getQuickben` drops a failed instance so the next call retries.
 
 Writes (`create`, `update`, `delete`) run in one transaction together with their hooks. If a hook throws, nothing is written. After the outermost transaction commits, queued `afterCommit` hooks run in write order with a `qb` outside the transaction. Their errors are logged. A rollback drops them. The write call resolves after them.
+
+**Imports:** with `overrideAccess: true` and `preserveTimestamps: true`, `create` and `update` take `createdAt` and `updatedAt` (a `Date` or ISO string; no offset means UTC) from the input. Missing ones are set as usual; on create, `updatedAt` defaults to `createdAt`. Without both flags the keys are rejected as unknown.
 
 **create:** access → defaults → `beforeValidate` → validation → related ids → `beforeChange` → access filter on the new document → write → `afterChange` → `afterRead`.
 
@@ -283,6 +287,7 @@ const audit = definePlugin({
 - `definePlugin` throws if the same plugin is applied twice. `addFields` throws for an unknown slug.
 - Registry types: `Plugin<Added, Extends>` carries added collections and added fields (keyed by slug) at type level; `defineConfig` merges them into the registry.
 - `extendCollection(collection, { fields, hooks })` returns a copy; new hooks run after existing ones.
+- `pluginState<T>(id)` keeps per-config plugin state in a `WeakMap` on `globalThis` (key `Symbol.for("quickben.plugin-state.<id>")`). A dev hot reload that re-runs the plugin module still finds the state of the cached instance. The tenancy, templates, doc-reader and connections plugins use it.
 - **Modules** (`{ key, label, collections, nav }`) group collections into feature areas. They are carried in `config.modules` for the admin sidebar and for tenancy entitlements.
 
 ### Auth
@@ -299,7 +304,7 @@ interface QuickbenUser {
 }
 ```
 
-Extend `QuickbenUser` with declaration merging. Auth adapters should set `emailVerified`; `false` stops email-based features such as accepting tenancy invitations by email. `devAuth()` reads the user from the `x-quickben-user` header or the `QUICKBEN_DEV_USER` variable (an id or JSON). It throws when `NODE_ENV` is `production` unless `allowInProduction: true`. Core stores no passwords. `@quickben/auth-firebase` (Firebase session cookies) and `@quickben/auth-better-auth` (Better Auth sessions, organization bridge to tenancy) are adapters for real auth.
+Extend `QuickbenUser` with declaration merging. Auth adapters should set `emailVerified`; `false` stops email-based features such as accepting tenancy invitations by email. `customAuth({ getUser })` wraps one function (it may return `undefined`). `chainAuth(...adapters)` tries adapters in order: the first user wins; `null` or `UnauthorizedError` moves to the next; other errors are thrown. `devAuth()` reads the user from the `x-quickben-user` header or the `QUICKBEN_DEV_USER` variable (an id or JSON). It throws when `NODE_ENV` is `production` unless `allowInProduction: true`. Core stores no passwords. `@quickben/auth-firebase` (Firebase session cookies, or the host's own session through `session: { read(req) → uid }`, plus Bearer ID tokens) and `@quickben/auth-better-auth` (Better Auth sessions, organization bridge to tenancy) are adapters for real auth.
 
 ### Errors
 
@@ -328,6 +333,27 @@ defineConfig({ …, endpoints: [startPurchase] }); // plugins: definePlugin({ en
 - `deprecated: true | date` sets `Deprecation` (`true` or `@<unix seconds>`), `sunset` sets `Sunset` (HTTP date), also on errors.
 - `@quickben/core/http` also holds the HTTP helpers that `@quickben/next` re-exports: `HttpError`, `errorResponse`, `json`, `assertSameOrigin`, `readBytes`.
 - Unversioned endpoints are not a stable contract; external clients use versioned ones.
+
+### OpenAPI (`@quickben/openapi`)
+
+`generateOpenApi(config, { info, servers, basePath, include, securitySchemes, security, maxLimit })` returns an OpenAPI 3.1 document. It is a separate package so core keeps Zod as its only dependency.
+
+| Input                                     | Output                                                                                                                                             |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Endpoint schemas                          | `z.toJSONSchema`: params and query as parameters (request form), body, responses per status (response form).                                       |
+| `.meta({ id })`                           | `components/schemas/<id>`, plus `<id>Input` when the request form differs. Same id with other content throws.                                      |
+| Endpoint options                          | `operationId` (default from method and path), `summary`, `description`, `tags`, `deprecated`, `x-deprecated-at`, `x-sunset`, `x-quickben-version`. |
+| `access`                                  | `true`: `security: [{}, …]` (optional). Else `401` and `403`.                                                                                      |
+| Collections with `api: { openapi: true }` | CRUD and file routes; `<One>`, `<One>CreateInput`, `<One>UpdateInput`, `<One>Where`, `<One>List` schemas from fields.                              |
+| `auth.securitySchemes`                    | `components/securitySchemes` and top-level `security` (any one scheme).                                                                            |
+
+- Errors are `components/responses` (`ValidationError`, `Unauthorized`, `Forbidden`, `NotFound`, `Conflict`, `PayloadTooLarge`, `UnsupportedMediaType`, `InternalError`) with the `Error` schema. A status the endpoint declares wins.
+- Field mapping: text types → `string` (`email`, `uri` formats, lengths), `number` → `number`/`integer` with bounds, `date`/`datetime` → `date`/`date-time` strings, `select` → `enum`, `relation` → id (or the related schema with `depth`), `json` → its Zod schema or any, `file` → `FileRef`. Optional fields are nullable; fields with a read rule are not required.
+- Deterministic: keys sorted by code point, except `properties` (field order). `stringifyOpenApi` adds the final newline.
+- `diffOpenApi(base, head)` matches operations by method and path (parameter names ignored). Requests must accept what they accepted; responses must not return what they did not. A new version of a route (`/v2/x` next to `/v1/x`) is compared with the latest older one and its breaking changes are `allowed: "version"`. Removing a deprecated operation after `x-sunset` is `allowed: "sunset"`. `breaking` counts the rest.
+- `createOpenApiHandler(config, { serve, access, … })` answers `GET <basePath>/openapi.json` (default access: authenticated users). `createRouteHandlers(config, { openapi })` calls it first.
+- CLI `quickben-openapi`: `generate --config --out [--check]` (exit 1 when stale), `diff <base> <head> [--json]` (exit 1 on breaking changes), exit 2 on usage errors. Configs load with the app's `tsx` when present, else Node's type stripping.
+- CI: the playground commits `openapi.json`; the `OpenAPI contract` job runs `openapi:check` and diffs against `trunk` (skipped with the `api-breaking` label).
 
 ### Drizzle adapter (`@quickben/db-drizzle`)
 
@@ -373,7 +399,7 @@ export default createAdminPage(config, { serverFunction }); // async server comp
 - Errors: `{ error: { code, message, details } }` with the status of the error. `details` is `{ issues }` for `VALIDATION`, `{ field }` for `CONFLICT` and `{ fields }` for `FORBIDDEN` from field rules.
 - `GET /_meta` leaves out unreadable fields and gives each field `access: { create, update }`. HTTP-only codes: `METHOD_NOT_ALLOWED` 405, `PAYLOAD_TOO_LARGE` 413, `UNSUPPORTED_MEDIA_TYPE` 415, `INTERNAL` 500 (message hidden, error logged; also for 5xx Quickben errors such as `CONFIG`).
 - CSRF: `POST`, `PATCH` and `DELETE` require a same-origin `Origin` (or a trusted one) when the browser sends one, and reject `Sec-Fetch-Site: cross-site`.
-- Server helpers: `getRequestContext` / `getUser` resolve the user from `next/headers`, `singleton(key, create)` keeps database clients per process. No `next.config` wrapper.
+- Server helpers: `getRequestContext` / `getUser` resolve the user from `next/headers` (imported as `next/headers.js` and `next/server.js`, so the built package also loads in plain Node ESM; a test checks this), `singleton(key, create)` keeps database clients per process. No `next.config` wrapper.
 
 ### `@quickben/admin`
 
@@ -421,6 +447,10 @@ export default createAdminPage(config, { serverFunction }); // async server comp
 - `readDocument(qb, input, ctx)` checks the file by its first bytes (core `sniffMime`), stores it in the plugin's `files` storage adapter (default: the config `storage`; a deprecated `FileStore` still works), creates a job and queues it through a `JobRunner` (`inProcessRunner` by default, `bullmqRunner` in `/bullmq`). A run claims a job by queue version, so cancelled or retried jobs keep the newer state.
 - Studio rules: one draft per type, published versions never change, publishing needs a finished test run of the draft's current revision.
 - `@quickben/plugin-doc-reader/admin`: `docReaderAdmin(config)` adds Document types, Readings and Usage pages. Server actions redirect with fixed `?toast=` / `?error=` codes.
+
+### `@quickben/plugin-connections`
+
+- `connections({ modelSchema: (base) => base.extend({ … }) })` replaces the model entry schema of the built-in LLM providers. The connection form validates and keeps the extra keys, and `resolveLanguageModel` returns them. `ModelOf<typeof plugin>` is the entry type: `resolveLanguageModel<ModelOf<typeof plugin>>(qb, id)`.
 
 ## create-quickben
 

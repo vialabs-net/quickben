@@ -7,7 +7,7 @@ import { claimsToUser } from "./user";
 
 import type { AuthSource } from "./admin-sdk";
 import type { CookieOptions } from "./cookies";
-import type { FirebaseAdminAuth, FirebaseClaims } from "./types";
+import type { FirebaseAdminAuth, FirebaseClaims, FirebaseUserRecord } from "./types";
 import type { RolesSource } from "./user";
 import type { AuthAdapter, QuickbenUser } from "@quickben/core";
 import type { CsrfOptions } from "@quickben/next";
@@ -58,6 +58,26 @@ export interface FirebaseAuthOptions {
   revokeOnSignOut?: boolean;
   /** Same-origin check of the session routes. */
   csrf?: CsrfOptions;
+  /**
+   * Use your own session instead of the Firebase session cookie. See {@link HostSession}.
+   * Bearer ID tokens still work with `bearer: true`.
+   */
+  session?: HostSession;
+}
+
+/**
+ * A session the host app manages, for example an opaque cookie in its own store. With it, the
+ * adapter ignores the Firebase session cookie.
+ */
+export interface HostSession {
+  /** The Firebase uid of the request's session, or `null` when there is none. */
+  read(req: Request): string | null | undefined | Promise<string | null | undefined>;
+  /**
+   * Load the Firebase user record of the uid, for email and custom claims (one call to
+   * Firebase per request). Disabled users are anonymous. With `false`, the user has the uid
+   * only. Default `true`.
+   */
+  loadUser?: boolean;
 }
 
 /** Why the session route refused a sign-in. Sent as `error.details.reason`. */
@@ -123,6 +143,21 @@ function firebaseCode(error: unknown): string | null {
   return typeof code === "string" && code.includes("/") ? code : null;
 }
 
+/** Only credential rejection is anonymous; SDK, network and permission failures must surface. */
+const rejectedCredentials = new Set([
+  "auth/argument-error",
+  "auth/invalid-argument",
+  "auth/invalid-id-token",
+  "auth/id-token-expired",
+  "auth/id-token-revoked",
+  "auth/invalid-session-cookie",
+  "auth/session-cookie-expired",
+  "auth/session-cookie-revoked",
+  "auth/tenant-id-mismatch",
+  "auth/user-disabled",
+  "auth/user-not-found",
+]);
+
 function json(body: unknown, status = 200, headers: HeadersInit = {}): Response {
   const response = Response.json(body, { status, headers });
   response.headers.set("cache-control", "no-store");
@@ -173,6 +208,21 @@ async function readSessionBody(req: Request): Promise<{ idToken: string; remembe
   return { idToken: idToken.trim(), remember: remember ?? true };
 }
 
+/** Claims of a user record, for host sessions. There is no token: `auth_time` and `exp` are 0. */
+function recordClaims(record: FirebaseUserRecord): FirebaseClaims {
+  const claims: FirebaseClaims = {
+    ...record.customClaims,
+    uid: record.uid,
+    email_verified: record.emailVerified,
+    auth_time: 0,
+    exp: 0,
+  };
+  if (record.email !== undefined) claims.email = record.email;
+  if (record.displayName !== undefined) claims.name = record.displayName;
+  if (record.photoURL !== undefined) claims.picture = record.photoURL;
+  return claims;
+}
+
 /**
  * Firebase Authentication for Quickben, with session cookies.
  *
@@ -218,12 +268,39 @@ export function firebaseAuth(options: FirebaseAuthOptions = {}): FirebaseAuth {
     } catch (error) {
       // Expired, revoked or malformed tokens make the request anonymous. Anything else, such
       // as missing credentials, is a server error and is not hidden.
-      if (firebaseCode(error) !== null) return null;
+      const code = firebaseCode(error);
+      if (code !== null && rejectedCredentials.has(code)) return null;
       throw error;
     }
   }
 
+  async function hostClaims(session: HostSession, uid: string): Promise<FirebaseClaims | null> {
+    if (session.loadUser === false) return { uid, auth_time: 0, exp: 0 };
+    const auth = await loadAuth();
+    if (!auth.getUser) {
+      throw new ConfigError("firebaseAuth: `session` needs `auth.getUser`, or `loadUser: false`");
+    }
+    let record: FirebaseUserRecord;
+    try {
+      record = await auth.getUser(uid);
+    } catch (error) {
+      const code = firebaseCode(error);
+      if (code === "auth/user-not-found" || code === "auth/user-disabled") return null;
+      throw error;
+    }
+    return record.disabled ? null : recordClaims(record);
+  }
+
+  async function verifyHost(session: HostSession, req: Request): Promise<FirebaseClaims | null> {
+    const uid = await session.read(req);
+    if (typeof uid === "string" && uid !== "") return hostClaims(session, uid);
+    const token = options.bearer === true ? bearerToken(req) : undefined;
+    if (token !== undefined) return verifyWith((auth) => auth.verifyIdToken(token, checkRevoked));
+    return null;
+  }
+
   function verify(req: Request): Promise<FirebaseClaims | null> {
+    if (options.session) return verifyHost(options.session, req);
     const cookie = readCookie(req, cookieName);
     if (cookie !== undefined) {
       return verifyWith((auth) => auth.verifySessionCookie(cookie, checkRevoked));
@@ -313,6 +390,24 @@ export function firebaseAuth(options: FirebaseAuthOptions = {}): FirebaseAuth {
 
   return {
     cookieName,
+    securitySchemes: {
+      session: {
+        type: "apiKey",
+        in: "cookie",
+        name: cookieName,
+        description: "Firebase session cookie, set by the session route.",
+      },
+      ...(options.bearer === true
+        ? {
+            bearer: {
+              type: "http",
+              scheme: "bearer",
+              bearerFormat: "JWT",
+              description: "Firebase ID token.",
+            },
+          }
+        : {}),
+    },
     getUser,
     verify,
     handlers: {

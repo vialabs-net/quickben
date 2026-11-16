@@ -6,6 +6,7 @@ export { claimsToUser, rolesFromClaim } from "./user";
 export type {
   FirebaseAuth,
   FirebaseAuthOptions,
+  HostSession,
   SessionErrorReason,
   SessionHandlers,
   SessionResponse,
@@ -13,5 +14,5 @@ export type {
 } from "./adapter";
 export type { AuthSource } from "./admin-sdk";
 export type { CookieOptions } from "./cookies";
-export type { FirebaseAdminAuth, FirebaseClaims } from "./types";
+export type { FirebaseAdminAuth, FirebaseClaims, FirebaseUserRecord } from "./types";
 export type { RolesSource } from "./user";

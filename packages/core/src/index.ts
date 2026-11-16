@@ -1,5 +1,5 @@
 export { checkAccess, checkFieldAccess } from "./access";
-export { devAuth } from "./auth";
+export { chainAuth, customAuth, devAuth } from "./auth";
 export { defineCollection, extendCollection } from "./collection";
 export { defineConfig, definePlugin } from "./config";
 export { defineEndpoint, endpointFactory, reply } from "./endpoints";
@@ -15,6 +15,7 @@ export {
 export { DEFAULT_FILE_MAX_BYTES, fields } from "./fields";
 export { cleanFileName, isFileRef } from "./files";
 export { createQuickben, getQuickben } from "./local-api";
+export { pluginState } from "./plugin-state";
 export {
   defaultLocale,
   localeChain,
@@ -60,8 +61,15 @@ export type {
   WhereNode,
   WhereOperator,
 } from "./adapter";
-export type { AuthAdapter, DevAuthOptions, QuickbenUser } from "./auth";
+export type {
+  AuthAdapter,
+  AuthSecurityScheme,
+  CustomAuthOptions,
+  DevAuthOptions,
+  QuickbenUser,
+} from "./auth";
 export type { PluginDefinition } from "./config";
+export type { PluginState } from "./plugin-state";
 export type {
   AnyEndpoint,
   Endpoint,
@@ -134,6 +142,7 @@ export type {
   Collection,
   CollectionAccess,
   CollectionAdmin,
+  CollectionApi,
   CollectionConfig,
   CollectionHooks,
   ConfigInput,
@@ -169,4 +178,6 @@ export type {
   SanitizedField,
   StoredFile,
   SystemFields,
+  TimestampsInput,
+  TrackAuthorFields,
 } from "./types";

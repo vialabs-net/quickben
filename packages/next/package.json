@@ -44,6 +44,9 @@
     "test:coverage": "vitest run --coverage",
     "clean": "rm -rf dist coverage .turbo"
   },
+  "dependencies": {
+    "@quickben/openapi": "workspace:^"
+  },
   "peerDependencies": {
     "@quickben/core": "workspace:^",
     "next": ">=15.0.0"

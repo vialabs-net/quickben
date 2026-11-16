@@ -1,4 +1,4 @@
-import { ConfigError } from "@quickben/core";
+import { ConfigError, pluginState } from "@quickben/core";
 
 import type { LocalizedText, Quickben, QuickbenConfig, QuickbenUser } from "@quickben/core";
 
@@ -238,7 +238,8 @@ export function allCapabilities(tenancy: ResolvedTenancy): readonly Capability[]
   return [...new Set(tenancy.roles.flatMap((role) => role.capabilities))];
 }
 
-const registered = new WeakMap<QuickbenConfig, ResolvedTenancy>();
+/** Kept on `globalThis`, so lookups survive dev hot reloads of this module. */
+const registered = pluginState<ResolvedTenancy>("@quickben/plugin-tenancy");
 
 export function register(config: QuickbenConfig, tenancy: ResolvedTenancy): void {
   registered.set(config, tenancy);

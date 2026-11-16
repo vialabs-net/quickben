@@ -19,6 +19,8 @@ pnpm add @quickben/core
 | `formatDateValue`, `zonedTimeToUtc`, `localDateTime`, `dateInTimeZone`                         | Time zone helpers on `Intl`. Core never uses the server time zone.                                                                  |
 | `StorageAdapter`, `memoryStorage`, `assertStorageKey`, `sniffMime`, `detectMime`               | File storage contract and helpers. See "Files" below.                                                                               |
 | `defineEndpoint`, `reply`, `endpointFactory`                                                   | Custom HTTP endpoints typed from Zod schemas. See "Endpoints" below.                                                                |
+| `customAuth`, `chainAuth`                                                                      | An adapter from one function; try several adapters in order (first user wins).                                                      |
+| `pluginState`                                                                                  | Per-config plugin state on `globalThis`, kept across dev hot reloads.                                                               |
 | `devAuth`                                                                                      | Development-only auth adapter that trusts a header.                                                                                 |
 | `QuickbenError` and subclasses                                                                 | Errors with stable `code` and suggested HTTP `status`.                                                                              |
 | `matchesWhere`, `compareValues`, `compareBySort`                                               | Reference query semantics, for adapter authors.                                                                                     |
@@ -72,12 +74,14 @@ See [ARCHITECTURE.md](../../ARCHITECTURE.md) for the query model and the adapter
 | Cleanup       | Replaced and deleted files are removed after the commit; files of a rolled-back transaction are removed.                                       |
 | `qb.readFile` | `(slug, id, field, ctx)` → `{ file, body, size }`. Needs read access to the document and the field.                                            |
 
-## Field access, afterCommit, time zones
+## Field access, afterCommit, authors, imports, time zones
 
 | Feature       | Use                                                                                                                                                                                                                                       |
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Field access  | `f.number({ access: { read, create, update } })`, rules return booleans. Unreadable fields leave documents and `select`; `where` and `sort` on them give `VALIDATION`. Writing an unwritable field gives `FORBIDDEN` with `error.fields`. |
 | `afterCommit` | Hook after the transaction commits, with `{ operation, doc, original, qb }`. `qb` is not transactional. Errors are logged. Nested writes wait for the outermost commit.                                                                   |
+| `trackAuthor` | `defineCollection({ trackAuthor: true })` adds `createdBy` and `updatedBy`, set from `ctx.user.id`, read-only for users.                                                                                                                  |
+| Imports       | `ctx.preserveTimestamps` with `overrideAccess: true` takes `createdAt` and `updatedAt` from the `create`/`update` input.                                                                                                                  |
 | `timeZone`    | `defineConfig({ timeZone })` and `f.date({ timeZone })`. `Date` and offset inputs resolve in it. Default `UTC`.                                                                                                                           |
 
 ## Endpoints
@@ -86,6 +90,8 @@ See [ARCHITECTURE.md](../../ARCHITECTURE.md) for the query model and the adapter
 | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `defineEndpoint({ method, path, … })` | `version`, `input: { params, query, body }`, `output`, `access`, `transactional`, `deprecated`, `sunset`, `handler`.    |
 | `defineConfig({ endpoints })`         | Register endpoints. Plugins use `definePlugin({ endpoints })`.                                                          |
+| `operationId`, `api: { openapi }`     | Names for OpenAPI documents, and collections whose CRUD routes `@quickben/openapi` documents.                           |
+| `AuthAdapter.securitySchemes`         | How clients send credentials, for generated documents. `devAuth` describes its header.                                  |
 | `@quickben/core/http`                 | `handleEndpointRequest(config, request)`: `Response`, or `null` when no path matches. Mount it in any Fetch API server. |
 
-Docs: [Endpoints](https://quickben.vialabs.net/docs/concepts/endpoints).
+Docs: [Endpoints](https://quickben.vialabs.net/docs/concepts/endpoints), [OpenAPI](https://quickben.vialabs.net/docs/concepts/openapi).

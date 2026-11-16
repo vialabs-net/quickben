@@ -68,17 +68,18 @@ Generate a key once with `generateMasterKey()` (32 random bytes, base64) and kee
 
 ## Options
 
-| Option               | Default                                    | Purpose                                                         |
-| -------------------- | ------------------------------------------ | --------------------------------------------------------------- |
-| `masterKey`          | none                                       | 32 bytes: hex, base64 or bytes.                                 |
-| `previousMasterKeys` | `[]`                                       | Old keys, used only to read. See [key rotation](#key-rotation). |
-| `providers`          | `[]`                                       | Your providers. Same `type` as a built-in replaces it.          |
-| `builtins`           | `true`                                     | `false`, or a list of built-in types to keep.                   |
-| `canManage`          | `user.roles` includes `admin`              | Who may create, change, delete and test.                        |
-| `canRead`            | managers and `user.roles` includes `staff` | Who may read (never secrets).                                   |
-| `fetch`              | global `fetch`                             | Used by provider tests.                                         |
-| `testTimeoutMs`      | `20000`                                    | Test timeout.                                                   |
-| `group`              | `Integrations`                             | Admin sidebar group.                                            |
+| Option               | Default                                    | Purpose                                                                                       |
+| -------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| `masterKey`          | none                                       | 32 bytes: hex, base64 or bytes.                                                               |
+| `previousMasterKeys` | `[]`                                       | Old keys, used only to read. See [key rotation](#key-rotation).                               |
+| `providers`          | `[]`                                       | Your providers. Same `type` as a built-in replaces it.                                        |
+| `builtins`           | `true`                                     | `false`, or a list of built-in types to keep.                                                 |
+| `canManage`          | `user.roles` includes `admin`              | Who may create, change, delete and test.                                                      |
+| `canRead`            | managers and `user.roles` includes `staff` | Who may read (never secrets).                                                                 |
+| `fetch`              | global `fetch`                             | Used by provider tests.                                                                       |
+| `testTimeoutMs`      | `20000`                                    | Test timeout.                                                                                 |
+| `group`              | `Integrations`                             | Admin sidebar group.                                                                          |
+| `modelSchema`        | none                                       | Extend the model entries of LLM connections. See [Your own model keys](#your-own-model-keys). |
 
 ## Built-in providers
 
@@ -172,6 +173,25 @@ const usd = callCost(model, result.usage.inputTokens ?? 0, result.usage.outputTo
 ```
 
 Pass `{ model: "id" }` to choose a model of the connection, and `factories` for your own provider types.
+
+### Your own model keys
+
+`modelSchema` extends the schema of one model entry of the built-in LLM providers. The connection form validates and keeps the new keys, and `resolveLanguageModel` returns them.
+
+```ts nocheck
+import { connections } from "@quickben/plugin-connections";
+import type { ModelOf } from "@quickben/plugin-connections";
+import { z } from "zod";
+
+export const connectionsPlugin = connections({
+  masterKey: process.env.QUICKBEN_MASTER_KEY,
+  modelSchema: (base) => base.extend({ maxPages: z.number().int().min(1).default(4) }),
+});
+type Model = ModelOf<typeof connectionsPlugin>; // LlmModel & { maxPages: number }
+
+const { model } = await resolveLanguageModel<Model>(qb, connectionId);
+model.maxPages; // number
+```
 
 ## Admin
 
