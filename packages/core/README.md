@@ -22,6 +22,7 @@ pnpm add @quickben/core
 | `devAuth`                                                                                      | Development-only auth adapter that trusts a header.                                                                                 |
 | `QuickbenError` and subclasses                                                                 | Errors with stable `code` and suggested HTTP `status`.                                                                              |
 | `matchesWhere`, `compareValues`, `compareBySort`                                               | Reference query semantics, for adapter authors.                                                                                     |
+| `jsonRowColumns`, `jsonSchemaRowColumns`, `JsonRowColumn`                                      | Columns of a row editor for a Zod or JSON Schema list of objects with primitive properties. `null` for other shapes.                |
 | `InferDoc`, `InferCreateInput`, `InferUpdateInput`, `InferWhere`, `InferSort`, `InferRegistry` | Type helpers.                                                                                                                       |
 
 ## Example

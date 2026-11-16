@@ -174,25 +174,28 @@ Pass `{ model: "id" }` to choose a model of the connection, and `factories` for 
 
 `connectionsAdmin(config)` replaces the list and edit views of both collections.
 
-| Page           | Shows                                                                                  |
-| -------------- | -------------------------------------------------------------------------------------- |
-| Connections    | Provider logo, credential (`•••• last4`), state of the last test, Test button          |
-| New connection | Provider picker grouped by category, then a form built from the provider's schema      |
-| Connection     | Form, Test (toast), last test, delete                                                  |
-| Credentials    | Kind, masked secret, how many connections use it, last test                            |
-| Credential     | Form (secret write-only), Test, connections that use it, delete (refused while in use) |
+| Page           | Shows                                                                                                                             |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Connections    | Search by name; filters: provider, enabled, status. Provider logo, credential (`•••• last4`), state of the last test, Test button |
+| New connection | Provider picker grouped by category, then a form built from the provider's schema                                                 |
+| Connection     | Form (LLM `models` as a row editor), Test (toast), last test, delete                                                              |
+| Credentials    | Search by name; filters: kind, use, status. Kind, masked secret, how many connections use it, last test                           |
+| Credential     | Form (secret write-only), Test, connections that use it, delete (refused while in use)                                            |
+
+A provider field whose schema is a list of objects with primitive properties (the LLM `models`) is edited as rows: add, remove, reorder, errors on the cell, and a raw JSON toggle. `FieldView.rows` holds its columns. The credential picker fits its column and shows the full label as a tooltip.
 
 Test on a credential that no connection uses opens a dialog that asks for the provider and an optional base URL. Users without `canManage` see the pages read-only.
 
 The pages ship in English and Spanish (catalog `connectionsMessages`, namespace `connections`). Provider texts use optional keys; without one, the provider's own text is shown:
 
-| Key                                                   | Text                       |
-| ----------------------------------------------------- | -------------------------- |
-| `connections.provider.<type>.label`                   | Provider name              |
-| `connections.provider.<type>.description`             | Picker description         |
-| `connections.provider.<type>.field.<key>.label`       | Field label                |
-| `connections.provider.<type>.field.<key>.description` | Field hint                 |
-| `connections.category.<slug>`                         | Picker group (`ai-models`) |
+| Key                                                         | Text                                                                 |
+| ----------------------------------------------------------- | -------------------------------------------------------------------- |
+| `connections.provider.<type>.label`                         | Provider name                                                        |
+| `connections.provider.<type>.description`                   | Picker description                                                   |
+| `connections.provider.<type>.field.<key>.label`             | Field label                                                          |
+| `connections.provider.<type>.field.<key>.description`       | Field hint                                                           |
+| `connections.provider.<type>.field.<key>.column.<property>` | Row editor column (else `connections.field.<key>.column.<property>`) |
+| `connections.category.<slug>`                               | Picker group (`ai-models`)                                           |
 
 Add them in the admin's `messages` overrides to translate a provider of your own.
 

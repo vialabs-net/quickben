@@ -31,20 +31,20 @@ const productFields = {
 
 ## Types
 
-| Factory        | Stored value                                                 | Extra options                                                |
-| -------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| `f.text()`     | string                                                       | `minLength`, `maxLength`                                     |
-| `f.textarea()` | string                                                       | `minLength`, `maxLength`                                     |
-| `f.email()`    | string                                                       | `minLength`, `maxLength`                                     |
-| `f.url()`      | string, `http` or `https` only                               | `minLength`, `maxLength`                                     |
-| `f.number()`   | number                                                       | `integer`, `min`, `max`                                      |
-| `f.boolean()`  | boolean                                                      |                                                              |
-| `f.date()`     | `"YYYY-MM-DD"`. Input also accepts `Date` and ISO datetimes. | `timeZone`                                                   |
-| `f.datetime()` | ISO 8601 UTC string. Input also accepts `Date` and offsets.  | `timeZone`                                                   |
-| `f.select()`   | one option, or an array with `many: true`                    | `options`, `many`                                            |
-| `f.relation()` | id, or ids with `many: true`                                 | `to`, `many`                                                 |
-| `f.json()`     | JSON value                                                   | `schema` (Zod)                                               |
-| `f.file()`     | `{ key, name, mime, size, sha256 }`; bytes in the storage    | `accept`, `maxBytes`, `storage`. See [Files](/docs/storage). |
+| Factory        | Stored value                                                 | Extra options                                                     |
+| -------------- | ------------------------------------------------------------ | ----------------------------------------------------------------- |
+| `f.text()`     | string                                                       | `minLength`, `maxLength`                                          |
+| `f.textarea()` | string                                                       | `minLength`, `maxLength`                                          |
+| `f.email()`    | string                                                       | `minLength`, `maxLength`                                          |
+| `f.url()`      | string, `http` or `https` only                               | `minLength`, `maxLength`                                          |
+| `f.number()`   | number                                                       | `integer`, `min`, `max`                                           |
+| `f.boolean()`  | boolean                                                      |                                                                   |
+| `f.date()`     | `"YYYY-MM-DD"`. Input also accepts `Date` and ISO datetimes. | `timeZone`                                                        |
+| `f.datetime()` | ISO 8601 UTC string. Input also accepts `Date` and offsets.  | `timeZone`                                                        |
+| `f.select()`   | one option, or an array with `many: true`                    | `options`, `many`                                                 |
+| `f.relation()` | id, or ids with `many: true`                                 | `to`, `many`                                                      |
+| `f.json()`     | JSON value                                                   | `schema` (Zod). A list of objects gets a row editor in the admin. |
+| `f.file()`     | `{ key, name, mime, size, sha256 }`; bytes in the storage    | `accept`, `maxBytes`, `storage`. See [Files](/docs/storage).      |
 
 ## Common options
 
