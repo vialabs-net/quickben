@@ -18,9 +18,10 @@ import {
   updateMembership,
 } from "../api";
 import { toGrant } from "../entitlements";
-import { MEMBERSHIPS, ORGANIZATIONS } from "../options";
+import { ALL_MODULES, MEMBERSHIPS, ORGANIZATIONS } from "../options";
+import { MemberHookError } from "../tenant";
 
-import { errorCode } from "./feedback";
+import { errorCode, NOTICE_COOKIE } from "./feedback";
 import { addedFields, ownMembershipFields, ownOrganizationFields, TIME_ZONE_FIELD } from "./fields";
 import { getTenancyAdmin } from "./registry";
 
@@ -33,6 +34,7 @@ interface Scope {
   ctx: RequestContext;
   basePath: string;
   config: QuickbenConfig;
+  organizationHref: ((organizationId: string) => string) | undefined;
 }
 
 async function scopeFor(key: unknown): Promise<Scope> {
@@ -41,7 +43,13 @@ async function scopeFor(key: unknown): Promise<Scope> {
   if (!instance) throw new Error("The admin is not ready on this server yet. Reload the page.");
   const qb = await getQuickben(instance.config);
   const ctx = await getRequestContext(instance.config);
-  return { qb, ctx, basePath: instance.basePath, config: instance.config };
+  return {
+    qb,
+    ctx,
+    basePath: instance.basePath,
+    config: instance.config,
+    organizationHref: instance.organizationHref,
+  };
 }
 
 function text(formData: FormData, name: string): string | undefined {
@@ -53,9 +61,13 @@ function list(formData: FormData, name: string): string[] {
   return formData.getAll(name).filter((value): value is string => typeof value === "string");
 }
 
+/** Longest host message kept for the next page. */
+const NOTICE_MAX = 300;
+
 /**
  * Run a change and say where to go next: `?toast=<code>` on success, `?error=<code>` on a
- * Quickben error. The pages map codes to fixed messages, so the URL never carries text.
+ * Quickben error. The pages map codes to fixed messages, so the URL never carries text. The
+ * message of a `MemberHookError` goes in a short-lived cookie for the next page.
  */
 async function attempt(
   path: string,
@@ -66,6 +78,15 @@ async function attempt(
     await change();
   } catch (error) {
     if (!(error instanceof QuickbenError)) throw error;
+    if (error instanceof MemberHookError) {
+      const jar = await cookies();
+      jar.set(NOTICE_COOKIE, error.message.slice(0, NOTICE_MAX), {
+        path: "/",
+        httpOnly: true,
+        sameSite: "lax",
+        maxAge: 60,
+      });
+    }
     return `${path}?error=${errorCode(error)}`;
   }
   return success === null ? path : `${path}?toast=${success}`;
@@ -76,10 +97,10 @@ async function attempt(
  * dashboard; an error is shown on the Organization settings page.
  */
 export async function switchOrganizationAction(key: string, formData: FormData): Promise<void> {
-  const { qb, ctx, basePath } = await scopeFor(key);
+  const { qb, ctx, basePath, organizationHref } = await scopeFor(key);
   const organizationId = text(formData, "organizationId");
   const jar = await cookies();
-  let target = basePath;
+  let target = organizationId && organizationHref ? organizationHref(organizationId) : basePath;
   if (organizationId === undefined) {
     const cookie = organizationCookie(qb, null, ctx.req);
     jar.set(cookie.name, cookie.value, cookie.options);
@@ -108,6 +129,14 @@ export async function inviteMemberAction(key: string, formData: FormData): Promi
   redirect(target);
 }
 
+/**
+ * Ticked modules: `"all"` when the "All modules" box (`*`) is ticked, else the ticked keys.
+ */
+function modulesOf(formData: FormData): readonly string[] | "all" {
+  const keys = list(formData, "modules");
+  return keys.includes(ALL_MODULES) ? "all" : keys;
+}
+
 /** Change the role, status and modules of a membership. */
 export async function updateMemberAction(key: string, formData: FormData): Promise<void> {
   const { qb, ctx, basePath } = await scopeFor(key);
@@ -118,7 +147,7 @@ export async function updateMemberAction(key: string, formData: FormData): Promi
     updateMembership(qb, ctx, id, {
       ...(role === undefined ? {} : { role }),
       ...(status === "invited" || status === "active" || status === "disabled" ? { status } : {}),
-      modules: list(formData, "modules"),
+      modules: modulesOf(formData),
     }),
   );
   redirect(target);
@@ -195,8 +224,8 @@ export async function updateMemberDetailsAction(key: string, formData: FormData)
   const { qb, ctx, basePath } = scope;
   const id = text(formData, "membershipId") ?? "";
   const target = await attempt(`${basePath}/members`, "member-updated", async () => {
-    const data = await addedData(scope, MEMBERSHIPS, ownMembershipFields, formData);
-    await qb.update(MEMBERSHIPS, id, data, ctx);
+    const fields = await addedData(scope, MEMBERSHIPS, ownMembershipFields, formData);
+    await updateMembership(qb, ctx, id, { fields });
   });
   redirect(target);
 }

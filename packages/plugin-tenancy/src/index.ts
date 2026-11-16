@@ -1,10 +1,12 @@
 export {
   acceptInvitation,
+  canManageMember,
   hasCapability,
   inviteMember,
   isSecureRequest,
   listMyInvitations,
   listMyOrganizations,
+  migrateEmptyModules,
   organizationCookie,
   removeMember,
   resolveTenant,
@@ -14,6 +16,7 @@ export {
 } from "./api";
 export { activeModules, isExpired, moduleKeys, toGrant } from "./entitlements";
 export {
+  ALL_MODULES,
   defaultRoles,
   defaultStatuses,
   getTenancy,
@@ -23,10 +26,18 @@ export {
 } from "./options";
 export { tenancy } from "./plugin";
 export { canUseModule, moduleAccess } from "./scope";
-export { OrganizationError, requestedOrganization, TenancyRuleError } from "./tenant";
+export {
+  guardsSkipped,
+  MemberHookError,
+  OrganizationError,
+  organizationFromPath,
+  requestedOrganization,
+  TenancyRuleError,
+} from "./tenant";
 
 export type {
   InviteMemberInput,
+  MemberModules,
   MembershipPatch,
   MyInvitation,
   MyOrganization,
@@ -37,7 +48,14 @@ export type { ModuleAccess } from "./scope";
 export type { MembershipsCollection, OrganizationsCollection } from "./collections";
 export type { ModuleEntitlement, ModuleGrant } from "./entitlements";
 export type {
+  CanManageMember,
   Capability,
+  EmptyModules,
+  ManageMemberArgs,
+  MemberAction,
+  MemberEvent,
+  MemberHook,
+  MemberHooks,
   OrganizationAccess,
   OrganizationDeleteMode,
   OrganizationStatus,

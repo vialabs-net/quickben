@@ -82,6 +82,42 @@ describe("afterCommit hooks", () => {
     expect(await qb.count("notes", {}, system)).toBe(0);
   });
 
+  it("wait for committed() when writes join a host transaction", async () => {
+    const { qb, events } = await setup();
+    let scope: ReturnType<Quickben["withTransaction"]> | undefined;
+    await qb.db.transaction(async (tx) => {
+      scope = qb.withTransaction(tx);
+      await scope.qb.create("notes", { text: "a" }, system);
+      await scope.qb.transaction((inner) => inner.create("notes", { text: "b" }, system));
+      expect(await scope.qb.count("notes", {}, system)).toBe(2);
+    });
+    expect(events).toEqual([]);
+    await scope?.committed();
+    expect(events.map((event) => [event.operation, event.inTransaction])).toEqual([
+      ["create", false],
+      ["create", false],
+    ]);
+    await scope?.committed();
+    await scope?.rolledBack();
+    expect(events).toHaveLength(2);
+  });
+
+  it("are dropped when the host transaction rolls back", async () => {
+    const { qb, events } = await setup();
+    let scope: ReturnType<Quickben["withTransaction"]> | undefined;
+    await expect(
+      qb.db.transaction(async (tx) => {
+        scope = qb.withTransaction(tx);
+        await scope.qb.create("notes", { text: "a" }, system);
+        throw new Error("host failed");
+      }),
+    ).rejects.toThrow("host failed");
+    await scope?.rolledBack();
+    await scope?.committed();
+    expect(events).toEqual([]);
+    expect(await qb.count("notes", {}, system)).toBe(0);
+  });
+
   it("log errors without undoing the write", async () => {
     const failing: AfterCommitHook = () => {
       throw new Error("queue down");

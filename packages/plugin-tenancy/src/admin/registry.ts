@@ -4,6 +4,8 @@ import type { QuickbenConfig } from "@quickben/core";
 export interface TenancyAdminInstance {
   config: QuickbenConfig;
   basePath: string;
+  /** Where the switcher goes after a switch. Default: the admin dashboard. */
+  organizationHref: ((organizationId: string) => string) | undefined;
 }
 
 const registryKey = Symbol.for("quickben.tenancy.admin");
@@ -19,7 +21,10 @@ function registry(): Map<string, TenancyAdminInstance> {
  * because a config cannot be sent to the browser and back. The base path is the key.
  */
 export function registerTenancyAdmin(instance: TenancyAdminInstance): string {
-  registry().set(instance.basePath, instance);
+  // `tenancyAdmin` and `createOrganizationSwitcher` share a key: keep a link given by either.
+  const organizationHref =
+    instance.organizationHref ?? registry().get(instance.basePath)?.organizationHref;
+  registry().set(instance.basePath, { ...instance, organizationHref });
   return instance.basePath;
 }
 

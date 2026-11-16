@@ -28,6 +28,7 @@ Each dialect has its own entry point. Each one exports `drizzleAdapter`. Import 
 | `/postgres`, `/pglite`          |                        | `schema`: Postgres schema of the tables (default: current)      |
 | all                             |                        | `push`: create missing tables at startup                        |
 | all                             |                        | `verify`: check the tables at startup (`true` or `"warn"`)      |
+| `/postgres`, `/pglite`          |                        | `integerColumns`: `"bigint"` (default) or `"integer"`           |
 
 **Postgres**
 
@@ -82,22 +83,24 @@ export default defineConfig({
 
 Each collection gets a table named after its slug. Column names are field names.
 
-| Field                              | Postgres / PGlite             | SQLite                            |
-| ---------------------------------- | ----------------------------- | --------------------------------- |
-| `id`                               | `text` primary key            | `text` primary key                |
-| `createdAt`, `updatedAt`, datetime | `timestamp(3) with time zone` | `text` (ISO 8601)                 |
-| `date`                             | `date`                        | `text`                            |
-| text, textarea, email, url, select | `text`                        | `text`                            |
-| relation (one)                     | `text`                        | `text`                            |
-| select / relation with `many`      | `text[]`, default `'{}'`      | `text` JSON array, default `'[]'` |
-| number                             | `double precision`            | `real`                            |
-| number with `integer`              | `bigint`                      | `integer`                         |
-| boolean                            | `boolean`                     | `integer` (0/1)                   |
-| json                               | `jsonb`                       | `text` (JSON)                     |
+| Field                              | Postgres / PGlite                  | SQLite                            |
+| ---------------------------------- | ---------------------------------- | --------------------------------- |
+| `id`                               | `text` primary key                 | `text` primary key                |
+| `createdAt`, `updatedAt`, datetime | `timestamp(3) with time zone`      | `text` (ISO 8601)                 |
+| `date`                             | `date`                             | `text`                            |
+| text, textarea, email, url, select | `text`                             | `text`                            |
+| relation (one)                     | `text`                             | `text`                            |
+| select / relation with `many`      | `text[]`, default `'{}'`           | `text` JSON array, default `'[]'` |
+| number                             | `double precision`                 | `real`                            |
+| number with `integer`              | `bigint`, or `integer` (see below) | `integer`                         |
+| boolean                            | `boolean`                          | `integer` (0/1)                   |
+| json                               | `jsonb`                            | `text` (JSON)                     |
 
 - `required` fields are `not null`. `many` fields are always `not null`.
 - `unique` creates the unique index `<slug>_<field>_unique`. `index` creates `<slug>_<field>_idx` (GIN for Postgres arrays). `createdAt` is always indexed.
 - Ids are `text`, because core accepts custom ids that are not UUIDs.
+
+**Integer width.** `drizzleAdapter({ integerColumns: "integer" })` stores integer fields in `integer` (int4) columns instead of `bigint` (int8). Use it when your tables already use `INTEGER`. `push`, `verify`, `quickben-drizzle generate`, `sql` and `sql --format prisma` (`Int`) follow it; the CLI reads it from the config's adapter or `--integer-columns integer`. Values outside ±2,147,483,647 fail on insert.
 
 ## Queries
 
@@ -182,6 +185,22 @@ For PGlite, `--url` is the `dataDir`. From code: `generateSql(config, { dialect,
 ### Postgres schema
 
 `schema: "quickben"` puts every table in that Postgres schema. `push` creates the schema. `generate`, `sql` and `verify` use it. Index names do not change.
+
+## Transactions of your app
+
+When your tables and Quickben's share one database, Quickben writes can join your transaction:
+
+```ts nocheck
+const scope = await db.transaction(async (tx) => {
+  await tx.insert(accounts).values(account);
+  const joined = qb.withTransaction(adapter.fromTransaction(tx));
+  await joined.qb.create("memberships", membership, ctx);
+  return joined;
+});
+await scope.committed(); // runs afterCommit hooks
+```
+
+`adapter.fromTransaction(tx)` takes a Drizzle transaction, or a Drizzle database over a node-postgres client that ran `BEGIN`. `qb.withTransaction` is in [Local API](/docs/concepts/local-api#transactions-of-your-app). On Postgres a failed Quickben write aborts your transaction: roll it back and call `rolledBack()`.
 
 ## Custom queries
 

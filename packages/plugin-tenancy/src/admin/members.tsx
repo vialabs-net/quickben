@@ -15,8 +15,9 @@ import {
 import { getQuickben } from "@quickben/core";
 import { getRequestContext } from "@quickben/next";
 
+import { memberManager } from "../api";
 import { isExpired, moduleKeys } from "../entitlements";
-import { MEMBERSHIPS, getTenancy } from "../options";
+import { ALL_MODULES, MEMBERSHIPS, getTenancy } from "../options";
 
 import {
   inviteMemberAction,
@@ -26,8 +27,9 @@ import {
 } from "./actions";
 import { AddedFields, addedFields, addedForm, ownMembershipFields } from "./fields";
 import { roleLabel, statusLabel, tenancyMessages } from "./messages";
-import { Feedback, Field, Heading, Notice, tenantOrMessage } from "./shared";
+import { Feedback, Field, Heading, hookNotice, Notice, tenantOrMessage } from "./shared";
 
+import type { EmptyModules } from "../options";
 import type { MembershipRecord, Tenant } from "../tenant";
 import type { AddedForm } from "./fields";
 import type { TenancyT } from "./messages";
@@ -105,12 +107,33 @@ function MemberDetails({
   );
 }
 
+/** The modules a membership grants, as read-only text. */
+function modulesText(
+  t: TenancyT,
+  modules: readonly { key: string; label: string }[],
+  granted: readonly string[],
+  emptyModules: EmptyModules,
+): string {
+  if (granted.includes(ALL_MODULES)) return t("members.allModules");
+  if (granted.length === 0) {
+    return emptyModules === "all" ? t("members.allModules") : t("members.noModules");
+  }
+  return granted.map((key) => moduleLabel(modules, key)).join(", ");
+}
+
 interface RowProps {
   membership: MembershipRecord;
   tenant: Tenant;
   roles: readonly string[];
   modules: readonly { key: string; label: string }[];
+  /** What an empty `modules` list grants (`tenancy({ emptyModules })`). */
+  emptyModules: EmptyModules;
+  /** The user may change and remove this member (`members:manage` and `canManageMember`). */
   canManage: boolean;
+  /** The user may remove this member. */
+  canRemove: boolean;
+  /** The table has an Actions column (the user has `members:manage`). */
+  actionsColumn: boolean;
   update: (formData: FormData) => Promise<void>;
   remove: (formData: FormData) => Promise<void>;
   /** Set when hosts added fields to memberships. */
@@ -123,7 +146,10 @@ function MemberRow({
   tenant,
   roles,
   modules,
+  emptyModules,
   canManage,
+  canRemove,
+  actionsColumn,
   update,
   remove,
   details,
@@ -188,6 +214,17 @@ function MemberRow({
         {canManage ? (
           <fieldset className="qb:flex qb:flex-wrap qb:gap-3">
             <legend className="qb:sr-only">{t("members.modulesOf", { who })}</legend>
+            {emptyModules === "none" ? (
+              <label className="qb:flex qb:items-center qb:gap-2 qb:text-sm">
+                <Checkbox
+                  form={formId}
+                  name="modules"
+                  value={ALL_MODULES}
+                  defaultChecked={membership.modules.includes(ALL_MODULES)}
+                />
+                {t("members.everyModule")}
+              </label>
+            ) : null}
             {modules.map((module) => (
               <label key={module.key} className="qb:flex qb:items-center qb:gap-2 qb:text-sm">
                 <Checkbox
@@ -202,9 +239,7 @@ function MemberRow({
           </fieldset>
         ) : (
           <span className="qb:text-sm qb:text-fg-muted">
-            {membership.modules.length === 0
-              ? t("members.allModules")
-              : membership.modules.map((key) => moduleLabel(modules, key)).join(", ")}
+            {modulesText(t, modules, membership.modules, emptyModules)}
           </span>
         )}
       </Td>
@@ -219,26 +254,30 @@ function MemberRow({
           />
         </Td>
       ) : null}
-      {canManage ? (
+      {actionsColumn ? (
         <Td>
           <div className="qb:flex qb:gap-2">
-            <form id={formId} action={update}>
-              <input type="hidden" name="membershipId" value={membership.id} />
-              <Button type="submit" size="sm" variant="secondary">
-                {t("members.save")}
-              </Button>
-            </form>
-            <form action={remove}>
-              <input type="hidden" name="membershipId" value={membership.id} />
-              <Button
-                type="submit"
-                size="sm"
-                variant="danger"
-                aria-label={t("members.removeWho", { who })}
-              >
-                {t("members.remove")}
-              </Button>
-            </form>
+            {canManage ? (
+              <form id={formId} action={update}>
+                <input type="hidden" name="membershipId" value={membership.id} />
+                <Button type="submit" size="sm" variant="secondary">
+                  {t("members.save")}
+                </Button>
+              </form>
+            ) : null}
+            {canRemove ? (
+              <form action={remove}>
+                <input type="hidden" name="membershipId" value={membership.id} />
+                <Button
+                  type="submit"
+                  size="sm"
+                  variant="danger"
+                  aria-label={t("members.removeWho", { who })}
+                >
+                  {t("members.remove")}
+                </Button>
+              </form>
+            ) : null}
           </div>
         </Td>
       ) : null}
@@ -293,7 +332,8 @@ export function createMembersPage(config: QuickbenConfig, key: string) {
     const qb = await getQuickben(config);
     const ctx = await getRequestContext(config);
     const { tenant, message } = await tenantOrMessage(qb, ctx, t);
-    const feedback = <Feedback searchParams={searchParams} t={t} />;
+    const notice = await hookNotice(searchParams);
+    const feedback = <Feedback searchParams={searchParams} t={t} notice={notice} />;
     if (!tenant?.organization) {
       return (
         <>
@@ -325,6 +365,27 @@ export function createMembersPage(config: QuickbenConfig, key: string) {
       { where: { organization: { eq: tenant.organization.id } }, sort: "email", limit: 500 },
       ctx,
     );
+    // Policies see stored fields; rendering still uses the access-filtered page.
+    const check = await memberManager(
+      qb,
+      ctx,
+      tenant.organization.id,
+      page.docs.map((doc) => doc.id),
+    );
+    const allowed = new Map(
+      canManage
+        ? await Promise.all(
+            page.docs.map(async (doc) => {
+              const membership = doc as unknown as MembershipRecord;
+              const [update, remove] = await Promise.all([
+                check(membership, "update"),
+                check(membership, "remove"),
+              ]);
+              return [doc.id, { update, remove }] as const;
+            }),
+          )
+        : [],
+    );
     const added = await addedFields(qb, ctx, MEMBERSHIPS, ownMembershipFields, i18n.locale);
     const forms = new Map<string, AddedForm>(
       added
@@ -347,7 +408,10 @@ export function createMembersPage(config: QuickbenConfig, key: string) {
       <>
         <Heading
           title={t("members.title")}
-          description={t("members.descriptionOf", { organization: tenant.organization.name })}
+          description={t(
+            tenancy.emptyModules === "none" ? "members.descriptionNone" : "members.descriptionOf",
+            { organization: tenant.organization.name },
+          )}
         />
         <Card>
           <Table>
@@ -369,7 +433,10 @@ export function createMembersPage(config: QuickbenConfig, key: string) {
                   tenant={tenant}
                   roles={roles}
                   modules={modules}
-                  canManage={canManage}
+                  emptyModules={tenancy.emptyModules}
+                  canManage={allowed.get(doc.id)?.update ?? false}
+                  canRemove={allowed.get(doc.id)?.remove ?? false}
+                  actionsColumn={canManage}
                   update={update}
                   remove={remove}
                   details={detailsOf(doc.id)}

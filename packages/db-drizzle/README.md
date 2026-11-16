@@ -37,6 +37,7 @@ drizzleAdapter({ url: "libsql://app.turso.io", authToken });
 | `/postgres`, `/pglite` |                        | `schema`: Postgres schema of the tables (default: current)        |
 | all                    |                        | `push`: create missing tables at startup (see below)              |
 | all                    |                        | `verify`: check the tables at startup, `true` (throw) or `"warn"` |
+| `/postgres`, `/pglite` |                        | `integerColumns`: `"bigint"` (default) or `"integer"` (int4)      |
 
 `dialect` is optional; when given it must match the entry point. The main entry (`@quickben/db-drizzle`) has the types and schema tools. In Next.js, add `serverExternalPackages: ["@electric-sql/pglite"]` for PGlite; Postgres and SQLite need nothing.
 
@@ -46,22 +47,23 @@ The adapter closes only clients it created. PGlite and local SQLite have one con
 
 Each collection gets a table named after its slug. Column names are field names.
 
-| Field                              | Postgres / PGlite             | SQLite                            |
-| ---------------------------------- | ----------------------------- | --------------------------------- |
-| `id`                               | `text` primary key            | `text` primary key                |
-| `createdAt`, `updatedAt`, datetime | `timestamp(3) with time zone` | `text` (ISO 8601)                 |
-| `date`                             | `date`                        | `text`                            |
-| text, textarea, email, url, select | `text`                        | `text`                            |
-| relation (one)                     | `text`                        | `text`                            |
-| select / relation with `many`      | `text[]`, default `'{}'`      | `text` JSON array, default `'[]'` |
-| number                             | `double precision`            | `real`                            |
-| number with `integer`              | `bigint`                      | `integer`                         |
-| boolean                            | `boolean`                     | `integer` (0/1)                   |
-| json                               | `jsonb`                       | `text` (JSON)                     |
+| Field                              | Postgres / PGlite                                     | SQLite                            |
+| ---------------------------------- | ----------------------------------------------------- | --------------------------------- |
+| `id`                               | `text` primary key                                    | `text` primary key                |
+| `createdAt`, `updatedAt`, datetime | `timestamp(3) with time zone`                         | `text` (ISO 8601)                 |
+| `date`                             | `date`                                                | `text`                            |
+| text, textarea, email, url, select | `text`                                                | `text`                            |
+| relation (one)                     | `text`                                                | `text`                            |
+| select / relation with `many`      | `text[]`, default `'{}'`                              | `text` JSON array, default `'[]'` |
+| number                             | `double precision`                                    | `real`                            |
+| number with `integer`              | `bigint` (`integer` with `integerColumns: "integer"`) | `integer`                         |
+| boolean                            | `boolean`                                             | `integer` (0/1)                   |
+| json                               | `jsonb`                                               | `text` (JSON)                     |
 
 - `required` fields are `not null`. `many` fields are always `not null`.
 - `unique` creates the unique index `<slug>_<field>_unique`. `index` creates `<slug>_<field>_idx` (GIN for Postgres arrays). `createdAt` is always indexed.
 - Ids are `text`, because core accepts custom ids that are not UUIDs.
+- `integerColumns: "integer"` makes integer fields `integer` (int4) instead of `bigint` (int8), for databases whose tables already use `INTEGER`. `push`, `verify`, `generate`, `sql` and `--format prisma` (`Int` instead of `BigInt`) follow it. The CLI reads it from the config's adapter, or from `--integer-columns`. Values outside ±2,147,483,647 fail on insert.
 
 ## Queries
 
@@ -77,6 +79,39 @@ The adapter follows the query model of `@quickben/core` and passes `@quickben/ad
 | Transactions               | Drizzle transactions                | Drizzle transactions                                        |
 
 Sorting and filters use the same collation, so cursors work with any database collation.
+
+## Transactions of your app
+
+When your app and Quickben share one database, run Quickben writes inside your own transaction. Your rows and Quickben's commit or roll back together.
+
+```ts nocheck
+import { drizzle } from "drizzle-orm/node-postgres";
+
+const adapter = drizzleAdapter({ client: pool }); // also config.db
+const db = drizzle({ client: pool });
+
+let scope;
+try {
+  await db.transaction(async (tx) => {
+    await tx.insert(accounts).values(account);
+    scope = qb.withTransaction(adapter.fromTransaction(tx));
+    await scope.qb.create("memberships", membership, ctx);
+  });
+  await scope?.committed();
+} catch (error) {
+  await scope?.rolledBack();
+  throw error;
+}
+```
+
+| Call                          | What it does                                                                                                                          |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `adapter.fromTransaction(tx)` | An adapter on your Drizzle transaction, or on a Drizzle database over a `pg` client that ran `BEGIN`. Call it after `createQuickben`. |
+| `qb.withTransaction(db)`      | `{ qb, committed, rolledBack }`. `qb` reads and writes in your transaction; hooks get it too.                                         |
+| `committed()`                 | Runs the `afterCommit` hooks of the writes. Call it after your commit.                                                                |
+| `rolledBack()`                | Removes files the writes stored. Call it after your rollback.                                                                         |
+
+Quickben writes join your transaction without a savepoint. On Postgres, a failed write aborts the whole transaction, so roll back. Works on node-postgres and PGlite; on PGlite, pass the same `PGlite` as `client` to both.
 
 ## Custom queries
 

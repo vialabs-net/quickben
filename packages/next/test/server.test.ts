@@ -2,7 +2,14 @@ import { getQuickben } from "@quickben/core";
 import { describe, expect, it, vi } from "vitest";
 
 import * as next from "../src";
-import { currentRequest, getRequestContext, getUser, singleton } from "../src";
+import {
+  currentRequest,
+  getRequestContext,
+  getUser,
+  PATHNAME_HEADER,
+  pathnameHeaders,
+  singleton,
+} from "../src";
 
 import { editor, makeConfig } from "./fixtures";
 
@@ -80,5 +87,26 @@ describe("request helpers", () => {
     incoming.delete("x-forwarded-proto");
     incoming.delete("host");
     expect((await currentRequest()).url).toBe("http://localhost/");
+  });
+
+  it("takes the page path from the header set by pathnameHeaders", async () => {
+    const proxied = pathnameHeaders(
+      new Request("https://app.example/settings/t/org-1/members?x=1", {
+        headers: { accept: "text/html" },
+      }),
+    );
+    expect(proxied.get(PATHNAME_HEADER)).toBe("/settings/t/org-1/members");
+    expect(proxied.get("accept")).toBe("text/html");
+    incoming.set(PATHNAME_HEADER, "/settings/t/org-1/members");
+    const req = await currentRequest();
+    expect(req.url).toBe("http://localhost/settings/t/org-1/members");
+    expect(req.headers.has(PATHNAME_HEADER)).toBe(false);
+    for (const bad of ["//evil.example/x", "settings", ""]) {
+      incoming.set(PATHNAME_HEADER, bad);
+      expect((await currentRequest()).url).toBe("http://localhost/");
+    }
+    incoming.set(PATHNAME_HEADER, "/a b/%zz");
+    expect((await currentRequest()).url).toBe("http://localhost/a%20b/%zz");
+    incoming.delete(PATHNAME_HEADER);
   });
 });

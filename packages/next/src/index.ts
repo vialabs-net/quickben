@@ -8,7 +8,14 @@ export { contentDisposition, fileResponse, PAYLOAD_PART } from "./files";
 export { createRouteHandlers } from "./handlers";
 export { collectionMeta, getMeta } from "./meta";
 export { parseFindParams, parseReadParams, toSearchParams } from "./query-string";
-export { currentRequest, getRequestContext, getUser, singleton } from "./server";
+export {
+  currentRequest,
+  getRequestContext,
+  getUser,
+  PATHNAME_HEADER,
+  pathnameHeaders,
+  singleton,
+} from "./server";
 
 export type {
   CsrfOptions,

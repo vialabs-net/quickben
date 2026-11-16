@@ -54,7 +54,7 @@ test("owners manage members within the guard rails", async ({ page }) => {
   await expect(page.getByRole("heading", { level: 1, name: "Members" })).toBeVisible();
 
   await page.getByLabel("Email or user id").fill("eve@example.com");
-  await page.getByRole("button", { name: "Invite" }).click();
+  await page.getByRole("button", { name: "Invite", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("Invitation created");
   await expect(page.getByRole("cell", { name: "eve@example.com", exact: true })).toBeVisible();
 
@@ -142,4 +142,74 @@ test("a custom settings section with its own server action, full and embedded", 
   await page.getByRole("button", { name: "Save contact" }).click();
   await expect(page).toHaveURL(/\/embedded\/organization\/contact\?saved=1/);
   await expect(page.getByRole("textbox", { name: "Contact email" })).toHaveValue("ops@acme.test");
+});
+
+/** Organization ids by name, from the switcher of a user who belongs to both. */
+async function organizationIds(page: Page): Promise<Record<string, string>> {
+  await actAs(page, "editor");
+  const options = page.getByRole("combobox", { name: "Active organization" }).getByRole("option");
+  const ids: Record<string, string> = {};
+  for (const option of await options.all()) {
+    const name = (await option.textContent())?.split(" (")[0] ?? "";
+    const value = (await option.getAttribute("value")) ?? "";
+    if (value !== "") ids[name] = value;
+  }
+  return ids;
+}
+
+test("a host URL selects the organization, checked against memberships", async ({ page }) => {
+  // Visits several routes, some compiled for the first time in dev.
+  test.slow();
+  const ids = await organizationIds(page);
+  // The cookie says Globex; the URL says Acme, and wins.
+  await switchTo(page, "Globex (admin)");
+  await page.goto(`/orgs/${ids.Acme!}/members`);
+  await expect(page.getByRole("heading", { level: 1, name: "Members" })).toBeVisible();
+  await expect(page.getByText(/People in Acme/)).toBeVisible();
+  await expect(page.getByRole("row", { name: /viewer@example\.com/ })).toBeVisible();
+
+  await page.goto(`/orgs/${ids.Globex!}/members`);
+  await expect(page.getByText(/People in Globex/)).toBeVisible();
+  await expect(page.getByRole("row", { name: /viewer@example\.com/ })).toHaveCount(0);
+
+  // The switcher goes to the host URL of the chosen organization.
+  const picker = page.getByRole("combobox", { name: "Active organization" });
+  await Promise.all([
+    page.waitForURL(`**/orgs/${ids.Acme!}/members`),
+    picker.selectOption(ids.Acme!),
+  ]);
+  await expect(page.getByText(/People in Acme/)).toBeVisible();
+
+  // Actions on the page use the organization of the URL.
+  const invitee = `url-${String(Date.now())}@example.com`;
+  await page.getByLabel("Email or user id").fill(invitee);
+  await page.getByRole("button", { name: "Invite", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("Invitation created");
+  await expect(page).toHaveURL(new RegExp(`/orgs/${ids.Acme!}/members`));
+  await expect(page.getByRole("cell", { name: invitee, exact: true })).toBeVisible();
+
+  // A user who is not a member of the organization in the URL gets no data.
+  await actAs(page, "viewer");
+  await page.goto(`/orgs/${ids.Globex!}/members`);
+  await expect(page.getByRole("heading", { name: "Members", exact: true })).toHaveCount(0);
+  await expect(page.locator('meta[name="robots"][content="noindex"]').first()).toBeAttached();
+  await expect(page.getByRole("row", { name: /editor@example\.com/ })).toHaveCount(0);
+  await page.goto("/orgs/invented-organization/members");
+  await expect(page.locator('meta[name="robots"][content="noindex"]').first()).toBeAttached();
+});
+
+test("a member hook stops an invitation with the host's message", async ({ page }) => {
+  await actAs(page, "editor");
+  await switchTo(page, "Acme (owner)");
+  await page.goto("/admin/members");
+  await page.getByLabel("Email or user id").fill("someone@blocked.example");
+  await page.getByRole("button", { name: "Invite", exact: true }).click();
+  await expect(
+    page
+      .getByRole("alert")
+      .filter({ hasText: "This host does not invite people from blocked.example." }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("cell", { name: "someone@blocked.example", exact: true }),
+  ).toHaveCount(0);
 });

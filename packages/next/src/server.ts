@@ -31,14 +31,55 @@ export async function currentRequest(): Promise<Request> {
   const [incoming, jar] = await Promise.all([headers(), cookies()]);
   const host = incoming.get("x-forwarded-host") ?? incoming.get("host") ?? "localhost";
   const protocol = incoming.get("x-forwarded-proto") ?? "http";
+  const path = safePath(incoming.get(PATHNAME_HEADER));
   const forwarded = new Headers(incoming);
+  forwarded.delete(PATHNAME_HEADER);
   const cookieHeader = jar
     .getAll()
     .map((cookie) => `${cookie.name}=${encodeURIComponent(cookie.value)}`)
     .join("; ");
   if (cookieHeader === "") forwarded.delete("cookie");
   else forwarded.set("cookie", cookieHeader);
-  return new Request(`${protocol}://${host}/`, { headers: forwarded });
+  return new Request(`${protocol}://${host}${path}`, { headers: forwarded });
+}
+
+/**
+ * Request header with the path of the page, set by {@link pathnameHeaders} in `proxy.ts`.
+ * Next.js does not give server components the URL, so without it `currentRequest()` has the
+ * path `/`.
+ */
+export const PATHNAME_HEADER = "x-quickben-pathname";
+
+/** A path that starts with one `/`, or `/`. */
+function safePath(value: string | null): string {
+  if (value?.startsWith("/") !== true || value.startsWith("//")) return "/";
+  try {
+    const url = new URL(value, "http://localhost");
+    return url.pathname;
+  } catch {
+    return "/";
+  }
+}
+
+/**
+ * The request headers plus the page path, for `proxy.ts` (`middleware.ts` before Next.js 16).
+ * Then `currentRequest()` and `getRequestContext()` have the real path, for example for
+ * `tenancy({ activeOrganization: organizationFromPath(…) })`.
+ *
+ * ```ts
+ * // proxy.ts
+ * import { pathnameHeaders } from "@quickben/next";
+ * import { NextResponse } from "next/server";
+ *
+ * export function proxy(request: Request) {
+ *   return NextResponse.next({ request: { headers: pathnameHeaders(request) } });
+ * }
+ * ```
+ */
+export function pathnameHeaders(request: Request): Headers {
+  const result = new Headers(request.headers);
+  result.set(PATHNAME_HEADER, new URL(request.url).pathname);
+  return result;
 }
 
 /**

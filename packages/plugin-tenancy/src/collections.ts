@@ -8,9 +8,17 @@ import {
 import { z } from "zod";
 
 import { entitlementList, moduleKeys, storeEntitlements } from "./entitlements";
-import { capabilitiesOf, MEMBERSHIPS, ORGANIZATIONS, rankOf, statusesWith } from "./options";
+import {
+  ALL_MODULES,
+  capabilitiesOf,
+  MEMBERSHIPS,
+  ORGANIZATIONS,
+  rankOf,
+  statusesWith,
+} from "./options";
 import {
   eq,
+  guardsSkipped,
   invalidateTenants,
   myMemberships,
   rawFind,
@@ -20,7 +28,7 @@ import {
 } from "./tenant";
 
 import type { ModuleEntitlement } from "./entitlements";
-import type { Capability, ResolvedTenancy } from "./options";
+import type { Capability, ManageMemberArgs, ResolvedTenancy } from "./options";
 import type { MembershipRecord } from "./tenant";
 import type {
   AccessArgs,
@@ -88,8 +96,15 @@ export function membershipFields(tenancy: ResolvedTenancy) {
       required: true,
       default: "invited",
     }),
-    /** Granted module keys. Empty = every module of the organization. */
-    modules: f.json({ schema: moduleList, required: true, default: () => [] }),
+    /**
+     * Granted module keys. `["*"]` = every module of the organization. Empty = every module,
+     * or none with `emptyModules: "none"`. New memberships get every module.
+     */
+    modules: f.json({
+      schema: moduleList,
+      required: true,
+      default: () => (tenancy.emptyModules === "none" ? [ALL_MODULES] : []),
+    }),
     invitedBy: f.text(),
     invitedAt: f.datetime(),
     joinedAt: f.datetime(),
@@ -317,6 +332,12 @@ function memberKey(data: DocumentData): string | null {
 
 async function assertModulesGranted(qb: Quickben, orgId: string, modules: unknown) {
   if (!Array.isArray(modules) || modules.length === 0) return;
+  if (modules.includes(ALL_MODULES)) {
+    if (modules.length === 1) return;
+    throw new ValidationError([
+      { path: "modules", message: `Use "${ALL_MODULES}" alone: it grants every module` },
+    ]);
+  }
   const org = await rawOrganization(qb, orgId);
   const enabled = new Set(moduleKeys(org?.modules));
   const issues = (modules as string[])
@@ -354,13 +375,17 @@ async function assertKeepsOwner(
   }
 }
 
-interface Actor {
+/** A user acting inside an organization, and their membership there. */
+export interface Actor {
   user: QuickbenUser;
   membership: MembershipRecord | undefined;
 }
 
-/** The acting user and their membership in `orgId`. `null` for trusted callers. */
-async function actorIn(
+/**
+ * The acting user and their membership in `orgId`. `null` for trusted callers (override,
+ * platform staff): the actor rules do not apply to them.
+ */
+export async function actorIn(
   tenancy: ResolvedTenancy,
   qb: Quickben,
   ctx: RequestContext,
@@ -371,13 +396,55 @@ async function actorIn(
   return { user: ctx.user, membership: memberships.find((m) => m.organization === orgId) };
 }
 
-function assertRank(tenancy: ResolvedTenancy, actor: Actor, ...roles: unknown[]) {
+/** The first of `roles` that ranks above the actor's role, if any. */
+function roleAbove(tenancy: ResolvedTenancy, actor: Actor, roles: unknown[]): string | undefined {
   const own = rankOf(tenancy, actor.membership?.role ?? "");
-  for (const role of roles) {
-    if (typeof role === "string" && rankOf(tenancy, role) < own) {
-      throw new TenancyRuleError("higher-role", `Only a higher role can manage the role "${role}"`);
-    }
+  return roles.find(
+    (role): role is string => typeof role === "string" && rankOf(tenancy, role) < own,
+  );
+}
+
+/** Whether the actor's role ranks at least as high as every role in `roles`. */
+export function rankAllows(tenancy: ResolvedTenancy, actor: Actor, roles: unknown[]): boolean {
+  return roleAbove(tenancy, actor, roles) === undefined;
+}
+
+/**
+ * The rank rule, then `canManageMember` when the host gives one. Throws `higher-role` when
+ * the rank rule decides, `cannot-manage` when the host rule refuses a change the rank allows.
+ */
+async function assertMayManage(
+  tenancy: ResolvedTenancy,
+  qb: Quickben,
+  actor: Actor,
+  check: Pick<ManageMemberArgs, "action" | "target" | "next">,
+) {
+  const roles = [check.next?.role, check.target.role];
+  const above = roleAbove(tenancy, actor, roles);
+  const allowed = await mayManage(tenancy, qb, actor, check, above === undefined);
+  if (allowed) return;
+  if (above !== undefined) {
+    throw new TenancyRuleError("higher-role", `Only a higher role can manage the role "${above}"`);
   }
+  throw new TenancyRuleError("cannot-manage", "You cannot manage this member");
+}
+
+/** The rank rule, restricted further by `canManageMember` when provided. */
+export async function mayManage(
+  tenancy: ResolvedTenancy,
+  qb: Quickben,
+  actor: Actor,
+  check: Pick<ManageMemberArgs, "action" | "target" | "next">,
+  allowedByRank: boolean,
+): Promise<boolean> {
+  if (!allowedByRank || !tenancy.canManageMember) return allowedByRank;
+  return tenancy.canManageMember({
+    ...check,
+    actor: actor.user,
+    actorMembership: actor.membership ?? null,
+    allowedByRank,
+    qb,
+  });
 }
 
 function managesMembers(tenancy: ResolvedTenancy, role: unknown): boolean {
@@ -398,9 +465,10 @@ function assertSameOwner(original: DocumentData, next: DocumentData) {
   }
 }
 
-/** Self-demotion and rank rules for a create (`original` null) or an update. */
-function assertActorMayChange(
+/** Self-demotion and manage rules for a create (`original` null) or an update. */
+async function assertActorMayChange(
   tenancy: ResolvedTenancy,
+  qb: Quickben,
   actor: Actor,
   original: DocumentData | null,
   next: DocumentData,
@@ -413,7 +481,11 @@ function assertActorMayChange(
       );
     }
   }
-  assertRank(tenancy, actor, next.role, original?.role);
+  await assertMayManage(tenancy, qb, actor, {
+    action: original ? "update" : "invite",
+    target: (original ?? next) as MembershipRecord,
+    next: next as MembershipRecord,
+  });
 }
 
 /** Derived fields: unique key, who invited, and when. */
@@ -482,8 +554,8 @@ export function membershipsCollection(state: TenancyState) {
           if (data.modules !== undefined)
             await assertModulesGranted(qb, organization, data.modules);
           const actor = await actorIn(tenancy, qb, ctx, organization);
-          if (actor) assertActorMayChange(tenancy, actor, original, next);
-          if (original) {
+          if (actor) await assertActorMayChange(tenancy, qb, actor, original, next);
+          if (original && !guardsSkipped(ctx)) {
             await assertKeepsOwner(tenancy, qb, original, { role: next.role, status: next.status });
           }
           return { ...data, ...stamps(next, operation, ctx) };
@@ -505,9 +577,15 @@ export function membershipsCollection(state: TenancyState) {
                 "You cannot remove your own owner or admin membership. Ask another owner or admin.",
               );
             }
-            if (!self) assertRank(tenancy, actor, doc.role);
+            if (!self) {
+              await assertMayManage(tenancy, qb, actor, {
+                action: "remove",
+                target: doc,
+                next: null,
+              });
+            }
           }
-          await assertKeepsOwner(tenancy, qb, doc, null);
+          if (!guardsSkipped(ctx)) await assertKeepsOwner(tenancy, qb, doc, null);
         },
       ],
       afterDelete: [

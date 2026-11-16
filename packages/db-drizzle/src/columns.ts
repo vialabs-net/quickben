@@ -8,7 +8,30 @@ export type Family = "pg" | "sqlite";
 
 /** How a value is stored. Every field type maps to one kind. */
 export type ColumnKind =
-  "id" | "text" | "integer" | "float" | "boolean" | "date" | "datetime" | "json" | "array";
+  | "id"
+  | "text"
+  | "integer"
+  /** A whole number in a 32-bit column (`integerColumns: "integer"`). */
+  | "integer32"
+  | "float"
+  | "boolean"
+  | "date"
+  | "datetime"
+  | "json"
+  | "array";
+
+/**
+ * Column type of integer fields (`f.number({ integer: true })`) on Postgres. `bigint` (int8,
+ * the default) or `integer` (int4, for hosts whose tables use `INTEGER`). SQLite stores both
+ * as `integer`.
+ */
+export type IntegerColumns = "bigint" | "integer";
+
+/** Options that change how fields map to columns. */
+export interface ColumnOptions {
+  /** Column type of integer fields. Default `bigint`. */
+  integerColumns?: IntegerColumns;
+}
 
 /** One column of a generated table. */
 export interface ColumnSpec {
@@ -32,11 +55,12 @@ export function familyOf(dialect: Dialect): Family {
 }
 
 /** Column kind of a collection field. */
-export function columnKind(field: FieldSchema): ColumnKind {
+export function columnKind(field: FieldSchema, options: ColumnOptions = {}): ColumnKind {
   if (field.many) return "array";
   switch (field.type) {
     case "number":
-      return field.integer ? "integer" : "float";
+      if (!field.integer) return "float";
+      return options.integerColumns === "integer" ? "integer32" : "integer";
     case "boolean":
     case "date":
     case "datetime":
@@ -56,13 +80,13 @@ const systemColumns: readonly ColumnSpec[] = [
 ];
 
 /** Table description of one collection. */
-export function tableSpec(collection: CollectionSchema): TableSpec {
+export function tableSpec(collection: CollectionSchema, options: ColumnOptions = {}): TableSpec {
   return {
     slug: collection.slug,
     columns: [
       ...systemColumns,
       ...collection.fields.map((field) => {
-        const kind = columnKind(field);
+        const kind = columnKind(field, options);
         return {
           name: field.name,
           kind,
@@ -77,8 +101,13 @@ export function tableSpec(collection: CollectionSchema): TableSpec {
 }
 
 /** Table descriptions of every collection. */
-export function tableSpecs(schema: DatabaseSchema): TableSpec[] {
-  return schema.collections.map(tableSpec);
+export function tableSpecs(schema: DatabaseSchema, options: ColumnOptions = {}): TableSpec[] {
+  return schema.collections.map((collection) => tableSpec(collection, options));
+}
+
+/** Check an `integerColumns` value from options or the CLI. */
+export function isIntegerColumns(value: unknown): value is IntegerColumns {
+  return value === "bigint" || value === "integer";
 }
 
 /** SQL type of a column kind, as written in DDL. */
@@ -87,6 +116,7 @@ export const sqlTypes: Record<Family, Record<ColumnKind, string>> = {
     id: "text",
     text: "text",
     integer: "bigint",
+    integer32: "integer",
     float: "double precision",
     boolean: "boolean",
     date: "date",
@@ -98,6 +128,7 @@ export const sqlTypes: Record<Family, Record<ColumnKind, string>> = {
     id: "text",
     text: "text",
     integer: "integer",
+    integer32: "integer",
     float: "real",
     boolean: "integer",
     date: "text",
