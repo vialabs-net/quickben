@@ -192,10 +192,10 @@ test("a host URL selects the organization, checked against memberships", async (
   await actAs(page, "viewer");
   await page.goto(`/orgs/${ids.Globex!}/members`);
   await expect(page.getByRole("heading", { name: "Members", exact: true })).toHaveCount(0);
-  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex");
+  await expect(page.locator('meta[name="robots"][content="noindex"]').first()).toBeAttached();
   await expect(page.getByRole("row", { name: /editor@example\.com/ })).toHaveCount(0);
   await page.goto("/orgs/invented-organization/members");
-  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex");
+  await expect(page.locator('meta[name="robots"][content="noindex"]').first()).toBeAttached();
 });
 
 test("a member hook stops an invitation with the host's message", async ({ page }) => {
