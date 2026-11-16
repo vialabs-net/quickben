@@ -4,6 +4,7 @@ import {
   Card,
   CardBody,
   CardHeader,
+  ListToolbar,
   Table,
   Td,
   Th,
@@ -19,6 +20,14 @@ import { deleteAction, saveCredentialAction, testCredentialAction } from "./acti
 import { CredentialForm } from "./credential-form";
 import { DeleteButton } from "./delete-button";
 import { describeProvider, kindLabel, kindOptions } from "./describe";
+import {
+  matchesFilter,
+  matchesSearch,
+  readFilters,
+  stateFilter,
+  stateOf,
+  stateValues,
+} from "./filters";
 import { connectionsMessages } from "./messages";
 import { DateTime, Detail, LastTestDetails, PageHeader, TestBadge } from "./shared";
 import { maskedSecret } from "./state";
@@ -45,7 +54,12 @@ function secretText(credential: CredentialRecord, t: ConnectionsT): string {
 
 /** The list of credentials, with how many connections use each one. */
 export function createCredentialsList(config: QuickbenConfig) {
-  return async function CredentialsList({ collection, basePath, i18n }: Readonly<ViewProps>) {
+  return async function CredentialsList({
+    collection,
+    basePath,
+    searchParams,
+    i18n,
+  }: Readonly<ViewProps>) {
     const { t } = i18n.scope(connectionsMessages);
     const { qb, ctx } = await load(config);
     const [credentials, connections] = await Promise.all([
@@ -57,7 +71,21 @@ export function createCredentialsList(config: QuickbenConfig) {
       if (connection.credential)
         uses.set(connection.credential, (uses.get(connection.credential) ?? 0) + 1);
     }
-    const docs = credentials.docs as unknown as CredentialRecord[];
+    const all = credentials.docs as unknown as CredentialRecord[];
+    const kinds = kindOptions(t);
+    const { q, filters } = readFilters(searchParams, {
+      kind: kinds.map((kind) => kind.kind),
+      use: ["used", "unused"],
+      state: stateValues,
+    });
+    const docs = all.filter(
+      (doc) =>
+        matchesSearch(doc.name, q) &&
+        matchesFilter(filters.kind, doc.kind) &&
+        matchesFilter(filters.use, uses.has(doc.id) ? "used" : "unused") &&
+        matchesFilter(filters.state, stateOf(doc.lastTest)),
+    );
+    const listHref = `${basePath}/${CREDENTIALS}`;
     return (
       <>
         <PageHeader
@@ -73,6 +101,31 @@ export function createCredentialsList(config: QuickbenConfig) {
           }
         />
         <Card>
+          <ListToolbar
+            action={listHref}
+            idPrefix={`qb-${CREDENTIALS}`}
+            search={{ label: t("filter.search"), value: q }}
+            filters={[
+              {
+                name: "filter.kind",
+                label: t("filter.kind"),
+                value: filters.kind,
+                options: kinds.map((kind) => ({ value: kind.kind, label: kind.label })),
+              },
+              {
+                name: "filter.use",
+                label: t("filter.use"),
+                value: filters.use,
+                options: [
+                  { value: "used", label: t("filter.inUse") },
+                  { value: "unused", label: t("credentials.unused") },
+                ],
+              },
+              stateFilter(filters.state, i18n),
+            ]}
+            clearHref={listHref}
+            i18n={i18n}
+          />
           <Table>
             <thead>
               <tr>
@@ -113,7 +166,7 @@ export function createCredentialsList(config: QuickbenConfig) {
                     colSpan={5}
                     className="qb:px-4 qb:py-12 qb:text-center qb:text-sm qb:text-fg-muted"
                   >
-                    {t("credentials.empty")}
+                    {all.length === 0 ? t("credentials.empty") : t("credentials.noMatches")}
                   </td>
                 </tr>
               ) : null}

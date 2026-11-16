@@ -35,7 +35,10 @@ function text(formData: FormData, name: string): string | undefined {
   return typeof value === "string" ? value.trim() : undefined;
 }
 
-/** `metadata.models.0.id` → the form field `metadata.models`, message `0.id: …`. */
+/**
+ * `metadata.models.0.id` → the form field `metadata.models`, message `0.id: …`. The row
+ * editor of the field reads the full path for the cell.
+ */
 function fieldOf(path: string, message: string): [string, string] {
   const parts = path.split(".");
   if (parts[0] !== "metadata" || parts.length <= 2) return [path, message];
@@ -48,6 +51,7 @@ function errorState(error: unknown): FormState {
     const fieldErrors: Record<string, string> = {};
     for (const issue of error.issues) {
       const [field, message] = fieldOf(issue.path, issue.message);
+      if (field !== issue.path) fieldErrors[issue.path] ??= issue.message;
       fieldErrors[field] ??= message;
     }
     const general = error.issues.find((issue) => issue.path === "");

@@ -1,3 +1,4 @@
+import { jsonSchemaRowColumns } from "@quickben/core";
 import { z } from "zod";
 
 import { CREDENTIAL_KINDS } from "../provider";
@@ -7,6 +8,7 @@ import { categoryKey, connectionsMessages, optionalMessage } from "./messages";
 import type { AnyProvider, CredentialKind, ProviderLogo } from "../provider";
 import type { ConnectionsT } from "./messages";
 import type { AdminI18n } from "@quickben/admin";
+import type { JsonRowColumn } from "@quickben/core";
 
 /** A metadata field of the connection form, derived from the provider's Zod schema. */
 export interface FieldView {
@@ -20,6 +22,11 @@ export interface FieldView {
   default: unknown;
   min: number | null;
   max: number | null;
+  /**
+   * Columns of a `json` field that holds a list of objects with primitive properties, edited
+   * as rows. Absent for other fields.
+   */
+  rows?: JsonRowColumn[];
 }
 
 /** What the admin shows of a provider. Plain data, so client components can take it. */
@@ -91,6 +98,7 @@ export function describeFields(schema: z.ZodType): FieldView[] {
     const node = raw.anyOf?.find((option) => option.type !== "null") ?? raw;
     const merged: JsonSchemaNode = { ...node, ...raw };
     const control = controlOf(node);
+    const rows = control === "json" ? jsonSchemaRowColumns(merged) : null;
     return {
       key,
       label: merged.title ?? humanize(key),
@@ -105,6 +113,7 @@ export function describeFields(schema: z.ZodType): FieldView[] {
       default: merged.default,
       min: node.minimum ?? null,
       max: node.maximum ?? null,
+      ...(rows ? { rows } : {}),
     };
   });
 }
@@ -112,8 +121,17 @@ export function describeFields(schema: z.ZodType): FieldView[] {
 /** A provider's field label and description from the catalog, else its own. */
 function localizeField(t: ConnectionsT, type: string, field: FieldView): FieldView {
   const prefix = `provider.${type}.field.${field.key}`;
+  const column = (key: string, fallback: string) =>
+    optionalMessage(
+      t,
+      `${prefix}.column.${key}`,
+      optionalMessage(t, `field.${field.key}.column.${key}`, fallback),
+    );
   return {
     ...field,
+    ...(field.rows
+      ? { rows: field.rows.map((c) => ({ ...c, label: column(c.key, c.label) })) }
+      : {}),
     label: optionalMessage(t, `${prefix}.label`, field.label),
     description:
       field.description === null

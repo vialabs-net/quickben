@@ -238,8 +238,9 @@ describe("connection views", () => {
     await testConnectionAction("/admin", ids.check!);
     await testConnectionAction("/admin", ids.claude!);
     await renderView("connections", "list", await viewProps(admin, "connections"));
-    expect(screen.getByText("Working")).toBeTruthy();
-    expect(screen.getByText("Failed")).toBeTruthy();
+    const table = screen.getByRole("table");
+    expect(within(table).getByText("Working")).toBeTruthy();
+    expect(within(table).getByText("Failed")).toBeTruthy();
     cleanup();
     await renderView(
       "connections",
@@ -310,6 +311,102 @@ describe("connection views", () => {
     );
     expect(screen.getByText(/is not registered/)).toBeTruthy();
     expect(screen.getByText("Read only")).toBeTruthy();
+  });
+});
+
+describe("list search and filters", () => {
+  const names = () =>
+    screen
+      .getAllByRole("row")
+      .slice(1)
+      .map((row) => within(row).queryAllByRole("link")[0]?.textContent ?? row.textContent);
+
+  it("filters connections by name, provider, enabled and state", async () => {
+    await qb.update("connections", ids.check!, { enabled: false }, system);
+    const list = async (searchParams: Record<string, string>) => {
+      cleanup();
+      await renderView(
+        "connections",
+        "list",
+        await viewProps(admin, "connections", { searchParams }),
+      );
+    };
+    await list({});
+    const search = screen.getByRole("search");
+    expect(within(search).getByLabelText("Search by name")).toBeTruthy();
+    expect(within(search).getByLabelText("Provider")).toBeTruthy();
+    expect(within(search).queryByRole("link", { name: "Clear" })).toBeNull();
+    await list({ q: "clau" });
+    expect(names()).toEqual(["Claude"]);
+    expect(screen.getByRole("link", { name: "Clear" }).getAttribute("href")).toBe(
+      "/admin/connections",
+    );
+    await list({ "filter.provider": "identity" });
+    expect(names()).toEqual(["ID"]);
+    await list({ "filter.enabled": "false" });
+    expect(names()).toEqual(["ID"]);
+    await list({ "filter.state": "untested", "filter.provider": "bogus" });
+    expect(names()).toEqual(["Claude", "ID"]);
+    await list({ q: "zzz" });
+    expect(screen.getByText("No connections match the search or filters.")).toBeTruthy();
+  });
+
+  it("filters credentials by name, kind, use and state", async () => {
+    const list = async (searchParams: Record<string, string>) => {
+      cleanup();
+      await renderView(
+        "credentials",
+        "list",
+        await viewProps(admin, "credentials", { searchParams }),
+      );
+    };
+    await list({ "filter.use": "unused" });
+    expect(names()).toEqual(["Spare"]);
+    await list({ "filter.use": "used", "filter.kind": "api_key", "filter.state": "untested" });
+    expect(names()).toEqual(["Main key"]);
+    await list({ q: "nothing" });
+    expect(screen.getByText("No credentials match the search or filters.")).toBeTruthy();
+  });
+});
+
+describe("models row editor", () => {
+  it("edits the models of an LLM connection as rows", async () => {
+    await qb.update(
+      "connections",
+      ids.claude!,
+      { metadata: { models: [{ id: "claude-haiku-4-5", vision: true, default: true }] } },
+      system,
+    );
+    await renderView(
+      "connections",
+      "edit",
+      await viewProps(admin, "connections", { id: ids.claude! }),
+    );
+    const group = screen.getByRole("group", { name: "Models" });
+    expect(within(group).getByRole("columnheader", { name: "Model id" })).toBeTruthy();
+    expect(within(group).getByRole("columnheader", { name: "Input USD / 1M tokens" })).toBeTruthy();
+    expect(within(group).getByLabelText("Model id, row 1")).toHaveProperty(
+      "value",
+      "claude-haiku-4-5",
+    );
+    fireEvent.click(within(group).getByRole("button", { name: "Add row" }));
+    fireEvent.change(within(group).getByLabelText("Model id, row 2"), {
+      target: { value: "claude-haiku-4-5" },
+    });
+    fireEvent.submit(screen.getByRole("button", { name: "Save changes" }).closest("form")!);
+    const cell = within(group).getByLabelText("Model id, row 2");
+    await waitFor(() => {
+      expect(cell.getAttribute("aria-invalid")).toBe("true");
+    });
+    expect(within(group).getByText("Duplicate model claude-haiku-4-5")).toBeTruthy();
+  });
+
+  it("describes list fields with row columns", () => {
+    const fields = describeFields(
+      z.object({ items: z.array(z.object({ id: z.string() })).default([]), raw: z.object({}) }),
+    );
+    expect(fields[0]?.rows?.map((column) => column.key)).toEqual(["id"]);
+    expect(fields[1]?.rows).toBeUndefined();
   });
 });
 
@@ -419,7 +516,10 @@ describe("actions", () => {
     );
     expect(state).toMatchObject({
       status: "error",
-      fieldErrors: { "metadata.models": expect.stringMatching(/^0\.id: /) as unknown },
+      fieldErrors: {
+        "metadata.models": expect.stringMatching(/^0\.id: /) as unknown,
+        "metadata.models.0.id": expect.any(String) as unknown,
+      },
     });
     await expect(
       saveConnectionAction("/admin", null, "nope", idle, form({ name: "x" })),

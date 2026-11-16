@@ -22,7 +22,7 @@ export function Heading({
   return (
     <header className="qbt:mb-6 qbt:flex qbt:flex-wrap qbt:items-start qbt:justify-between qbt:gap-4">
       <div className="qbt:min-w-0">
-        <h1 className="qbt:text-2xl qbt:font-semibold qbt:tracking-tight qbt:text-fg">{title}</h1>
+        <h1 className="qb-page-title qbt:tracking-tight qbt:text-fg">{title}</h1>
         {description ? (
           <p className="qbt:mt-1 qbt:text-sm qbt:text-fg-muted">{description}</p>
         ) : null}

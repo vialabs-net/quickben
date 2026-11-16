@@ -32,6 +32,12 @@
 /* Every semantic utility, so plugin pages can use them even where the admin does not. */
 @source inline("qb:{,hover:,focus:,disabled:,aria-invalid:}{bg,text,border,ring,divide,outline}-{surface,surface-muted,surface-strong,surface-stronger,fg,fg-muted,fg-subtle,line,line-soft,line-strong,accent,accent-hover,accent-fg,danger,danger-hover,danger-strong,danger-fg,danger-soft,danger-line,success,success-soft,success-line,warning,warning-soft,warning-line,info,info-soft,info-line,focus}");
 
+/*
+ * Utilities the admin no longer uses itself but plugin pages may (they were in earlier
+ * releases), and utilities only plugin pages use.
+ */
+@source inline("qb:min-w-56 qb:overflow-x-auto qb:p-5 qb:rounded-b-lg qb:gap-x-3 qb:gap-y-1 qb:basis-48");
+
 @theme inline {
   --color-surface: var(--qb-surface);
   --color-surface-muted: var(--qb-surface-muted);

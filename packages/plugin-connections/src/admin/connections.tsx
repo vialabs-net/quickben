@@ -4,6 +4,7 @@ import {
   Card,
   CardBody,
   CardHeader,
+  ListToolbar,
   Table,
   Td,
   Th,
@@ -20,6 +21,14 @@ import { deleteAction, saveConnectionAction, testConnectionAction } from "./acti
 import { ConnectionForm } from "./connection-form";
 import { DeleteButton } from "./delete-button";
 import { describeProvider } from "./describe";
+import {
+  matchesFilter,
+  matchesSearch,
+  readFilters,
+  stateFilter,
+  stateOf,
+  stateValues,
+} from "./filters";
 import { connectionsMessages } from "./messages";
 import {
   DateTime,
@@ -58,7 +67,12 @@ function credentialLabel(credential: Loaded["credential"], t: ConnectionsT): str
 
 /** The list of connections. */
 export function createConnectionsList(config: QuickbenConfig, key: string) {
-  return async function ConnectionsList({ collection, basePath, i18n }: Readonly<ViewProps>) {
+  return async function ConnectionsList({
+    collection,
+    basePath,
+    searchParams,
+    i18n,
+  }: Readonly<ViewProps>) {
     const { t } = i18n.scope(connectionsMessages);
     const { qb, ctx, options } = await load(config);
     const result = await qb.find(
@@ -66,7 +80,23 @@ export function createConnectionsList(config: QuickbenConfig, key: string) {
       { sort: ["name"], limit: 500, depth: 1 } as never,
       ctx,
     );
-    const docs = result.docs as unknown as Loaded[];
+    const all = result.docs as unknown as Loaded[];
+    const providers = [...options.providers.values()].map((provider) =>
+      describeProvider(provider, i18n),
+    );
+    const { q, filters } = readFilters(searchParams, {
+      provider: providers.map((provider) => provider.type),
+      enabled: ["true", "false"],
+      state: stateValues,
+    });
+    const docs = all.filter(
+      (doc) =>
+        matchesSearch(doc.name, q) &&
+        matchesFilter(filters.provider, doc.providerType) &&
+        matchesFilter(filters.enabled, String(doc.enabled)) &&
+        matchesFilter(filters.state, stateOf(doc.lastTest)),
+    );
+    const listHref = `${basePath}/${CONNECTIONS}`;
     const manage = collection.access.update;
     return (
       <>
@@ -81,6 +111,34 @@ export function createConnectionsList(config: QuickbenConfig, key: string) {
           }
         />
         <Card>
+          <ListToolbar
+            action={listHref}
+            idPrefix={`qb-${CONNECTIONS}`}
+            search={{ label: t("filter.search"), value: q }}
+            filters={[
+              {
+                name: "filter.provider",
+                label: t("filter.provider"),
+                value: filters.provider,
+                options: providers.map((provider) => ({
+                  value: provider.type,
+                  label: provider.label,
+                })),
+              },
+              {
+                name: "filter.enabled",
+                label: t("filter.enabled"),
+                value: filters.enabled,
+                options: [
+                  { value: "true", label: i18n.t("value.yes") },
+                  { value: "false", label: i18n.t("value.no") },
+                ],
+              },
+              stateFilter(filters.state, i18n),
+            ]}
+            clearHref={listHref}
+            i18n={i18n}
+          />
           <Table>
             <thead>
               <tr>
@@ -151,7 +209,7 @@ export function createConnectionsList(config: QuickbenConfig, key: string) {
                     colSpan={manage ? 6 : 5}
                     className="qb:px-4 qb:py-12 qb:text-center qb:text-sm qb:text-fg-muted"
                   >
-                    {t("list.empty")}
+                    {all.length === 0 ? t("list.empty") : t("list.noMatches")}
                   </td>
                 </tr>
               ) : null}

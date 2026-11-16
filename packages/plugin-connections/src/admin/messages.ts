@@ -8,7 +8,9 @@ import type { MessageKey } from "@quickben/admin/i18n";
  * `admin.messages` in the config: `{ es: { "connections.list.title": "Integraciones" } }`.
  *
  * Provider texts are optional keys: `provider.<type>.label`, `provider.<type>.description`,
- * `provider.<type>.field.<key>.label` and `provider.<type>.field.<key>.description`, and
+ * `provider.<type>.field.<key>.label` and `provider.<type>.field.<key>.description`, column
+ * labels of row-edited fields as `provider.<type>.field.<key>.column.<property>` (else
+ * `field.<key>.column.<property>`), and
  * `category.<slug>` for picker groups (`AI models` → `category.ai-models`). Without a key the
  * provider's own text is shown, so add overrides with those keys to translate a provider of
  * your own.
@@ -72,6 +74,22 @@ export const connectionsMessages = defineMessages("connections", {
     "kind.api_key": "API key",
     "kind.service_account_json": "Service account (JSON)",
     "kind.basic": "Username and password",
+    "field.models.column.id": "Model id",
+    "field.models.column.label": "Name",
+    "field.models.column.vision": "Vision",
+    "field.models.column.structuredOutput": "Structured output",
+    "field.models.column.inputPerMTokUsd": "Input USD / 1M tokens",
+    "field.models.column.outputPerMTokUsd": "Output USD / 1M tokens",
+    "field.models.column.default": "Default",
+    "filter.search": "Search by name",
+    "filter.provider": "Provider",
+    "filter.enabled": "Enabled",
+    "filter.state": "Status",
+    "filter.kind": "Kind",
+    "filter.use": "Use",
+    "filter.inUse": "In use",
+    "list.noMatches": "No connections match the search or filters.",
+    "credentials.noMatches": "No credentials match the search or filters.",
     "field.name": "Name",
     "field.baseUrl": "Base URL",
     "field.baseUrlHint": "Leave it empty to use the provider's URL.",
@@ -115,17 +133,17 @@ export const connectionsMessages = defineMessages("connections", {
     "provider.anthropic.description": "Claude models.",
     "provider.anthropic.field.models.label": "Models",
     "provider.anthropic.field.models.description":
-      'Models callers may use, e.g. [{ "id": "claude-haiku-4-5", "vision": true, "default": true }].',
+      "Models callers may use. One row per model; at most one is the default.",
     "provider.openai_compatible.label": "OpenAI or compatible",
     "provider.openai_compatible.description":
       "OpenAI or any gateway with its API (llmgateway, OpenRouter, DeepSeek, …).",
     "provider.openai_compatible.field.models.label": "Models",
     "provider.openai_compatible.field.models.description":
-      'Models callers may use, e.g. [{ "id": "claude-haiku-4-5", "vision": true, "default": true }].',
+      "Models callers may use. One row per model; at most one is the default.",
     "provider.google.description": "Gemini models with a Google AI Studio API key.",
     "provider.google.field.models.label": "Models",
     "provider.google.field.models.description":
-      'Models callers may use, e.g. [{ "id": "claude-haiku-4-5", "vision": true, "default": true }].',
+      "Models callers may use. One row per model; at most one is the default.",
     "provider.vertex.description":
       "Gemini in a Google Cloud project, with a service account or an API key.",
     "provider.vertex.field.project.label": "Project",
@@ -134,7 +152,7 @@ export const connectionsMessages = defineMessages("connections", {
     "provider.vertex.field.location.label": "Location",
     "provider.vertex.field.models.label": "Models",
     "provider.vertex.field.models.description":
-      'Models callers may use, e.g. [{ "id": "gemini-2.5-flash", "default": true }].',
+      "Models callers may use. One row per model; at most one is the default.",
     "provider.http.label": "HTTP API",
     "provider.http.description": "Any HTTP API with an API key or a username and password.",
     "provider.http.field.healthPath.label": "Test path",
@@ -204,6 +222,22 @@ export const connectionsMessages = defineMessages("connections", {
     "kind.api_key": "Clave de API",
     "kind.service_account_json": "Cuenta de servicio (JSON)",
     "kind.basic": "Usuario y contraseña",
+    "field.models.column.id": "Id del modelo",
+    "field.models.column.label": "Nombre",
+    "field.models.column.vision": "Visión",
+    "field.models.column.structuredOutput": "Salida estructurada",
+    "field.models.column.inputPerMTokUsd": "Entrada USD / 1M tokens",
+    "field.models.column.outputPerMTokUsd": "Salida USD / 1M tokens",
+    "field.models.column.default": "Predeterminado",
+    "filter.search": "Buscar por nombre",
+    "filter.provider": "Proveedor",
+    "filter.enabled": "Activada",
+    "filter.state": "Estado",
+    "filter.kind": "Tipo",
+    "filter.use": "Uso",
+    "filter.inUse": "En uso",
+    "list.noMatches": "Ninguna conexión coincide con la búsqueda o los filtros.",
+    "credentials.noMatches": "Ninguna credencial coincide con la búsqueda o los filtros.",
     "field.name": "Nombre",
     "field.baseUrl": "URL base",
     "field.baseUrlHint": "Déjala vacía para usar la URL del proveedor.",
@@ -247,17 +281,17 @@ export const connectionsMessages = defineMessages("connections", {
     "provider.anthropic.description": "Modelos Claude.",
     "provider.anthropic.field.models.label": "Modelos",
     "provider.anthropic.field.models.description":
-      'Modelos que pueden usar los clientes, p. ej. [{ "id": "claude-haiku-4-5", "vision": true, "default": true }].',
+      "Modelos que pueden usar los clientes. Una fila por modelo; como máximo uno es el predeterminado.",
     "provider.openai_compatible.label": "OpenAI o compatible",
     "provider.openai_compatible.description":
       "OpenAI o cualquier gateway con su API (llmgateway, OpenRouter, DeepSeek, …).",
     "provider.openai_compatible.field.models.label": "Modelos",
     "provider.openai_compatible.field.models.description":
-      'Modelos que pueden usar los clientes, p. ej. [{ "id": "claude-haiku-4-5", "vision": true, "default": true }].',
+      "Modelos que pueden usar los clientes. Una fila por modelo; como máximo uno es el predeterminado.",
     "provider.google.description": "Modelos Gemini con una clave de API de Google AI Studio.",
     "provider.google.field.models.label": "Modelos",
     "provider.google.field.models.description":
-      'Modelos que pueden usar los clientes, p. ej. [{ "id": "claude-haiku-4-5", "vision": true, "default": true }].',
+      "Modelos que pueden usar los clientes. Una fila por modelo; como máximo uno es el predeterminado.",
     "provider.vertex.description":
       "Gemini en un proyecto de Google Cloud, con una cuenta de servicio o una clave de API.",
     "provider.vertex.field.project.label": "Proyecto",
@@ -266,7 +300,7 @@ export const connectionsMessages = defineMessages("connections", {
     "provider.vertex.field.location.label": "Ubicación",
     "provider.vertex.field.models.label": "Modelos",
     "provider.vertex.field.models.description":
-      'Modelos que pueden usar los clientes, p. ej. [{ "id": "gemini-2.5-flash", "default": true }].',
+      "Modelos que pueden usar los clientes. Una fila por modelo; como máximo uno es el predeterminado.",
     "provider.http.label": "API HTTP",
     "provider.http.description":
       "Cualquier API HTTP con una clave de API o un usuario y contraseña.",
