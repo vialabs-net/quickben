@@ -59,8 +59,23 @@ test("edit the models of a connection as rows, in embedded mode", async ({ page 
   await expect(page.locator(".host-title h1").filter({ visible: true })).toHaveText(connectionName);
   const editUrl = new URL(page.url()).pathname;
 
+  // One header row: the provider mark beside the provider subtitle and the Test button.
+  const subtitle = page.getByText("Anthropic · AI models", { exact: true });
+  const test = page.getByRole("button", { name: "Test", exact: true });
+  const [subtitleBox, testBox] = [await subtitle.boundingBox(), await test.boundingBox()];
+  expect(
+    subtitleBox &&
+      testBox &&
+      Math.abs(subtitleBox.y + subtitleBox.height / 2 - (testBox.y + testBox.height / 2)),
+  ).toBeLessThan(4);
+
   // Stored in order, defaults filled.
   const saved = page.getByRole("group", { name: "Models" });
+  // Every column fits, the host's "Max pages" included: the editor does not scroll.
+  const scroll = saved.locator(".qb-table-scroll");
+  const widths = await scroll.evaluate((el) => [el.scrollWidth, el.clientWidth]);
+  expect(widths[0]).toBeLessThanOrEqual(widths[1]!);
+  await expect(saved.getByRole("columnheader", { name: "Max pages" })).toBeVisible();
   await expect(saved.getByLabel("Model id, row 1")).toHaveValue("claude-b");
   await expect(saved.getByLabel("Default, row 1")).toBeChecked();
   await expect(saved.getByLabel("Model id, row 2")).toHaveValue("claude-a");
