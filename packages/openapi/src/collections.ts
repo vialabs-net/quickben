@@ -59,7 +59,8 @@ export function collectionNames(slug: string): { one: string; many: string } {
 }
 
 function nullable(schema: JsonSchema): JsonSchema {
-  if (typeof schema.type !== "string") return { anyOf: [schema, { type: "null" }] };
+  if (typeof schema.type !== "string" || "const" in schema)
+    return { anyOf: [schema, { type: "null" }] };
   const withNull: JsonSchema = { ...schema, type: [schema.type, "null"] };
   if (Array.isArray(schema.enum)) withNull.enum = [...(schema.enum as unknown[]), null];
   return withNull;

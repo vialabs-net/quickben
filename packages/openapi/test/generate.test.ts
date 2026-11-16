@@ -94,6 +94,43 @@ describe("generateOpenApi", () => {
     }
   });
 
+  it("does not execute asynchronous input validators during generation", () => {
+    for (const body of [
+      z.preprocess(async (value) => {
+        await Promise.resolve();
+        return value;
+      }, z.string()),
+      z.unknown().refine(async () => {
+        await Promise.resolve();
+        return true;
+      }),
+    ]) {
+      const endpoint = defineEndpoint({
+        method: "POST",
+        path: "/async",
+        input: { body },
+        handler: () => ({ ok: true }),
+      });
+      expect(() => generateOpenApi(config([endpoint]))).not.toThrow();
+    }
+  });
+
+  it("allows null for optional literal JSON fields", async () => {
+    const item = defineCollection({
+      slug: "items",
+      api: { openapi: true },
+      fields: { state: fields.json({ schema: z.literal("ok") }) },
+    });
+    const cfg = defineConfig({ db: memoryAdapter(), collections: [item] });
+    const schemas = generateOpenApi(cfg).components?.schemas;
+    for (const name of ["Item", "ItemCreateInput", "ItemUpdateInput"]) {
+      const properties = schemas?.[name]?.properties as Record<string, unknown>;
+      expect(properties.state).toMatchObject({ anyOf: [{ const: "ok" }, { type: "null" }] });
+    }
+    const qb = await getQuickben(cfg);
+    expect((await qb.create("items", { state: null }, { user: { id: "u" } })).state).toBeNull();
+  });
+
   it("builds a valid OpenAPI 3.1 document", async () => {
     const doc = generateOpenApi(fixtureConfig());
     expect(doc.openapi).toBe("3.1.0");

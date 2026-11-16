@@ -1,4 +1,4 @@
-import { constraintChanges } from "./constraints";
+import { constraintChanges, textConstraints } from "./constraints";
 import { compareText, isObject } from "./schemas";
 
 import type {
@@ -470,7 +470,7 @@ function compareInner(
       seen,
     );
   }
-  if (isObject(b.items) && isObject(h.items)) {
+  if (isObject(b.items) || isObject(h.items)) {
     compareSchema(scope, { ...pair, base: b.items, head: h.items, at: `${pair.at}[]` }, seen);
   }
 }
@@ -481,6 +481,15 @@ function intersectProperties(previous: JsonSchema, item: JsonSchema): JsonSchema
     result[name] = Object.hasOwn(previous, name) ? { allOf: [previous[name], schema] } : schema;
   }
   return result;
+}
+
+function intersectScalar(key: string, previous: unknown, item: unknown): unknown {
+  if (key === "pattern")
+    return [...new Set([...textConstraints(previous), ...textConstraints(item)])];
+  if (key === "type" && [previous, item].every((type) => type === "number" || type === "integer"))
+    return "integer";
+  if (["title", "description", "$id"].includes(key)) return item;
+  throw new Error(`Cannot compare conflicting allOf constraint: ${key}`);
 }
 
 function intersectValue(key: string, previous: unknown, item: unknown): unknown {
@@ -500,8 +509,7 @@ function intersectValue(key: string, previous: unknown, item: unknown): unknown 
   ) {
     return key.includes("ax") ? Math.min(previous, item) : Math.max(previous, item);
   }
-  if (["title", "description", "$id"].includes(key)) return item;
-  throw new Error(`Cannot compare conflicting allOf constraint: ${key}`);
+  return intersectScalar(key, previous, item);
 }
 
 /** Flatten object intersections; repeated property constraints remain conjunctive. */
@@ -520,6 +528,59 @@ function intersection(doc: OpenApiDocument, value: unknown, seen = new Set<unkno
   return result;
 }
 
+function variantsOverlap(doc: OpenApiDocument, left: JsonSchema, right: JsonSchema): boolean {
+  const a = resolvePointer(doc, left) as JsonSchema;
+  const b = resolvePointer(doc, right) as JsonSchema;
+  const ae = enumOf(doc, a);
+  const be = enumOf(doc, b);
+  if (ae && be)
+    return ae.some((value) => be.some((other) => JSON.stringify(value) === JSON.stringify(other)));
+  const at = typesOf(doc, a);
+  const bt = typesOf(doc, b);
+  if (!at || !bt) return true;
+  const numeric = (type: string) => (type === "integer" ? "number" : type);
+  return [...at].some((type) => [...bt].some((other) => numeric(type) === numeric(other)));
+}
+
+function overlappingUnion(doc: OpenApiDocument, schema: JsonSchema): boolean {
+  const list = branches(schema) ?? [];
+  return list.some((variant, index) =>
+    list.slice(index + 1).some((other) => variantsOverlap(doc, variant, other)),
+  );
+}
+
+function compareLogic(scope: Scope, pair: SchemaPair, b: JsonSchema, h: JsonSchema): void {
+  const never = (schema: JsonSchema) =>
+    isObject(schema.not) && Object.keys(schema.not).length === 0;
+  if (never(b) !== never(h)) {
+    const narrowed = never(h);
+    add(
+      scope,
+      narrowed ? "narrowed-constraint" : "widened-constraint",
+      pair.direction === "request" ? narrowed : !narrowed,
+      `${pair.where} ${label(pair.at)} changed whether values are allowed`,
+    );
+  }
+  const baseExclusive = Array.isArray(b.oneOf);
+  const headExclusive = Array.isArray(h.oneOf);
+  if (!baseExclusive && !headExclusive) return;
+  const ordered = (schema: JsonSchema) =>
+    JSON.stringify(
+      (branches(schema) ?? []).map((branch) => JSON.stringify(branch)).sort(compareText),
+    );
+  if (baseExclusive === headExclusive && ordered(b) === ordered(h)) return;
+  if (!overlappingUnion(scope.base, b) && !overlappingUnion(scope.head, h)) return;
+  const narrowed = headExclusive;
+  const breaking =
+    baseExclusive === headExclusive || (pair.direction === "request" ? narrowed : !narrowed);
+  add(
+    scope,
+    narrowed ? "narrowed-constraint" : "widened-constraint",
+    breaking,
+    `${pair.where} ${label(pair.at)} changed union exclusivity`,
+  );
+}
+
 function compareSchema(scope: Scope, pair: SchemaPair, seen = new Set<string>()): void {
   const bRef = isObject(pair.base) && typeof pair.base.$ref === "string" ? pair.base.$ref : "";
   const hRef = isObject(pair.head) && typeof pair.head.$ref === "string" ? pair.head.$ref : "";
@@ -529,12 +590,13 @@ function compareSchema(scope: Scope, pair: SchemaPair, seen = new Set<string>())
     if (seen.has(visit)) return;
     seen.add(visit);
   }
-  const b = intersection(scope.base, pair.base);
-  const h = intersection(scope.head, pair.head);
+  const b = intersection(scope.base, pair.base ?? {});
+  const h = intersection(scope.head, pair.head ?? {});
   if (isObject(b) && isObject(h) && !compareTypes(scope, pair, b, h)) {
+    compareLogic(scope, pair, b, h);
     compareEnums(scope, pair, b, h);
-    const bInner = unwrap(scope.base, b);
-    const hInner = unwrap(scope.head, h);
+    const bInner = intersection(scope.base, unwrap(scope.base, b)) as JsonSchema;
+    const hInner = intersection(scope.head, unwrap(scope.head, h)) as JsonSchema;
     compareConstraints(scope, pair, bInner, hInner);
     compareInner(scope, pair, bInner, hInner, seen);
   }

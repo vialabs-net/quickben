@@ -56,19 +56,22 @@ function numericChange(b: JsonSchema, h: JsonSchema, upper: boolean): Constraint
   ];
 }
 
+/** Strings, including conjunctions of patterns used internally when flattening allOf. */
+export function textConstraints(value: unknown): string[] {
+  if (typeof value === "string") return [value];
+  return Array.isArray(value)
+    ? (value as unknown[]).filter((item): item is string => typeof item === "string")
+    : [];
+}
+
 function textChange(key: string, b: JsonSchema, h: JsonSchema): ConstraintChange[] {
-  const bv = b[key];
-  const hv = h[key];
-  if (bv === hv) return [];
-  const message = `${key} changed from ${JSON.stringify(bv ?? null)} to ${JSON.stringify(hv ?? null)}`;
-  // A changed pattern or format may reject old values and allow new ones.
-  if (typeof bv === "string" && typeof hv === "string") {
-    return [
-      { narrowed: true, message },
-      { narrowed: false, message },
-    ];
-  }
-  return [{ narrowed: typeof hv === "string", message }];
+  const before = textConstraints(b[key]);
+  const after = textConstraints(h[key]);
+  const message = `${key} changed from ${JSON.stringify(b[key] ?? null)} to ${JSON.stringify(h[key] ?? null)}`;
+  const changes: ConstraintChange[] = [];
+  if (after.some((item) => !before.includes(item))) changes.push({ narrowed: true, message });
+  if (before.some((item) => !after.includes(item))) changes.push({ narrowed: false, message });
+  return changes;
 }
 
 function multipleChanges(b: JsonSchema, h: JsonSchema): ConstraintChange[] {

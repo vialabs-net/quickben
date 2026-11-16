@@ -51,7 +51,9 @@ const object = (properties: Record<string, JsonSchema>, required: string[] = [])
 describe("diffOpenApi", () => {
   it("detects new required fields in generated referenced intersections", () => {
     const shared = z.object({ name: z.string() }).meta({ id: "IntersectionBody" });
-    const document = (required: boolean) =>
+    const body = (required: boolean) =>
+      z.intersection(shared, z.object({ extra: required ? z.string() : z.string().optional() }));
+    const document = (required: boolean, nullable = false) =>
       generateOpenApi(
         defineConfig({
           db: memoryAdapter(),
@@ -61,10 +63,7 @@ describe("diffOpenApi", () => {
               method: "POST",
               path: "/x",
               input: {
-                body: z.intersection(
-                  shared,
-                  z.object({ extra: required ? z.string() : z.string().optional() }),
-                ),
+                body: nullable ? body(required).nullable() : body(required),
               },
               handler: () => ({ ok: true }),
             }),
@@ -73,6 +72,8 @@ describe("diffOpenApi", () => {
       );
     expect(diffOpenApi(document(false), document(true)).breaking).toBeGreaterThan(0);
     expect(diffOpenApi(document(true), document(false)).breaking).toBe(0);
+    expect(diffOpenApi(document(false, true), document(true, true)).breaking).toBeGreaterThan(0);
+    expect(diffOpenApi(document(true, true), document(false, true)).breaking).toBe(0);
   });
 
   it("resolves nullable enum references in requests and responses", () => {
@@ -102,6 +103,68 @@ describe("diffOpenApi", () => {
       expect(diffOpenApi(withResponse(strict), withResponse(loose)).breaking).toBeGreaterThan(0);
       expect(diffOpenApi(withResponse(loose), withResponse(strict)).breaking).toBe(0);
     }
+  });
+
+  it("compares valid scalar intersections with themselves", () => {
+    for (const schema of [
+      { allOf: [{ type: "number" }, { type: "integer" }] },
+      {
+        allOf: [
+          { type: "string", pattern: "a" },
+          { type: "string", pattern: "b" },
+        ],
+      },
+    ])
+      expect(diffOpenApi(withBody(schema), withBody(schema)).breaking).toBe(0);
+    expect(
+      diffOpenApi(
+        withBody({ type: "string", pattern: "a" }),
+        withBody({
+          allOf: [
+            { type: "string", pattern: "a" },
+            { type: "string", pattern: "b" },
+          ],
+        }),
+      ).breaking,
+    ).toBeGreaterThan(0);
+  });
+
+  it("detects prohibited fields, exclusive unions and missing schemas", () => {
+    expect(
+      diffOpenApi(
+        withBody(object({ value: { type: "string" } })),
+        withBody(object({ value: { not: {} } })),
+      ).breaking,
+    ).toBeGreaterThan(0);
+    const variants = [
+      { type: "string", minLength: 1 },
+      { type: "string", maxLength: 5 },
+    ];
+    expect(
+      diffOpenApi(withBody({ anyOf: variants }), withBody({ oneOf: variants })).breaking,
+    ).toBeGreaterThan(0);
+    expect(
+      diffOpenApi(withResponse({ oneOf: variants }), withResponse({ anyOf: variants })).breaking,
+    ).toBeGreaterThan(0);
+    expect(
+      diffOpenApi(
+        withBody({ type: "array" }),
+        withBody({ type: "array", items: { type: "string" } }),
+      ).breaking,
+    ).toBeGreaterThan(0);
+    const disjoint = [
+      { type: "string", const: "a" },
+      { type: "string", const: "b" },
+    ];
+    expect(diffOpenApi(withBody({ anyOf: disjoint }), withBody({ oneOf: disjoint })).breaking).toBe(
+      0,
+    );
+    expect(
+      diffOpenApi(withBody({ oneOf: [variants[0]!] }), withBody({ oneOf: variants })).breaking,
+    ).toBeGreaterThan(0);
+    const without = withResponse({});
+    delete without.paths["/x"]!.get!.responses["200"]!.content!["application/json"]!.schema;
+    expect(diffOpenApi(withResponse({ type: "string" }), without).breaking).toBeGreaterThan(0);
   });
 
   it("finds no changes in the same document", () => {

@@ -126,7 +126,33 @@ function parameters(endpoint: AnyEndpoint, registry: SchemaRegistry): OpenApiPar
 
 /** A body schema that accepts `undefined` (optional or with a default) is not required. */
 function bodyRequired(schema: z.ZodType): boolean {
-  return !schema.safeParse(undefined).success;
+  if (schema._zod.optin !== undefined) return false;
+  const def = schema._zod.def as {
+    type: string;
+    options?: z.ZodType[];
+    in?: z.ZodType;
+    left?: z.ZodType;
+    right?: z.ZodType;
+  };
+  if (
+    [
+      "any",
+      "unknown",
+      "undefined",
+      "void",
+      "transform",
+      "optional",
+      "default",
+      "prefault",
+      "catch",
+    ].includes(def.type)
+  )
+    return false;
+  if (def.type === "union") return (def.options ?? []).every(bodyRequired);
+  if (def.type === "pipe" && def.in) return bodyRequired(def.in);
+  if (def.type === "intersection" && def.left && def.right)
+    return bodyRequired(def.left) || bodyRequired(def.right);
+  return true;
 }
 
 function successDescription(status: string): string {
