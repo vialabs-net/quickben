@@ -1,7 +1,9 @@
 import { extendCollection, humanize } from "./collection";
+import { assertEndpoints } from "./endpoints";
 import { ConfigError } from "./errors";
 import { defaultTimeZone, isTimeZone } from "./time";
 
+import type { AnyEndpoint } from "./endpoints";
 import type { FileField } from "./fields";
 import type {
   AnyCollection,
@@ -35,6 +37,7 @@ export function defineConfig<
     modules: [...(input.modules ?? [])],
     onInit: [],
     plugins: [],
+    endpoints: [...(input.endpoints ?? [])],
   };
   for (const plugin of input.plugins ?? []) {
     config = plugin(config);
@@ -45,6 +48,10 @@ export function defineConfig<
     sanitizeCollection(collection, timeZone),
   );
   assertConfig(collections, config.modules);
+  const endpoints = assertEndpoints(
+    config.endpoints ?? [],
+    new Set(collections.map((collection) => collection.slug)),
+  );
   return {
     db: config.db,
     storage: config.storage,
@@ -58,6 +65,7 @@ export function defineConfig<
     modules: config.modules,
     onInit: config.onInit,
     plugins: config.plugins,
+    endpoints,
     timeZone,
   };
 }
@@ -154,6 +162,8 @@ export interface PluginDefinition<
   modules?: readonly Module[];
   /** Runs once after the database is ready. */
   onInit?: InitHook;
+  /** Custom HTTP endpoints, added after the ones already in the config. */
+  endpoints?: readonly AnyEndpoint[];
 }
 
 /**
@@ -180,6 +190,7 @@ export function definePlugin<
       modules: [...config.modules, ...(definition.modules ?? [])],
       onInit: definition.onInit ? [...config.onInit, definition.onInit] : config.onInit,
       plugins: [...config.plugins, definition.name],
+      endpoints: [...(config.endpoints ?? []), ...(definition.endpoints ?? [])],
     };
   };
   return plugin;

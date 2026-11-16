@@ -1,0 +1,243 @@
+---
+title: Endpoints
+description: Custom HTTP endpoints with defineEndpoint, typed from Zod schemas, versioned, and served by Next.js or any Fetch API server.
+---
+
+# Endpoints
+
+The CRUD routes mirror your collections, so renaming a field changes the API. Use custom endpoints for APIs that mobile apps and other external clients depend on: operations such as "start purchase" or "sign document", with fixed input and output schemas.
+
+```ts filename="lib/endpoints.ts"
+import { defineEndpoint, reply } from "@quickben/core";
+import { z } from "zod";
+
+export const startPurchase = defineEndpoint({
+  method: "POST",
+  path: "/purchases/:id/start",
+  version: 1,
+  summary: "Start a purchase",
+  input: {
+    params: z.object({ id: z.string() }),
+    body: z.object({ amount: z.number().positive() }),
+  },
+  output: {
+    200: z.object({ id: z.string(), status: z.literal("started") }),
+    409: z.object({ reason: z.string() }),
+  },
+  access: ({ user }) => user?.roles?.includes("buyer") ?? false,
+  transactional: true,
+  handler: async ({ input, qb, ctx }) => {
+    const purchase = await qb.findById("purchases", input.params.id, {}, ctx);
+    if (purchase.status !== "draft") return reply(409, { reason: "Already started" });
+    await qb.update(
+      "purchases",
+      purchase.id,
+      { status: "started", amount: input.body.amount },
+      ctx,
+    );
+    return reply(200, { id: purchase.id, status: "started" as const });
+  },
+});
+```
+
+```ts filename="quickben.config.ts"
+import { defineCollection, defineConfig, devAuth, fields as f } from "@quickben/core";
+import { memoryAdapter } from "@quickben/db-memory";
+
+import { startPurchase } from "./lib/endpoints";
+
+export const purchases = defineCollection({
+  slug: "purchases",
+  fields: {
+    status: f.select({ options: ["draft", "started"], required: true, default: "draft" }),
+    amount: f.number(),
+  },
+});
+
+export default defineConfig({
+  db: memoryAdapter(),
+  collections: [purchases],
+  auth: devAuth(),
+  endpoints: [startPurchase],
+});
+```
+
+With the [route handlers](/docs/nextjs/route-handlers) this is `POST /api/v1/purchases/:id/start`.
+
+## Options
+
+| Option                           | Default             | Purpose                                                                        |
+| -------------------------------- | ------------------- | ------------------------------------------------------------------------------ |
+| `method`                         | required            | `GET`, `POST`, `PUT`, `PATCH` or `DELETE`.                                     |
+| `path`                           | required            | Path below the API base path, with `:name` parameters: `/purchases/:id/start`. |
+| `version`                        | none                | `1` mounts the endpoint under `/v1`. Several versions of one path can exist.   |
+| `input`                          | `{}`                | Zod schemas: `params`, `query`, `body`.                                        |
+| `output`                         | none                | One Zod schema, or one per status: `{ 200: …, 404: … }`.                       |
+| `access`                         | authenticated users | `true`, `false`, or `({ user, req, ctx, qb, endpoint }) => boolean`.           |
+| `transactional`                  | `false`             | Run the handler in `qb.transaction`. A thrown error rolls back.                |
+| `deprecated`                     | none                | `true` or a date. Sets the `Deprecation` header.                               |
+| `sunset`                         | none                | A date. Sets the `Sunset` header.                                              |
+| `validateOutput`                 | not in production   | Validate the result against `output`.                                          |
+| `maxBodyBytes`                   | 1 MB                | Largest JSON body. Larger bodies get `413`.                                    |
+| `summary`, `description`, `tags` | none                | Documentation of the endpoint.                                                 |
+
+Plugins add endpoints with `definePlugin({ endpoints })`.
+
+## Types
+
+Types are inferred from the schemas. The handler gets `{ input, qb, ctx, user, req }`.
+
+| Part           | Type                                                                      |
+| -------------- | ------------------------------------------------------------------------- |
+| `input.params` | Output of `params`, or `{ id: string }` from the `:id` names of the path. |
+| `input.query`  | Output of `query`, or `Record<string, string \| string[]>`.               |
+| `input.body`   | Output of `body`, or `undefined` (the body is not read).                  |
+| Return value   | The output type of `output`, a reply, or a `Response`.                    |
+
+`qb` is untyped by default. `endpointFactory<Registry>()` returns a `defineEndpoint` with a typed `qb`:
+
+```ts
+import { endpointFactory } from "@quickben/core";
+import type { ConfigRegistry } from "@quickben/core";
+import type { posts, tags } from "../collections";
+
+const defineEndpoint = endpointFactory<ConfigRegistry<typeof posts | typeof tags, never>>();
+```
+
+## Results
+
+| Handler returns                               | Response                                                                         |
+| --------------------------------------------- | -------------------------------------------------------------------------------- |
+| A value                                       | `200` JSON. `undefined` is `204`.                                                |
+| `reply(status, body, headers?)`               | That status, JSON body and headers. `204` has no body.                           |
+| `{ status, body, headers }` (only these keys) | Same as `reply`. In async handlers write `status: 201 as const`, or use `reply`. |
+| A `Response`                                  | Sent as is, for files and streams. Not validated.                                |
+
+JSON responses have `Cache-Control: private, no-store` unless `headers` sets it.
+
+## Request handling
+
+Steps run in this order:
+
+1. Match the path. Static segments win over parameters. A known path with another method gets `405` with `Allow`. `HEAD` runs the `GET` endpoint and drops the body.
+2. Resolve the user with `config.auth`.
+3. Check CSRF for authenticated `POST`, `PUT`, `PATCH`, `DELETE` requests carrying cookies. Header-only credentials skip it.
+4. Access rule. `false` is `401` without a user and `403` with one.
+5. Validate `params`, `query` and `body`. Issues have paths such as `body.amount`.
+6. Run the handler.
+7. Validate the result against `output` (not in production unless `validateOutput: true`). A mismatch is logged and returns `500 INTERNAL`. With `transactional`, it also rolls back. The result is sent unchanged: Zod transforms and defaults in `output` do not apply.
+
+Errors have the [route handler shape](/docs/nextjs/route-handlers#errors): `{ error: { code, message, details } }`. Thrown `QuickbenError`s and `HttpError`s keep their status. Other errors are `500 INTERNAL`.
+
+## Versions and paths
+
+| Rule                                                       | Example                         |
+| ---------------------------------------------------------- | ------------------------------- |
+| `version: N` mounts under `/vN`                            | `/api/v2/orders/:id`            |
+| Method + mounted path must be unique                       | `/o/:id` and `/o/:key` conflict |
+| Unversioned paths cannot start with `_`, `:` or `vN`       | `/_meta`, `/v1/x` are refused   |
+| No endpoint path may start with a collection slug          | `/posts/count` is refused       |
+| Parameters: letters, digits, `_`; static segments: `\w.~-` | `/files/:file_id/v2.json`       |
+
+Unversioned endpoints are for your own front end. Give external clients versioned endpoints only. To retire a version, set `deprecated` and `sunset` and add the next version beside it.
+
+## Mobile app with Firebase Bearer tokens
+
+Turn on `bearer` in [`@quickben/auth-firebase`](/docs/auth/firebase). Browsers use the session cookie; the app sends the Firebase ID token.
+
+```ts filename="lib/auth.ts"
+import { firebaseAuth } from "@quickben/auth-firebase";
+
+export const firebase = firebaseAuth({ bearer: true });
+```
+
+```ts nocheck
+const idToken = await auth.currentUser.getIdToken();
+const res = await fetch("https://example.com/api/v1/purchases/p1/start", {
+  method: "POST",
+  headers: { authorization: `Bearer ${idToken}`, "content-type": "application/json" },
+  body: JSON.stringify({ amount: 100 }),
+});
+```
+
+Bearer requests without cookies skip the `Origin` check. Requests carrying cookies keep the check even with an `Authorization` header, because an auth adapter may prefer the session cookie.
+
+## Other servers
+
+`handleEndpointRequest(config, request, options)` from `@quickben/core/http` takes a Fetch API `Request`. It resolves `null` when no endpoint path matches.
+
+| Option           | Default           | Purpose                                                 |
+| ---------------- | ----------------- | ------------------------------------------------------- |
+| `basePath`       | `/api`            | URL path the API is mounted at. `/` for the root.       |
+| `csrf`           | `{}`              | `{ trustedOrigins }`, or `false` to turn the check off. |
+| `maxBodyBytes`   | `1048576` (1 MB)  | Largest JSON body.                                      |
+| `validateOutput` | not in production | Validate results.                                       |
+
+**Fastify**
+
+```ts nocheck filename="fastify.ts"
+import { Readable } from "node:stream";
+import Fastify from "fastify";
+import { handleEndpointRequest } from "@quickben/core/http";
+
+import config from "./quickben.config";
+
+const app = Fastify();
+// Keep the raw body: Quickben reads and validates it.
+app.removeAllContentTypeParsers();
+app.addContentTypeParser("*", (_req, payload, done) => done(null, payload));
+
+app.all("/api/*", async (req, res) => {
+  const headers = new Headers();
+  for (const [name, value] of Object.entries(req.headers)) {
+    if (typeof value === "string") headers.set(name, value);
+  }
+  const hasBody = req.method !== "GET" && req.method !== "HEAD";
+  const request = new Request(`${req.protocol}://${req.host}${req.url}`, {
+    method: req.method,
+    headers,
+    body: hasBody ? (Readable.toWeb(req.raw) as ReadableStream) : undefined,
+    duplex: "half",
+  } as RequestInit);
+  const response = await handleEndpointRequest(config, request);
+  if (!response) return res.status(404).send({ error: { code: "NOT_FOUND" } });
+  res.status(response.status).headers(Object.fromEntries(response.headers));
+  return res.send(response.body ? Buffer.from(await response.arrayBuffer()) : null);
+});
+
+await app.listen({ port: 3000 });
+```
+
+**Plain Node server**
+
+```ts filename="node-server.ts"
+import { createServer } from "node:http";
+import { Readable } from "node:stream";
+import { handleEndpointRequest } from "@quickben/core/http";
+
+import config from "./quickben.config";
+
+createServer(async (req, res) => {
+  const headers = new Headers();
+  for (const [name, value] of Object.entries(req.headers)) {
+    if (typeof value === "string") headers.set(name, value);
+  }
+  const hasBody = req.method !== "GET" && req.method !== "HEAD";
+  const request = new Request(`http://${req.headers.host}${req.url}`, {
+    method: req.method,
+    headers,
+    body: hasBody ? (Readable.toWeb(req) as ReadableStream) : undefined,
+    duplex: "half",
+  } as RequestInit);
+  const response = await handleEndpointRequest(config, request);
+  if (!response) {
+    res.writeHead(404).end();
+    return;
+  }
+  res.writeHead(response.status, Object.fromEntries(response.headers));
+  if (response.body) Readable.fromWeb(response.body as never).pipe(res);
+  else res.end();
+}).listen(3000);
+```
+
+Behind a proxy, build the URL from `X-Forwarded-Proto` and `X-Forwarded-Host` so the CSRF check sees the public host.

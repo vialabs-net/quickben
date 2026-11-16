@@ -1,6 +1,6 @@
-import { ConflictError, ForbiddenError, QuickbenError, ValidationError } from "@quickben/core";
+import { ConflictError, ForbiddenError, QuickbenError, ValidationError } from "../errors";
 
-import type { ErrorCode } from "@quickben/core";
+import type { ErrorCode } from "../errors";
 
 /** Codes in error responses: the core codes plus a few that only exist at the HTTP layer. */
 export type HttpErrorCode =

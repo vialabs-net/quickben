@@ -2,6 +2,7 @@ export { checkAccess, checkFieldAccess } from "./access";
 export { devAuth } from "./auth";
 export { defineCollection, extendCollection } from "./collection";
 export { defineConfig, definePlugin } from "./config";
+export { defineEndpoint, endpointFactory, reply } from "./endpoints";
 export {
   ConfigError,
   ConflictError,
@@ -60,6 +61,21 @@ export type {
 } from "./adapter";
 export type { AuthAdapter, DevAuthOptions, QuickbenUser } from "./auth";
 export type { PluginDefinition } from "./config";
+export type {
+  AnyEndpoint,
+  Endpoint,
+  EndpointAccess,
+  EndpointAccessArgs,
+  EndpointDefinition,
+  EndpointHandlerArgs,
+  EndpointInputOf,
+  EndpointInputSchemas,
+  EndpointMethod,
+  EndpointOutput,
+  EndpointReply,
+  EndpointResultOf,
+  PathParams,
+} from "./endpoints";
 export type { ErrorCode, ForbiddenErrorOptions, ValidationIssue } from "./errors";
 export type { LocaleFromRequestOptions, LocalizedText } from "./localize";
 export type {
