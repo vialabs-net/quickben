@@ -21,6 +21,7 @@ import type { CommitQueue, OperationScope } from "./documents";
 import type {
   FindResult,
   HookArgs,
+  JoinedTransaction,
   Quickben,
   QuickbenConfig,
   Registry,
@@ -578,6 +579,21 @@ function buildApi(
     await runCommitTasks(queue);
     return result;
   };
+  /** The local API over an adapter bound to a transaction the host opened and settles. */
+  const joinTransaction = (bound: DatabaseAdapter): JoinedTransaction => {
+    const queue: CommitQueue = { root: commit?.root ?? qb, tasks: [], rollback: [] };
+    let settled = false;
+    const settle = async (tasks: (() => Promise<void>)[], message: string) => {
+      if (settled) return;
+      settled = true;
+      await runTasks(tasks, message);
+    };
+    return {
+      qb: buildApi(config, collections, bound, queue),
+      committed: () => settle(queue.tasks, "afterCommit hook failed"),
+      rolledBack: () => settle(queue.rollback, "Removing a stored file failed"),
+    };
+  };
   const write = async <T>(ctx: RequestContext, fn: (scope: OperationScope) => Promise<T>) => {
     const context = assertContext(ctx);
     return inTransaction((tx, queue) =>
@@ -605,6 +621,7 @@ function buildApi(
     delete: (slug: string, id: string, ctx: RequestContext) =>
       write(ctx, (s) => remove(s, slug, id)),
     transaction: <T>(fn: (qb: Quickben) => Promise<T>) => inTransaction((tx) => fn(tx)),
+    withTransaction: (bound: DatabaseAdapter) => joinTransaction(bound),
     readFile: async (slug: string, id: string, field: string, ctx: RequestContext) =>
       readFile(scope(ctx), slug, id, field),
   };
