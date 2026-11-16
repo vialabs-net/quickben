@@ -22,8 +22,9 @@ import { ConnectionForm } from "./connection-form";
 import { DeleteButton } from "./delete-button";
 import { describeProvider } from "./describe";
 import {
+  isFiltered,
+  listWhere,
   matchesFilter,
-  matchesSearch,
   readFilters,
   stateFilter,
   stateOf,
@@ -75,12 +76,6 @@ export function createConnectionsList(config: QuickbenConfig, key: string) {
   }: Readonly<ViewProps>) {
     const { t } = i18n.scope(connectionsMessages);
     const { qb, ctx, options } = await load(config);
-    const result = await qb.find(
-      CONNECTIONS,
-      { sort: ["name"], limit: 500, depth: 1 } as never,
-      ctx,
-    );
-    const all = result.docs as unknown as Loaded[];
     const providers = [...options.providers.values()].map((provider) =>
       describeProvider(provider, i18n),
     );
@@ -89,12 +84,18 @@ export function createConnectionsList(config: QuickbenConfig, key: string) {
       enabled: ["true", "false"],
       state: stateValues,
     });
-    const docs = all.filter(
-      (doc) =>
-        matchesSearch(doc.name, q) &&
-        matchesFilter(filters.provider, doc.providerType) &&
-        matchesFilter(filters.enabled, String(doc.enabled)) &&
-        matchesFilter(filters.state, stateOf(doc.lastTest)),
+    const where = listWhere(q, {
+      providerType: filters.provider === "" ? null : filters.provider,
+      enabled: filters.enabled === "" ? null : filters.enabled === "true",
+    });
+    const result = await qb.find(
+      CONNECTIONS,
+      { ...where, sort: ["name"], limit: 500, depth: 1 } as never,
+      ctx,
+    );
+    // The state comes from the last test, so it is filtered here.
+    const docs = (result.docs as unknown as Loaded[]).filter((doc) =>
+      matchesFilter(filters.state, stateOf(doc.lastTest)),
     );
     const listHref = `${basePath}/${CONNECTIONS}`;
     const manage = collection.access.update;
@@ -209,7 +210,7 @@ export function createConnectionsList(config: QuickbenConfig, key: string) {
                     colSpan={manage ? 6 : 5}
                     className="qb:px-4 qb:py-12 qb:text-center qb:text-sm qb:text-fg-muted"
                   >
-                    {all.length === 0 ? t("list.empty") : t("list.noMatches")}
+                    {isFiltered(q, filters) ? t("list.noMatches") : t("list.empty")}
                   </td>
                 </tr>
               ) : null}

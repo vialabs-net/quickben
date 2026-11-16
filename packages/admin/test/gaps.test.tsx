@@ -87,7 +87,7 @@ describe("RowsEditor", () => {
     expect(screen.getByRole("group", { name: "Models" })).toBeTruthy();
     expect(hiddenValue(container)).toEqual([
       { id: "a", price: 1, vision: true, tier: "fast", extra: "kept" },
-      { id: "b", vision: false },
+      { id: "b" },
     ]);
     fireEvent.change(screen.getByLabelText("Price, row 2"), { target: { value: "2.5" } });
     fireEvent.change(screen.getByLabelText("Pages, row 2"), { target: { value: "3" } });
@@ -95,7 +95,7 @@ describe("RowsEditor", () => {
     fireEvent.change(screen.getByLabelText("Tier, row 2"), { target: { value: "smart" } });
     expect(hiddenValue(container)).toEqual([
       { id: "a", price: 1, vision: false, tier: "fast", extra: "kept" },
-      { id: "b", price: 2.5, pages: 3, vision: false, tier: "smart" },
+      { id: "b", price: 2.5, pages: 3, tier: "smart" },
     ]);
 
     fireEvent.click(screen.getByRole("button", { name: "Move row 2 up" }));
@@ -140,7 +140,7 @@ describe("RowsEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Edit as JSON" }));
     const textarea = container.querySelector("textarea")!;
     expect(textarea.name).toBe("models");
-    expect(JSON.parse(textarea.value)).toEqual([{ id: "a", vision: false }]);
+    expect(JSON.parse(textarea.value)).toEqual([{ id: "a" }]);
 
     fireEvent.change(textarea, { target: { value: '{"not": "rows"}' } });
     fireEvent.click(screen.getByRole("button", { name: "Edit as JSON" }));
@@ -154,12 +154,57 @@ describe("RowsEditor", () => {
       target: { value: '[{"id": "z", "price": 3}]' },
     });
     fireEvent.click(screen.getByRole("button", { name: "Edit as JSON" }));
-    expect(hiddenValue(container)).toEqual([{ id: "z", price: 3, vision: false }]);
+    expect(hiddenValue(container)).toEqual([{ id: "z", price: 3 }]);
 
     fireEvent.click(screen.getByRole("button", { name: "Edit as JSON" }));
     fireEvent.change(container.querySelector("textarea")!, { target: { value: "  " } });
     fireEvent.click(screen.getByRole("button", { name: "Edit as JSON" }));
     expect(screen.getByText("No rows yet.")).toBeTruthy();
+  });
+
+  it("keeps stored values of cells that were not edited", () => {
+    const { container } = renderRows([
+      { id: "a", tier: null, price: null },
+      { id: "b", vision: null },
+    ]);
+    expect(hiddenValue(container)).toEqual([
+      { id: "a", tier: null, price: null },
+      { id: "b", vision: null },
+    ]);
+    fireEvent.change(screen.getByLabelText("Price, row 1"), { target: { value: "5" } });
+    fireEvent.change(screen.getByLabelText("Price, row 1"), { target: { value: "" } });
+    expect(hiddenValue(container)).toEqual([
+      { id: "a", tier: null },
+      { id: "b", vision: null },
+    ]);
+  });
+
+  it("keeps an empty list as [] in the JSON editor", () => {
+    const { container } = renderRows([]);
+    expect(hiddenValue(container)).toEqual([]);
+    fireEvent.click(screen.getByRole("button", { name: "Edit as JSON" }));
+    const textarea = container.querySelector("textarea")!;
+    expect(textarea.value).toBe("[]");
+    expect(textarea.getAttribute("aria-labelledby")).toBe("models-label");
+  });
+
+  it("asks for text only when the schema needs a minimum length", () => {
+    renderRows([{ id: "a", note: "" }], {
+      columns: [
+        ...columns,
+        { key: "note", label: "Note", description: null, type: "text", required: true },
+        {
+          key: "code",
+          label: "Code",
+          description: null,
+          type: "text",
+          required: true,
+          minLength: 2,
+        },
+      ],
+    });
+    expect(screen.getByLabelText("Note, row 1")).toHaveProperty("required", false);
+    expect(screen.getByLabelText("Code, row 1")).toHaveProperty("required", true);
   });
 
   it("opens values that are not rows as JSON", () => {

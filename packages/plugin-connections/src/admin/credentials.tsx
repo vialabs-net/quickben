@@ -21,8 +21,9 @@ import { CredentialForm } from "./credential-form";
 import { DeleteButton } from "./delete-button";
 import { describeProvider, kindLabel, kindOptions } from "./describe";
 import {
+  isFiltered,
+  listWhere,
   matchesFilter,
-  matchesSearch,
   readFilters,
   stateFilter,
   stateOf,
@@ -62,8 +63,15 @@ export function createCredentialsList(config: QuickbenConfig) {
   }: Readonly<ViewProps>) {
     const { t } = i18n.scope(connectionsMessages);
     const { qb, ctx } = await load(config);
+    const kinds = kindOptions(t);
+    const { q, filters } = readFilters(searchParams, {
+      kind: kinds.map((kind) => kind.kind),
+      use: ["used", "unused"],
+      state: stateValues,
+    });
+    const where = listWhere(q, { kind: filters.kind === "" ? null : filters.kind });
     const [credentials, connections] = await Promise.all([
-      qb.find(CREDENTIALS, { sort: ["name"], limit: 500 }, ctx),
+      qb.find(CREDENTIALS, { ...where, sort: ["name"], limit: 500 } as never, ctx),
       qb.find(CONNECTIONS, { select: ["credential"], limit: 1000 } as never, ctx),
     ]);
     const uses = new Map<string, number>();
@@ -71,17 +79,9 @@ export function createCredentialsList(config: QuickbenConfig) {
       if (connection.credential)
         uses.set(connection.credential, (uses.get(connection.credential) ?? 0) + 1);
     }
-    const all = credentials.docs as unknown as CredentialRecord[];
-    const kinds = kindOptions(t);
-    const { q, filters } = readFilters(searchParams, {
-      kind: kinds.map((kind) => kind.kind),
-      use: ["used", "unused"],
-      state: stateValues,
-    });
-    const docs = all.filter(
+    // Use and state are not stored on the credential, so they are filtered here.
+    const docs = (credentials.docs as unknown as CredentialRecord[]).filter(
       (doc) =>
-        matchesSearch(doc.name, q) &&
-        matchesFilter(filters.kind, doc.kind) &&
         matchesFilter(filters.use, uses.has(doc.id) ? "used" : "unused") &&
         matchesFilter(filters.state, stateOf(doc.lastTest)),
     );
@@ -166,7 +166,7 @@ export function createCredentialsList(config: QuickbenConfig) {
                     colSpan={5}
                     className="qb:px-4 qb:py-12 qb:text-center qb:text-sm qb:text-fg-muted"
                   >
-                    {all.length === 0 ? t("credentials.empty") : t("credentials.noMatches")}
+                    {isFiltered(q, filters) ? t("credentials.noMatches") : t("credentials.empty")}
                   </td>
                 </tr>
               ) : null}

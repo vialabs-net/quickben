@@ -44,8 +44,10 @@ interface Row {
   uid: number;
   /** Text of each cell input. Checkboxes are `"true"` or `""`. */
   cells: Record<string, string>;
-  /** Properties without a column, kept as they are. */
-  rest: Record<string, unknown>;
+  /** The object the row was read from. Cells the user did not edit keep its values. */
+  original: Record<string, unknown>;
+  /** Keys of the cells the user edited. Every cell of a new row counts as edited. */
+  edited: ReadonlySet<string>;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -76,25 +78,34 @@ function parseObjects(text: string): Record<string, unknown>[] | null {
 
 let nextUid = 0;
 
-function toRow(columns: readonly JsonRowColumn[], object: Record<string, unknown>): Row {
-  const keys = new Set(columns.map((column) => column.key));
+function toRow(
+  columns: readonly JsonRowColumn[],
+  object: Record<string, unknown>,
+  isNew = false,
+): Row {
   nextUid += 1;
   return {
     uid: nextUid,
     cells: Object.fromEntries(
       columns.map((column) => [column.key, cellOf(column, object[column.key])]),
     ),
-    rest: Object.fromEntries(Object.entries(object).filter(([key]) => !keys.has(key))),
+    original: object,
+    edited: new Set(isNew ? columns.map((column) => column.key) : []),
   };
 }
 
 /**
- * The object of a row. Empty optional cells are left out, so schema defaults apply. Numbers
- * that do not parse stay text, so the schema reports them.
+ * The object of a row: the original object, with the edited cells written over it. Empty
+ * optional cells are left out, so schema defaults apply. Numbers that do not parse stay
+ * text, so the schema reports them. Cells that were not edited keep their stored value
+ * (`null`, a missing key, …) as it was.
  */
 function toObject(columns: readonly JsonRowColumn[], row: Row): Record<string, unknown> {
-  const object: Record<string, unknown> = { ...row.rest };
+  const object: Record<string, unknown> = Object.fromEntries(
+    Object.entries(row.original).filter(([key]) => !row.edited.has(key)),
+  );
   for (const column of columns) {
+    if (!row.edited.has(column.key)) continue;
     const cell = row.cells[column.key];
     if (column.type === "boolean") {
       object[column.key] = cell === "true";
@@ -193,7 +204,8 @@ function CellInput({
           type="text"
           minLength={column.minLength}
           maxLength={column.maxLength}
-          required={column.required}
+          // A required property may still be an empty string; only a minimum length needs text.
+          required={(column.minLength ?? 0) > 0}
           value={value}
           className="qb:min-w-40"
           onChange={(event) => {
@@ -258,7 +270,9 @@ export function RowsEditor({
   const update = (uid: number, key: string, value: string) => {
     setRows((current) =>
       current.map((row) =>
-        row.uid === uid ? { ...row, cells: { ...row.cells, [key]: value } } : row,
+        row.uid === uid
+          ? { ...row, cells: { ...row.cells, [key]: value }, edited: new Set([...row.edited, key]) }
+          : row,
       ),
     );
   };
@@ -277,7 +291,7 @@ export function RowsEditor({
   const add = () => {
     const first = columns[0];
     if (first) focusNext.current = cellId(rows.length, first.key);
-    restructure([...rows, toRow(columns, {})]);
+    restructure([...rows, toRow(columns, {}, true)]);
   };
   const remove = (index: number) => {
     focusNext.current = `${id}-add`;
@@ -285,9 +299,10 @@ export function RowsEditor({
   };
 
   const toJson = () => {
+    // An empty list stays `[]` (or empty when the field had no value), as on submit.
     setJsonText(
       rows.length === 0
-        ? ""
+        ? empty
         : JSON.stringify(
             rows.map((row) => toObject(columns, row)),
             null,
@@ -331,6 +346,7 @@ export function RowsEditor({
           defaultValue={jsonText}
           required={required}
           disabled={disabled}
+          labelledBy={labelledBy}
           describedBy={jsonProblem ? `${describedBy} ${id}-rows` : describedBy}
         />
         <div className="qb:flex qb:flex-wrap qb:items-center qb:justify-between qb:gap-3">

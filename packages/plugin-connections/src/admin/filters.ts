@@ -25,9 +25,25 @@ export function readFilters<K extends string>(
   return { q: first(searchParams.q), filters };
 }
 
-/** Whether `name` contains the search text, ignoring case. */
-export function matchesSearch(name: string, q: string): boolean {
-  return q === "" || name.toLocaleLowerCase().includes(q.toLocaleLowerCase());
+/**
+ * The `where` of a list query: `name` contains the search text, and each set field filter
+ * equals its value. Filtering in the query, before the limit, finds rows beyond the first page.
+ */
+export function listWhere(
+  q: string,
+  equals: Readonly<Record<string, string | boolean | null>>,
+): { where?: { and: Record<string, unknown>[] } } {
+  const conditions: Record<string, unknown>[] = [];
+  if (q !== "") conditions.push({ name: { contains: q } });
+  for (const [field, value] of Object.entries(equals)) {
+    if (value !== null) conditions.push({ [field]: { eq: value } });
+  }
+  return conditions.length > 0 ? { where: { and: conditions } } : {};
+}
+
+/** Whether search or any filter is set. */
+export function isFiltered(q: string, filters: Readonly<Record<string, string>>): boolean {
+  return q !== "" || Object.values(filters).some((value) => value !== "");
 }
 
 /** Whether a filter value is unset or equals `value`. */
