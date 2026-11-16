@@ -229,9 +229,7 @@ type SplitName = (typeof SPLIT_NAMES)[number];
 export function splitsFromForm(formData: FormData): SplitName[] {
   return formData
     .getAll("split")
-    .filter((value): value is SplitName =>
-      (SPLIT_NAMES as readonly unknown[]).includes(value),
-    );
+    .filter((value): value is SplitName => (SPLIT_NAMES as readonly unknown[]).includes(value));
 }
 
 function optionalNumber(formData: FormData, name: string): number | undefined {
@@ -267,7 +265,13 @@ export function splitFromForm(formData: FormData) {
     ...(seed === undefined ? {} : { seed }),
     ...(note === undefined ? {} : { note }),
     ...(total > 0
-      ? { ratios: { dev: (dev ?? 0) / total, validation: (validation ?? 0) / total, test: (test ?? 0) / total } }
+      ? {
+          ratios: {
+            dev: (dev ?? 0) / total,
+            validation: (validation ?? 0) / total,
+            test: (test ?? 0) / total,
+          },
+        }
       : {}),
     stratifyBy: list(raw(formData, "stratifyBy")),
     unseenGroups: list(raw(formData, "unseenGroups")),

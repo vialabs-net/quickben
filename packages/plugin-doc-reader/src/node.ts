@@ -8,9 +8,9 @@
 import { readdir, readFile } from "node:fs/promises";
 import { basename, dirname, extname, join, relative, resolve, sep } from "node:path";
 
+import type { ExtractionParams } from "./definition";
 import type { ImportItem } from "./import";
 import type { SampleAttributes } from "./metrics";
-import type { ExtractionParams } from "./definition";
 
 /** Document files a folder import picks up. */
 export const DOCUMENT_EXTENSIONS = [".pdf", ".png", ".jpg", ".jpeg", ".webp"] as const;
@@ -90,7 +90,30 @@ async function documentsIn(dir: string): Promise<string[]> {
     else if ((DOCUMENT_EXTENSIONS as readonly string[]).includes(extname(entry.name).toLowerCase()))
       found.push(path);
   }
-  return found.sort();
+  return found.sort((a, b) => a.localeCompare(b));
+}
+
+/** The JSON next to a document, or `undefined` when there is none. */
+async function readSidecar(path: string): Promise<unknown> {
+  const sidecar = path.slice(0, -extname(path).length) + ".json";
+  try {
+    return JSON.parse(await readFile(sidecar, "utf8")) as unknown;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw new Error(`${sidecar}: not JSON`, { cause: error });
+  }
+}
+
+function sidecarFields(meta: unknown): Omit<ImportItem, "key" | "file"> {
+  if (meta === undefined) return {};
+  if (!isObject(meta) || !isObject(meta.expected)) return { expected: meta };
+  return {
+    expected: meta.expected,
+    ...(typeof meta.group === "string" ? { group: meta.group } : {}),
+    ...(isObject(meta.attributes) ? { attributes: meta.attributes as SampleAttributes } : {}),
+    ...(isObject(meta.params) ? { params: meta.params as ExtractionParams } : {}),
+    ...(typeof meta.note === "string" ? { note: meta.note } : {}),
+  };
 }
 
 /**
@@ -102,25 +125,10 @@ async function documentsIn(dir: string): Promise<string[]> {
 export async function* loadFolder(dir: string): AsyncGenerator<ImportItem> {
   const root = resolve(dir);
   for (const path of await documentsIn(root)) {
-    const sidecar = path.slice(0, -extname(path).length) + ".json";
-    let meta: unknown;
-    try {
-      meta = JSON.parse(await readFile(sidecar, "utf8")) as unknown;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-        throw new Error(`${sidecar}: not JSON`, { cause: error });
-      }
-    }
-    const wrapped = isObject(meta) && isObject(meta.expected);
-    const info = wrapped ? (meta as Record<string, unknown>) : {};
     yield {
       key: relative(root, path).split(sep).join("/"),
       file: { bytes: new Uint8Array(await readFile(path)), name: basename(path) },
-      ...(meta === undefined ? {} : { expected: wrapped ? info.expected : meta }),
-      ...(typeof info.group === "string" ? { group: info.group } : {}),
-      ...(isObject(info.attributes) ? { attributes: info.attributes as SampleAttributes } : {}),
-      ...(isObject(info.params) ? { params: info.params as ExtractionParams } : {}),
-      ...(typeof info.note === "string" ? { note: info.note } : {}),
+      ...sidecarFields(await readSidecar(path)),
     };
   }
 }

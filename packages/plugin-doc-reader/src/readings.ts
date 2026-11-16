@@ -11,12 +11,12 @@ import { NotFoundError, sniffMime as sniffType, ValidationError } from "@quickbe
 import { classifyType } from "./classify";
 import { DOC_JOBS } from "./collections";
 import { paramsSchema, TYPE_KEY } from "./definition";
+import { loadExamples } from "./examples";
 import { PDF, pdfPagesText } from "./extractors/text-layer";
 import { ACCEPTED_MIMES } from "./files";
 import { getDocReader } from "./options";
 import { attemptsCost, runPipeline } from "./pipeline";
 import { recordUsage, skipHook } from "./quotas";
-import { loadExamples } from "./examples";
 import { findPublished, newestPublished, SYSTEM } from "./store";
 
 import type { JobState } from "./collections";

@@ -12,9 +12,9 @@
  * 4. Publishing starts runs of `test` and `unseen`, recorded on the version. They never decide
  *    the publication: judging on them would tune the type to them.
  */
+import { listTestRuns, startRuns } from "./bench";
 import { DOC_TYPES } from "./collections";
 import { StudioError } from "./errors";
-import { listTestRuns, startRuns } from "./bench";
 import { checkExamples } from "./examples";
 import { compareResults } from "./metrics";
 import { currentSplit } from "./splits";
@@ -112,7 +112,11 @@ export function gateReasons(gate: PublishGate, comparison: RunComparison): strin
     );
   }
   const p95 = comparison.p95LatencyMs;
-  if (gate.maxLatencyIncrease !== null && p95.a > 0 && p95.b > p95.a * (1 + gate.maxLatencyIncrease)) {
+  if (
+    gate.maxLatencyIncrease !== null &&
+    p95.a > 0 &&
+    p95.b > p95.a * (1 + gate.maxLatencyIncrease)
+  ) {
     reasons.push(
       `p95 latency ${String(p95.b)} ms vs ${String(p95.a)} (allowed increase ${pct(gate.maxLatencyIncrease)})`,
     );
@@ -135,10 +139,7 @@ async function newestPublished(
   return records[0];
 }
 
-const refused = (
-  rule: StudioRule,
-  rest: Partial<PublishCheck> = {},
-): PublishCheck => ({
+const refused = (rule: StudioRule, rest: Partial<PublishCheck> = {}): PublishCheck => ({
   ok: false,
   rule,
   reasons: [],
@@ -161,9 +162,7 @@ export async function checkPublish(
   const runs = await listTestRuns(qb, ctx, record.key, record.version, 200);
   if (!split) {
     const run = runs.find((r) => canPublish(record, [r])) ?? null;
-    return run
-      ? { ...refused("not-tested"), ok: true, rule: null, run }
-      : refused("not-tested");
+    return run ? { ...refused("not-tested"), ok: true, rule: null, run } : refused("not-tested");
   }
   const splitVersion = split.version;
   const run =
@@ -239,7 +238,11 @@ export function initialEvaluation(check: PublishCheck): VersionEvaluation {
     validation: summaryOf(check.run),
     baseline:
       check.baseline && check.baselineVersion !== null
-        ? { ...(summaryOf(check.baseline) as EvaluationRun), version: check.baselineVersion }
+        ? {
+            runId: check.baseline.id,
+            summary: check.baseline.summary,
+            version: check.baselineVersion,
+          }
         : null,
     test: null,
     unseen: null,

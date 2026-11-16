@@ -226,8 +226,7 @@ function countOutcomes(checks: readonly FieldCheck[]): OutcomeCounts {
   }
   return {
     ...counts,
-    accuracy:
-      counts.checked > 0 ? (counts.correct + counts.correctEmpty) / counts.checked : null,
+    accuracy: counts.checked > 0 ? (counts.correct + counts.correctEmpty) / counts.checked : null,
   };
 }
 
@@ -257,7 +256,7 @@ function slices(
     .sort((a, b) => b.samples - a.samples || a.value.localeCompare(b.value));
 }
 
-const attributeText = (value: unknown): string | null =>
+const attributeText = (value: string | number | boolean | null | undefined): string | null =>
   value === null || value === undefined ? null : String(value);
 
 /** Full metrics of a run's results. `wallMs`: from the run's start to its end. */
@@ -273,7 +272,9 @@ export function runMetrics(
     label: field.label,
     scored: isScored(field),
     ...countOutcomes(
-      checks.filter((check) => check.key === field.key).map((check) => ({ ...check, scored: true })),
+      checks
+        .filter((check) => check.key === field.key)
+        .map((check) => ({ ...check, scored: true })),
     ),
   }));
   const statuses: Partial<Record<ExtractionStatus, number>> = {};
@@ -281,9 +282,11 @@ export function runMetrics(
 
   const attributeNames = new Set(scored.flatMap((result) => Object.keys(result.attributes ?? {})));
   const byAttribute: Record<string, SliceMetrics[]> = {};
-  for (const name of [...attributeNames].sort()) {
+  for (const name of [...attributeNames].sort((x, y) => x.localeCompare(y))) {
     byAttribute[name] = slices(scored, (result) =>
-      attributeText(Object.hasOwn(result.attributes ?? {}, name) ? result.attributes?.[name] : null),
+      attributeText(
+        Object.hasOwn(result.attributes ?? {}, name) ? result.attributes?.[name] : null,
+      ),
     );
   }
 
@@ -379,7 +382,11 @@ export interface CaseChange {
 export interface RunComparison {
   /** Samples read and scored in both runs. */
   readonly samples: number;
-  readonly accuracy: { readonly a: number | null; readonly b: number | null; readonly delta: number | null };
+  readonly accuracy: {
+    readonly a: number | null;
+    readonly b: number | null;
+    readonly delta: number | null;
+  };
   readonly costPerDocUsd: { readonly a: number; readonly b: number; readonly delta: number };
   readonly p50LatencyMs: { readonly a: number; readonly b: number; readonly delta: number };
   readonly p95LatencyMs: { readonly a: number; readonly b: number; readonly delta: number };
@@ -402,9 +409,10 @@ export function compareResults(
   b: readonly SampleResult[],
 ): RunComparison {
   const inB = new Map(b.filter((result) => isScoredResult(result)).map((r) => [r.sampleId, r]));
-  const pairs = a
-    .filter((result) => isScoredResult(result) && inB.has(result.sampleId))
-    .map((result) => [result, inB.get(result.sampleId) as SampleResult] as const);
+  const pairs = a.flatMap((result) => {
+    const other = isScoredResult(result) ? inB.get(result.sampleId) : undefined;
+    return other ? [[result, other] as const] : [];
+  });
   const left = pairs.map(([x]) => x);
   const right = pairs.map(([, y]) => y);
   const ma = runMetrics(type, left);
@@ -503,7 +511,7 @@ const CSV_COLUMNS = [
 /** One CSV cell. Text that a spreadsheet would run as a formula is prefixed with `'`. */
 export function csvCell(value: unknown): string {
   if (value === null || value === undefined) return "";
-  let text = typeof value === "string" ? value : String(value as number | boolean);
+  let text = typeof value === "string" ? value : JSON.stringify(value);
   if (/^[=+@\t\r]/u.test(text)) text = `'${text}`;
   return /[",\n\r]/u.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
@@ -512,7 +520,7 @@ export function csvCell(value: unknown): string {
 export function resultsToCsv(results: readonly SampleResult[]): string {
   const attributes = [
     ...new Set(results.flatMap((result) => Object.keys(result.attributes ?? {}))),
-  ].sort();
+  ].sort((a, b) => a.localeCompare(b));
   const header = [...CSV_COLUMNS, ...attributes.map((name) => `attr.${name}`)];
   const rows = [header.map((cell) => csvCell(cell)).join(",")];
   for (const result of results) {

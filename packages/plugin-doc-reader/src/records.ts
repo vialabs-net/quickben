@@ -1,10 +1,10 @@
 /** Stored shapes of the plugin's collections, as the plugin reads them. */
+import type { Variant } from "./bench";
 import type { JobState, RunPurpose, Split } from "./collections";
 import type { ExtractionParams } from "./definition";
 import type { ExtractionStatus, FieldValue } from "./extractor";
-import type { PipelineAttempt } from "./pipeline";
-import type { Variant } from "./bench";
 import type { RunMetrics, RunSummary, SampleAttributes, SampleResult } from "./metrics";
+import type { PipelineAttempt } from "./pipeline";
 import type { VersionEvaluation } from "./publish";
 
 interface System {

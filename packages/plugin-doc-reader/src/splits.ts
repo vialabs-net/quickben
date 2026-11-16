@@ -89,21 +89,43 @@ const DEALT = ["dev", "validation", "test"] as const;
 
 function normalized(ratios: SplitRatios): SplitRatios {
   const total = ratios.dev + ratios.validation + ratios.test;
-  return { dev: ratios.dev / total, validation: ratios.validation / total, test: ratios.test / total };
+  return {
+    dev: ratios.dev / total,
+    validation: ratios.validation / total,
+    test: ratios.test / total,
+  };
 }
 
 function stratumOf(subject: SplitSubject, stratifyBy: readonly string[]): string {
   return stratifyBy
     .map((name) => {
-      const value =
-        name === "group"
-          ? subject.group
-          : Object.hasOwn(subject.attributes, name)
-            ? subject.attributes[name]
-            : null;
+      if (name === "group") return JSON.stringify(subject.group);
+      const value = Object.hasOwn(subject.attributes, name) ? subject.attributes[name] : null;
       return JSON.stringify(value ?? null);
     })
     .join("|");
+}
+
+/**
+ * The split furthest behind its share of everything dealt so far. Carrying the counts across
+ * strata keeps small strata from all landing in `dev`.
+ */
+function furthestBehind(
+  ratios: SplitRatios,
+  counts: Readonly<Record<(typeof DEALT)[number], number>>,
+  dealt: number,
+): (typeof DEALT)[number] {
+  let pick: (typeof DEALT)[number] = "dev";
+  let gap = Number.NEGATIVE_INFINITY;
+  for (const split of DEALT) {
+    if (ratios[split] === 0) continue;
+    const behind = ratios[split] * dealt - counts[split];
+    if (behind > gap + 1e-9) {
+      gap = behind;
+      pick = split;
+    }
+  }
+  return pick;
 }
 
 /**
@@ -128,24 +150,13 @@ export function assignSplits(
   const ratios = normalized(settings.ratios);
   const counts = { dev: 0, validation: 0, test: 0 };
   let dealt = 0;
-  for (const stratum of [...strata.keys()].sort()) {
+  for (const stratum of [...strata.keys()].sort((a, b) => a.localeCompare(b))) {
     const members = (strata.get(stratum) ?? [])
       .map((subject) => ({ subject, order: hashFraction(settings.seed, subject.key) }))
       .sort((a, b) => a.order - b.order || a.subject.key.localeCompare(b.subject.key));
     for (const { subject } of members) {
       dealt += 1;
-      // The split furthest behind its share of everything dealt so far. Carrying the counts
-      // across strata keeps small strata from all landing in `dev`.
-      let pick: (typeof DEALT)[number] = "dev";
-      let gap = Number.NEGATIVE_INFINITY;
-      for (const split of DEALT) {
-        if (ratios[split] === 0) continue;
-        const behind = ratios[split] * dealt - counts[split];
-        if (behind > gap + 1e-9) {
-          gap = behind;
-          pick = split;
-        }
-      }
+      const pick = furthestBehind(ratios, counts, dealt);
       counts[pick] += 1;
       out.set(subject.key, pick);
     }

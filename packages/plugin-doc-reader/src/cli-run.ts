@@ -64,8 +64,7 @@ async function loadTsx(
   }
   const loaded = (await import(pathToFileURL(resolved).href)) as ModuleRecord;
   const api = (typeof loaded.tsImport === "function" ? loaded : loaded.default) as
-    | { tsImport?: unknown }
-    | undefined;
+    { tsImport?: unknown } | undefined;
   return typeof api?.tsImport === "function"
     ? (api as { tsImport: (specifier: string, parent: string) => Promise<unknown> })
     : undefined;
@@ -160,7 +159,9 @@ const options = {
   help: { type: "boolean", short: "h" },
 } as const;
 
-type Values = ReturnType<typeof parseArgs<{ options: typeof options; allowPositionals: true }>>["values"];
+type Values = ReturnType<
+  typeof parseArgs<{ options: typeof options; allowPositionals: true }>
+>["values"];
 
 async function mapperOf(io: CliIo, path: string | undefined): Promise<ExpectedMapper | undefined> {
   if (path === undefined) return undefined;
@@ -251,6 +252,18 @@ async function runExport(qb: Quickben, values: Values, io: CliIo): Promise<numbe
   return 0;
 }
 
+async function dispatch(command: string, values: Values, io: CliIo): Promise<number> {
+  if (values.config === undefined) throw new UsageError("--config <file> is required");
+  const file = resolve(io.cwd, values.config);
+  const config = configOf(await (io.importModule ?? importModule)(file), values.config);
+  const qb = await getQuickben(config);
+  if (command === "export") return runExport(qb, values, io);
+  if (values.type === undefined) throw new UsageError("--type <key> is required");
+  if (command === "import") return runImport(qb, values.type, values, io);
+  if (command === "split") return runSplit(qb, values.type, values, io);
+  return runRun(qb, values.type, values, io);
+}
+
 /** Run the CLI. Returns the exit code. */
 export async function runCli(args: readonly string[], io: CliIo): Promise<number> {
   try {
@@ -263,15 +276,7 @@ export async function runCli(args: readonly string[], io: CliIo): Promise<number
     if (!["import", "split", "run", "export"].includes(command)) {
       throw new UsageError(`Unknown command ${command}`);
     }
-    if (values.config === undefined) throw new UsageError("--config <file> is required");
-    const file = resolve(io.cwd, values.config);
-    const config = configOf(await (io.importModule ?? importModule)(file), values.config);
-    const qb = await getQuickben(config);
-    if (command === "export") return await runExport(qb, values, io);
-    if (values.type === undefined) throw new UsageError("--type <key> is required");
-    if (command === "import") return await runImport(qb, values.type, values, io);
-    if (command === "split") return await runSplit(qb, values.type, values, io);
-    return await runRun(qb, values.type, values, io);
+    return await dispatch(command, values, io);
   } catch (error) {
     if (error instanceof UsageError || (error instanceof TypeError && "code" in error)) {
       io.stderr(`${error.message}\n\n${usage}\n`);

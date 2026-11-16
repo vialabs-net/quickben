@@ -18,11 +18,11 @@ import { getQuickben } from "@quickben/core";
 import { getRequestContext } from "@quickben/next";
 import Link from "next/link";
 
+import { compareTestRuns } from "../bench";
 import { FIELD_TRANSFORMS, FIELD_TYPES } from "../definition";
 import { TEXT_LAYER } from "../extractors/text-layer";
 import { VISION_LLM } from "../extractors/vision-llm";
 import { getDocReader } from "../options";
-import { compareTestRuns } from "../bench";
 import { isSplit, currentSplit } from "../splits";
 import {
   getVersion,
@@ -84,8 +84,9 @@ import type { Split } from "../collections";
 import type { DocumentType, FieldDefinition, ParamDefinition, PipelineStep } from "../definition";
 import type { RunComparison } from "../metrics";
 import type { ModelChoice } from "../models";
-import type { SplitVersion } from "../splits";
 import type { DocReaderState } from "../options";
+import type { PublishCheck } from "../publish";
+import type { SplitVersion } from "../splits";
 import type { Sample, TestRun, TypeVersion, VersionSummary } from "../studio";
 import type { DocReaderT } from "./messages";
 import type { SearchParams } from "./shared";
@@ -982,6 +983,7 @@ function Bench({
   page,
   comparison,
   hasPublished,
+  comparable,
 }: Readonly<{
   version: TypeVersion;
   samples: readonly Sample[];
@@ -998,6 +1000,8 @@ function Bench({
   page: number;
   comparison: { view: RunComparison; a: TestRun; b: TestRun } | null;
   hasPublished: boolean;
+  /** Runs to compare: this version's and the published version's baseline. */
+  comparable: readonly TestRun[];
 }>) {
   const t = docReaderT(i18n);
   const href = (query: Record<string, string>) =>
@@ -1158,12 +1162,12 @@ function Bench({
           i18n={i18n}
         />
       ) : null}
-      {runs.length > 1 ? (
+      {comparable.length > 1 ? (
         <Card>
-          <CardHeader title={t("bench.earlier")} />
+          <CardHeader title={t("compare.title")} />
           <CardBody>
             <ComparePicker
-              runs={runs}
+              runs={comparable}
               label={(run) => variantLabel(t, run, models)}
               hidden={{ v: String(version.version), tab: "bench" }}
               reference={comparison?.a.id}
@@ -1172,6 +1176,11 @@ function Bench({
               i18n={i18n}
             />
           </CardBody>
+        </Card>
+      ) : null}
+      {runs.length > 1 ? (
+        <Card>
+          <CardHeader title={t("bench.earlier")} />
           <Table>
             <thead>
               <tr>
@@ -1240,6 +1249,107 @@ async function modelChoices(state: DocReaderState): Promise<readonly ModelChoice
   }
 }
 
+function VersionActions({
+  version,
+  hasDraft,
+  publishable,
+  actions,
+  t,
+}: Readonly<{
+  version: TypeVersion;
+  hasDraft: boolean;
+  publishable: boolean;
+  actions: Actions;
+  t: DocReaderT;
+}>) {
+  const keys = { typeKey: version.key, version: version.version };
+  return (
+    <>
+      {version.state === "draft" ? (
+        <>
+          <form action={actions.publish}>
+            <Hidden values={keys} />
+            <Button
+              type="submit"
+              disabled={!publishable}
+              title={publishable ? undefined : t("studio.testFirst")}
+            >
+              {t("studio.publish", { version: version.version })}
+            </Button>
+          </form>
+          <form action={actions.deleteDraft}>
+            <Hidden values={keys} />
+            <Button type="submit" variant="danger">
+              {t("studio.deleteDraft")}
+            </Button>
+          </form>
+        </>
+      ) : null}
+      {hasDraft ? null : (
+        <form action={actions.createDraft}>
+          <Hidden values={{ typeKey: version.key, from: version.version }} />
+          <Button type="submit" variant="secondary">
+            {t("studio.newDraft", { version: version.version })}
+          </Button>
+        </form>
+      )}
+    </>
+  );
+}
+
+/** Before a split: a line when the draft needs a test. After: the publish check. */
+function PublishHint({ check, i18n }: Readonly<{ check: PublishCheck | null; i18n: AdminI18n }>) {
+  if (!check) return null;
+  if (check.splitVersion === null) {
+    return check.ok ? null : (
+      <p className="qb:mb-3 qb:text-sm qb:text-fg-muted">{docReaderT(i18n)("studio.needsTest")}</p>
+    );
+  }
+  return (
+    <div className="qb:mb-3">
+      <PublishCheckNotice check={check} i18n={i18n} />
+    </div>
+  );
+}
+
+/** A 1-based page number from the URL. */
+function pageOf(value: string | undefined): number {
+  const n = Math.floor(Number(value ?? "1"));
+  return Number.isFinite(n) && n > 0 ? n : 1;
+}
+
+/** The publish check, the history and the chosen comparison of the studio page. */
+async function benchData(
+  qb: Quickben,
+  ctx: RequestContext,
+  input: {
+    version: TypeVersion;
+    runs: readonly TestRun[];
+    published: readonly VersionSummary[];
+    bench: boolean;
+    ref: string | undefined;
+    cand: string | undefined;
+  },
+) {
+  const { version, runs } = input;
+  const check =
+    version.state === "draft" ? await publishCheck(qb, ctx, version.key, version.version) : null;
+  const history = input.bench
+    ? await Promise.all(input.published.map((v) => getVersion(qb, ctx, version.key, v.version)))
+    : [];
+  // The publish check compares with the published version's runs, so offer those too.
+  const baseline = check?.baseline;
+  const comparable =
+    baseline && !runs.some((run) => run.id === baseline.id) ? [...runs, baseline] : [...runs];
+  const a = comparable.find((run) => run.id === input.ref);
+  const b = comparable.find((run) => run.id === input.cand);
+  const comparison =
+    input.bench && a && b && a.id !== b.id
+      ? { view: await compareTestRuns(qb, ctx, a.id, b.id), a, b }
+      : null;
+  return { check, history, comparable, comparison };
+}
+
 /** One type: its versions, the editor of the chosen one and the test bench. */
 export async function StudioPage({
   config,
@@ -1290,28 +1400,18 @@ export async function StudioPage({
     currentSplit(qb, ctx, typeKey),
   ]);
   const draft = versions.find((v) => v.state === "draft");
-  const check = version.state === "draft" ? await publishCheck(qb, ctx, typeKey, number) : null;
-  const publishable = check?.ok === true;
   const published = versions.filter((v) => v.state === "published");
-  const history =
-    tab === "bench"
-      ? await Promise.all(published.map((v) => getVersion(qb, ctx, typeKey, v.version)))
-      : [];
-  const ref = first(searchParams.ref);
-  const cand = first(searchParams.cand);
-  // The publish check compares with the published version's runs, so offer those too.
-  const baselineRuns =
-    check?.baseline && !runs.some((run) => run.id === check.baseline?.id) ? [check.baseline] : [];
-  const comparable = [...runs, ...baselineRuns];
-  let comparison: { view: RunComparison; a: TestRun; b: TestRun } | null = null;
-  const a = comparable.find((run) => run.id === ref);
-  const b = comparable.find((run) => run.id === cand);
-  if (tab === "bench" && a && b && a.id !== b.id) {
-    comparison = { view: await compareTestRuns(qb, ctx, a.id, b.id), a, b };
-  }
+  const { check, history, comparable, comparison } = await benchData(qb, ctx, {
+    version,
+    runs,
+    published,
+    bench: tab === "bench",
+    ref: first(searchParams.ref),
+    cand: first(searchParams.cand),
+  });
+  const publishable = check?.ok === true;
   const splitParam = first(searchParams.split);
-  const page = Math.max(1, Math.floor(Number(first(searchParams.page) ?? "1")) || 1);
-  const keys = { typeKey, version: number };
+  const page = pageOf(first(searchParams.page));
   const tabHref = (name: string) =>
     `${basePath}/document-types/${encodeURIComponent(typeKey)}?v=${String(number)}&tab=${name}`;
   const sampleParam = first(searchParams.sample);
@@ -1336,36 +1436,13 @@ export async function StudioPage({
           </>
         }
         actions={
-          <>
-            {version.state === "draft" ? (
-              <>
-                <form action={actions.publish}>
-                  <Hidden values={keys} />
-                  <Button
-                    type="submit"
-                    disabled={!publishable}
-                    title={publishable ? undefined : t("studio.testFirst")}
-                  >
-                    {t("studio.publish", { version: version.version })}
-                  </Button>
-                </form>
-                <form action={actions.deleteDraft}>
-                  <Hidden values={keys} />
-                  <Button type="submit" variant="danger">
-                    {t("studio.deleteDraft")}
-                  </Button>
-                </form>
-              </>
-            ) : null}
-            {draft ? null : (
-              <form action={actions.createDraft}>
-                <Hidden values={{ typeKey, from: number }} />
-                <Button type="submit" variant="secondary">
-                  {t("studio.newDraft", { version: version.version })}
-                </Button>
-              </form>
-            )}
-          </>
+          <VersionActions
+            version={version}
+            hasDraft={draft !== undefined}
+            publishable={publishable}
+            actions={actions}
+            t={t}
+          />
         }
       />
       <nav aria-label={t("studio.versions")} className="qb:mb-3 qb:flex qb:flex-wrap qb:gap-2">
@@ -1402,14 +1479,7 @@ export async function StudioPage({
           {t("studio.bench", { count: samples.length })}
         </ButtonLink>
       </nav>
-      {version.state === "draft" && !publishable && check?.splitVersion === null ? (
-        <p className="qb:mb-3 qb:text-sm qb:text-fg-muted">{t("studio.needsTest")}</p>
-      ) : null}
-      {check && check.splitVersion !== null ? (
-        <div className="qb:mb-3">
-          <PublishCheckNotice check={check} i18n={i18n} />
-        </div>
-      ) : null}
+      <PublishHint check={check} i18n={i18n} />
       {tab === "definition" ? (
         <Editor
           version={version}
@@ -1441,6 +1511,7 @@ export async function StudioPage({
           page={page}
           comparison={comparison}
           hasPublished={published.length > 0}
+          comparable={comparable}
         />
       )}
       {tab === "bench" ? (

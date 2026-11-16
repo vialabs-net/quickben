@@ -57,10 +57,7 @@ export async function checkExamples(
 }
 
 /** The type's examples with their files, for extractors. Missing ones are left out. */
-export async function loadExamples(
-  qb: Quickben,
-  type: DocumentType,
-): Promise<ExtractorExample[]> {
+export async function loadExamples(qb: Quickben, type: DocumentType): Promise<ExtractorExample[]> {
   if (type.examples.length === 0) return [];
   const state = getDocReader(qb);
   const records = new Map(

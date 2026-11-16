@@ -119,7 +119,11 @@ export function SplitCard({
           <Hidden values={{ typeKey: version.key, version: version.version }} />
           <div className="qb:flex qb:flex-wrap qb:items-start qb:gap-4">
             {(["dev", "validation", "test"] as const).map((name) => (
-              <Field key={name} label={t("split.ratio", { split: t(`split.${name}`) })} htmlFor={id("ratio", name)}>
+              <Field
+                key={name}
+                label={t("split.ratio", { split: t(`split.${name}`) })}
+                htmlFor={id("ratio", name)}
+              >
                 <Input
                   id={id("ratio", name)}
                   name={`ratio.${name}`}
@@ -131,14 +135,22 @@ export function SplitCard({
                 />
               </Field>
             ))}
-            <Field label={t("split.stratifyBy")} htmlFor={id("stratify")} hint={t("split.stratifyHint")}>
+            <Field
+              label={t("split.stratifyBy")}
+              htmlFor={id("stratify")}
+              hint={t("split.stratifyHint")}
+            >
               <Input
                 id={id("stratify")}
                 name="stratifyBy"
                 defaultValue={(split?.stratifyBy ?? ["group"]).join(", ")}
               />
             </Field>
-            <Field label={t("split.unseenGroups")} htmlFor={id("unseen")} hint={t("split.unseenHint")}>
+            <Field
+              label={t("split.unseenGroups")}
+              htmlFor={id("unseen")}
+              hint={t("split.unseenHint")}
+            >
               <Input
                 id={id("unseen")}
                 name="unseenGroups"
@@ -245,7 +257,10 @@ export function RunStats({ run, i18n }: Readonly<{ run: TestRun; i18n: AdminI18n
   return (
     <div className="qb:grid qb:grid-cols-1 qb:gap-4 qb:sm:grid-cols-2 qb:xl:grid-cols-3">
       <Stat label={t("run.latency")}>
-        {t("run.p50p95", { p50: formatMs(i18n, m.latency.p50Ms), p95: formatMs(i18n, m.latency.p95Ms) })}
+        {t("run.p50p95", {
+          p50: formatMs(i18n, m.latency.p50Ms),
+          p95: formatMs(i18n, m.latency.p95Ms),
+        })}
       </Stat>
       <Stat label={t("run.wall")}>{formatMs(i18n, m.wallMs)}</Stat>
       <Stat label={t("run.perDoc")}>{formatUsd(i18n, m.cost.perDocUsd)}</Stat>
@@ -270,12 +285,18 @@ export function RunStats({ run, i18n }: Readonly<{ run: TestRun; i18n: AdminI18n
 }
 
 /** Accuracy, misses and hallucinations by field, then slices by group and attribute. */
-export function MetricsTables({ metrics, i18n }: Readonly<{ metrics: RunMetrics; i18n: AdminI18n }>) {
+export function MetricsTables({
+  metrics,
+  i18n,
+}: Readonly<{ metrics: RunMetrics; i18n: AdminI18n }>) {
   const t = docReaderT(i18n);
   const slices: { name: string; rows: RunMetrics["byGroup"] }[] = [
     { name: t("metrics.split"), rows: metrics.bySplit },
     { name: t("metrics.group"), rows: metrics.byGroup.slice(0, 20) },
-    ...Object.entries(metrics.byAttribute).map(([name, rows]) => ({ name, rows: rows.slice(0, 20) })),
+    ...Object.entries(metrics.byAttribute).map(([name, rows]) => ({
+      name,
+      rows: rows.slice(0, 20),
+    })),
   ].filter((slice) => slice.rows.length > 0);
   return (
     <>
@@ -409,11 +430,16 @@ export function ComparisonView({
     <Card>
       <CardHeader
         title={t("compare.title")}
-        description={t("compare.description", { a: labelA, b: labelB, samples: comparison.samples })}
+        description={t("compare.description", {
+          a: labelA,
+          b: labelB,
+          samples: comparison.samples,
+        })}
       />
       <CardBody className="qb:grid qb:grid-cols-1 qb:gap-4 qb:sm:grid-cols-2">
         <Stat label={t("metrics.accuracy")}>
-          {formatPercent(i18n, comparison.accuracy.b)} ({delta(i18n, comparison.accuracy.delta, points)})
+          {formatPercent(i18n, comparison.accuracy.b)} (
+          {delta(i18n, comparison.accuracy.delta, points)})
         </Stat>
         <Stat label={t("run.perDoc")}>
           {formatUsd(i18n, comparison.costPerDocUsd.b)} (
@@ -478,7 +504,9 @@ export function ComparisonView({
                   <Link href={sampleHref(change.sampleId)} className={linkClass}>
                     {change.fileName}
                   </Link>
-                  {change.group ? <p className="qb:text-xs qb:text-fg-muted">{change.group}</p> : null}
+                  {change.group ? (
+                    <p className="qb:text-xs qb:text-fg-muted">{change.group}</p>
+                  ) : null}
                 </Td>
                 <Td>{change.label}</Td>
                 <Td className="qb:font-mono qb:text-sm">{change.expected ?? EMPTY}</Td>
@@ -519,7 +547,8 @@ export function ComparePicker({
   if (done.length < 2) return null;
   const option = (run: TestRun) => (
     <option key={run.id} value={run.id}>
-      {formatWhen(i18n, run.createdAt)} · {label(run)} · {formatPercent(i18n, run.summary?.accuracy ?? null)}
+      {formatWhen(i18n, run.createdAt)} · {label(run)} ·{" "}
+      {formatPercent(i18n, run.summary?.accuracy ?? null)}
     </option>
   );
   return (
@@ -657,7 +686,10 @@ export function SampleFilter({
   const pages = Math.max(1, Math.ceil(shown.length / SAMPLES_PER_PAGE));
   const base: Record<string, string> = current ? { split: current } : {};
   return (
-    <nav aria-label={t("bench.filter")} className="qb:flex qb:flex-wrap qb:items-center qb:gap-3 qb:text-sm">
+    <nav
+      aria-label={t("bench.filter")}
+      className="qb:flex qb:flex-wrap qb:items-center qb:gap-3 qb:text-sm"
+    >
       <Link href={href({})} className={linkClass} aria-current={current ? undefined : "page"}>
         {t("bench.all", { count: samples.length })}
       </Link>

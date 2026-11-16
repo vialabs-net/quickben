@@ -213,6 +213,9 @@ export interface StartTestRunInput {
   readonly baseline?: boolean;
 }
 
+const isHeldOut = (sample: SampleRecord) =>
+  sample.split !== null && sample.split !== undefined && HELD_OUT_SPLITS.includes(sample.split);
+
 interface Selection {
   readonly samples: SampleRecord[];
   readonly splits: Split[] | null;
@@ -239,13 +242,13 @@ async function selectSamples(
     samples = samples.filter((sample) => sample.split && wanted.has(sample.split));
   } else if (split && !input.sampleIds) {
     splits = (["dev", "validation"] as Split[]).filter((s) => all.some((x) => x.split === s));
-    samples = samples.filter((sample) => !HELD_OUT_SPLITS.includes(sample.split as Split));
+    samples = samples.filter((sample) => !isHeldOut(sample));
   }
   if (input.sampleIds) {
     const ids = new Set(input.sampleIds);
     samples = samples.filter((sample) => ids.has(sample.id));
   }
-  const heldOut = samples.some((sample) => HELD_OUT_SPLITS.includes(sample.split as Split));
+  const heldOut = samples.some((sample) => isHeldOut(sample));
   if (heldOut && input.heldOut !== true && !internal) {
     throw new StudioError(
       "held-out",

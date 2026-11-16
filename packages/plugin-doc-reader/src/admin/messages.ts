@@ -346,8 +346,10 @@ export const docReaderMessages = defineMessages("doc-reader", {
 
     "toast.split-made": "Samples split",
     "error.split-exists": "The samples are split already. Check “Split again” to move them.",
-    "error.held-out": "Test and unseen samples run when publishing. Check “Held-out samples” to run them now.",
-    "error.not-validated": "Run this draft, as it is now, on the validation split before publishing it.",
+    "error.held-out":
+      "Test and unseen samples run when publishing. Check “Held-out samples” to run them now.",
+    "error.not-validated":
+      "Run this draft, as it is now, on the validation split before publishing it.",
     "error.no-baseline": "Run the published version on the validation split first, to compare.",
     "error.gate": "This draft is worse than the published version on validation.",
     "split.dev": "dev",
@@ -418,7 +420,8 @@ export const docReaderMessages = defineMessages("doc-reader", {
     "compare.candidate": "Candidate",
     "compare.run": "Compare",
     "publishCheck.title": "Publish check",
-    "publishCheck.ok": "This draft can be published. Publishing also runs the test and unseen splits.",
+    "publishCheck.ok":
+      "This draft can be published. Publishing also runs the test and unseen splits.",
     "publishCheck.not-tested": "Test this version first.",
     "publishCheck.not-validated": "Run this draft, as it is now, on the validation split.",
     "publishCheck.no-baseline": "Run the published version on the validation split, to compare.",
@@ -438,9 +441,11 @@ export const docReaderMessages = defineMessages("doc-reader", {
     "bench.runSplits": "Run test",
     "editor.noDev": "No dev samples yet. Split the samples on the test bench.",
     "editor.examples": "Few-shot examples",
-    "editor.examplesDescription": "Dev samples shown to the model with their expected values. Up to 5; each adds a page to every call.",
+    "editor.examplesDescription":
+      "Dev samples shown to the model with their expected values. Up to 5; each adds a page to every call.",
     "editor.evaluation": "Scoring and publishing",
-    "editor.evaluationDescription": "How test runs score this type, and how much worse than the published version a draft may be on validation.",
+    "editor.evaluationDescription":
+      "How test runs score this type, and how much worse than the published version a draft may be on validation.",
     "editor.emptyValues": "Values that mean empty",
     "editor.emptyValuesHint": "Comma-separated. Blank always means empty.",
     "editor.maxAccuracyDrop": "Largest accuracy drop (points)",
@@ -811,10 +816,14 @@ export const docReaderMessages = defineMessages("doc-reader", {
     "bench.earlier": "Pruebas anteriores",
 
     "toast.split-made": "Muestras divididas",
-    "error.split-exists": "Las muestras ya están divididas. Marca “Dividir de nuevo” para moverlas.",
-    "error.held-out": "Las muestras de test y unseen corren al publicar. Marca “Muestras reservadas” para correrlas ahora.",
-    "error.not-validated": "Prueba este borrador, tal como está, en el split de validación antes de publicarlo.",
-    "error.no-baseline": "Prueba primero la versión publicada en el split de validación, para comparar.",
+    "error.split-exists":
+      "Las muestras ya están divididas. Marca “Dividir de nuevo” para moverlas.",
+    "error.held-out":
+      "Las muestras de test y unseen corren al publicar. Marca “Muestras reservadas” para correrlas ahora.",
+    "error.not-validated":
+      "Prueba este borrador, tal como está, en el split de validación antes de publicarlo.",
+    "error.no-baseline":
+      "Prueba primero la versión publicada en el split de validación, para comparar.",
     "error.gate": "Este borrador es peor que la versión publicada en validación.",
     "split.dev": "dev",
     "split.validation": "validación",
@@ -822,7 +831,8 @@ export const docReaderMessages = defineMessages("doc-reader", {
     "split.unseen": "unseen",
     "split.title": "Splits",
     "split.current": "Split v{version}, {when}. Semilla {seed}.",
-    "split.none": "Sin dividir: corren todas las muestras, y para publicar basta una prueba terminada.",
+    "split.none":
+      "Sin dividir: corren todas las muestras, y para publicar basta una prueba terminada.",
     "split.unsplit": "{count} agregadas sin split",
     "split.ratio": "{split} %",
     "split.stratifyBy": "Estratificar por",
@@ -831,7 +841,8 @@ export const docReaderMessages = defineMessages("doc-reader", {
     "split.unseenHint": "Todas las muestras de estos grupos van a unseen.",
     "split.seed": "Semilla",
     "split.seedHint": "Vacía: una semilla nueva al azar. Misma semilla y muestras, mismo split.",
-    "split.resplit": "Dividir de nuevo (mueve muestras; las corridas anteriores dejan de ser comparables)",
+    "split.resplit":
+      "Dividir de nuevo (mueve muestras; las corridas anteriores dejan de ser comparables)",
     "split.again": "Dividir de nuevo",
     "split.make": "Dividir muestras",
     "run.splits": "Splits",
@@ -884,10 +895,12 @@ export const docReaderMessages = defineMessages("doc-reader", {
     "compare.candidate": "Candidata",
     "compare.run": "Comparar",
     "publishCheck.title": "Revisión para publicar",
-    "publishCheck.ok": "Este borrador se puede publicar. Al publicar también corren los splits test y unseen.",
+    "publishCheck.ok":
+      "Este borrador se puede publicar. Al publicar también corren los splits test y unseen.",
     "publishCheck.not-tested": "Prueba esta versión primero.",
     "publishCheck.not-validated": "Prueba este borrador, tal como está, en el split de validación.",
-    "publishCheck.no-baseline": "Prueba la versión publicada en el split de validación, para comparar.",
+    "publishCheck.no-baseline":
+      "Prueba la versión publicada en el split de validación, para comparar.",
     "publishCheck.gate": "Peor que la versión publicada en validación:",
     "publishCheck.published": "Ya está publicada.",
     "publishCheck.versus": "Validación: este borrador {draft}, v{version} publicada {published}.",
@@ -904,9 +917,11 @@ export const docReaderMessages = defineMessages("doc-reader", {
     "bench.runSplits": "Correr prueba",
     "editor.noDev": "Aún no hay muestras dev. Divide las muestras en el banco de pruebas.",
     "editor.examples": "Ejemplos few-shot",
-    "editor.examplesDescription": "Muestras dev que se muestran al modelo con sus valores esperados. Hasta 5; cada una agrega una página a cada llamada.",
+    "editor.examplesDescription":
+      "Muestras dev que se muestran al modelo con sus valores esperados. Hasta 5; cada una agrega una página a cada llamada.",
     "editor.evaluation": "Puntaje y publicación",
-    "editor.evaluationDescription": "Cómo puntúan las pruebas este tipo, y cuánto peor que la versión publicada puede ser un borrador en validación.",
+    "editor.evaluationDescription":
+      "Cómo puntúan las pruebas este tipo, y cuánto peor que la versión publicada puede ser un borrador en validación.",
     "editor.emptyValues": "Valores que significan vacío",
     "editor.emptyValuesHint": "Separados por comas. Vacío siempre significa vacío.",
     "editor.maxAccuracyDrop": "Mayor caída de exactitud (puntos)",

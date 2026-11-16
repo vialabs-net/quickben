@@ -445,7 +445,8 @@ export async function listSamples(
   typeKey: string,
   split?: Split | readonly Split[],
 ): Promise<Sample[]> {
-  const splits = split === undefined ? undefined : typeof split === "string" ? [split] : [...split];
+  let splits: Split[] | undefined;
+  if (split !== undefined) splits = typeof split === "string" ? [split] : [...split];
   const records = await findAll<SampleRecord>(
     qb,
     DOC_SAMPLES,

@@ -220,10 +220,12 @@ async function pageImages(
 }
 
 interface TokenUsage {
-  readonly inputTokens?: number | undefined;
-  readonly outputTokens?: number | undefined;
-  readonly inputTokenDetails?: { readonly cacheReadTokens?: number | undefined } | undefined;
+  readonly inputTokens: number | undefined;
+  readonly outputTokens: number | undefined;
+  readonly inputTokenDetails?: { readonly cacheReadTokens: number | undefined };
 }
+
+const NO_USAGE: TokenUsage = { inputTokens: undefined, outputTokens: undefined };
 
 /** The answer an example should get, as the model would write it. */
 export function exampleAnswer(type: DocumentType, values: Readonly<Record<string, string>>) {
@@ -350,7 +352,7 @@ export function createVisionLlmExtractor(options: VisionLlmOptions = {}): Extrac
         return { ...statusOf(type, fields), fields, usage: usageOf(result.usage) };
       } catch (error) {
         if (NoObjectGeneratedError.isInstance(error)) {
-          return { ...failure(NO_FIELDS), usage: usageOf(error.usage ?? {}) };
+          return { ...failure(NO_FIELDS), usage: usageOf(error.usage ?? NO_USAGE) };
         }
         return {
           ...failure(timeout.aborted ? "the model did not answer in time" : PROVIDER_ERROR),

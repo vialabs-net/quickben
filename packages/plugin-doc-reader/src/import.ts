@@ -40,7 +40,11 @@ export type ExpectedValues = Readonly<Record<string, string | number | boolean |
 /** Turns a dataset's expected JSON (nested, other names) into values by field key. */
 export type ExpectedMapper = (
   raw: unknown,
-  item: { readonly key: string; readonly group: string | null; readonly attributes: SampleAttributes },
+  item: {
+    readonly key: string;
+    readonly group: string | null;
+    readonly attributes: SampleAttributes;
+  },
 ) => ExpectedValues;
 
 export interface ImportOptions {
@@ -109,6 +113,13 @@ async function newestType(qb: Quickben, ctx: RequestContext, key: string): Promi
   return toDefinition(record);
 }
 
+function errorText(error: unknown): string {
+  if (error instanceof ValidationError) {
+    return error.issues.map((issue) => `${issue.path}: ${issue.message}`).join("; ");
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
 const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 /**
@@ -135,19 +146,41 @@ export async function importSamples(
       counts[outcome] += 1;
     } catch (error) {
       outcome = "failed";
-      const message =
-        error instanceof ValidationError
-          ? error.issues.map((issue) => `${issue.path}: ${issue.message}`).join("; ")
-          : error instanceof Error
-            ? error.message
-            : String(error);
-      failed.push({ key: String(item.key), error: message.slice(0, 300) });
+      const message = errorText(error);
+      failed.push({ key: item.key, error: message.slice(0, 300) });
       state.log("import-failed", { typeKey, key: item.key, error: message });
     }
     done += 1;
-    options.onProgress?.({ done, key: String(item.key), outcome });
+    options.onProgress?.({ done, key: item.key, outcome });
   }
-  return { ...counts, failed, unknownFields: [...unknown].sort() };
+  return { ...counts, failed, unknownFields: [...unknown].sort((a, b) => a.localeCompare(b)) };
+}
+
+/** What an item stores besides its file, checked. */
+function sampleData(
+  type: DocumentType,
+  item: ImportItem,
+  options: ImportOptions,
+  unknown: Set<string>,
+) {
+  if (typeof item.key !== "string" || !SAMPLE_KEY.test(item.key)) {
+    throw new ValidationError([
+      { path: "key", message: "Keys are 1-200 letters, digits and . / : @ + - _" },
+    ]);
+  }
+  const group = groupOf(item.group);
+  const attributes = parseAttributes(item.attributes);
+  const mapped = options.map
+    ? options.map(item.expected, { key: item.key, group, attributes })
+    : ((item.expected ?? {}) as ExpectedValues);
+  const note = item.note?.trim().slice(0, 500) ?? "";
+  return {
+    expected: parseExpected(expectedValues(type, mapped, unknown)),
+    params: parseParams(item.params),
+    note: note === "" ? null : note,
+    group,
+    attributes,
+  };
 }
 
 async function importOne(
@@ -159,26 +192,14 @@ async function importOne(
   unknown: Set<string>,
 ): Promise<Exclude<ImportOutcome, "failed">> {
   const state = getDocReader(qb);
-  if (typeof item.key !== "string" || !SAMPLE_KEY.test(item.key)) {
-    throw new ValidationError([
-      { path: "key", message: "Keys are 1-200 letters, digits and . / : @ + - _" },
-    ]);
-  }
-  const group = groupOf(item.group);
-  const attributes = parseAttributes(item.attributes);
-  const mapped = options.map
-    ? options.map(item.expected, { key: item.key, group, attributes })
-    : ((item.expected ?? {}) as ExpectedValues);
-  const expected = parseExpected(expectedValues(type, mapped, unknown));
-  const params = parseParams(item.params);
-  const note = item.note?.trim().slice(0, 500) || null;
+  const data = sampleData(type, item, options, unknown);
+  const { group, attributes } = data;
   const upload = await readUpload(state, item.file);
   const fileHash = await sha256(upload.bytes);
   const sampleUid = `${type.key}/${item.key}`;
   const existing = (
     await qb.find(DOC_SAMPLES, { where: { sampleUid: { eq: sampleUid } }, limit: 1 }, ctx)
   ).docs[0] as unknown as SampleRecord | undefined;
-  const data = { expected, params, note, group, attributes };
 
   if (!existing) {
     if (options.dryRun) return "created";
