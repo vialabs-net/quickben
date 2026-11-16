@@ -17,9 +17,16 @@
  *
  *   .qb-root { --qb-accent: var(--brand-600); --qb-radius: 0.5rem; }
  *
- * Layout tokens: `--qb-card-radius`, `--qb-card-padding`, `--qb-title-size` and
- * `--qb-title-weight` (page titles), `--qb-heading-size` and `--qb-heading-weight` (card and
- * section titles), `--qb-table-row-height` (smallest height of a table row).
+ * Layout tokens: `--qb-card-radius`, `--qb-card-padding`, `--qb-card-shadow`,
+ * `--qb-button-radius`, `--qb-title-size` and `--qb-title-weight` (page titles),
+ * `--qb-heading-size` and `--qb-heading-weight` (card and section titles),
+ * `--qb-table-row-height` (smallest height of a table row).
+ *
+ * Optional color tokens default to a value derived from the ones above: `--qb-heading-text`
+ * (titles), `--qb-border-strong`, `--qb-accent-hover`, `--qb-selected` (current link, active
+ * option), `--qb-danger-strong` and `--qb-success-strong` (text on soft backgrounds).
+ *
+ * `createAdminPage(config, { theme })` sets the same tokens from a typed object, without CSS.
  *
  * Defaults use `light-dark()`, so they follow `color-scheme`. `.qb-root` does not set it:
  * it inherits the page's (`:root { color-scheme: light dark }` follows the system).
@@ -30,7 +37,7 @@
 @source "./";
 
 /* Every semantic utility, so plugin pages can use them even where the admin does not. */
-@source inline("qb:{,hover:,focus:,disabled:,aria-invalid:}{bg,text,border,ring,divide,outline}-{surface,surface-muted,surface-strong,surface-stronger,fg,fg-muted,fg-subtle,line,line-soft,line-strong,accent,accent-hover,accent-fg,danger,danger-hover,danger-strong,danger-fg,danger-soft,danger-line,success,success-soft,success-line,warning,warning-soft,warning-line,info,info-soft,info-line,focus}");
+@source inline("qb:{,hover:,focus:,disabled:,aria-invalid:}{bg,text,border,ring,divide,outline}-{surface,surface-muted,surface-strong,surface-stronger,selected,fg,fg-muted,fg-subtle,fg-heading,line,line-soft,line-strong,accent,accent-hover,accent-fg,danger,danger-hover,danger-strong,danger-fg,danger-soft,danger-line,success,success-strong,success-soft,success-line,warning,warning-soft,warning-line,info,info-soft,info-line,focus}");
 
 /*
  * Utilities the admin no longer uses itself but plugin pages may (they were in earlier
@@ -46,19 +53,22 @@
   --color-fg: var(--qb-text);
   --color-fg-muted: var(--qb-text-muted);
   --color-fg-subtle: color-mix(in oklab, var(--qb-text-muted) 70%, var(--qb-surface));
+  --color-fg-heading: var(--qb-heading-text);
+  --color-selected: var(--qb-selected);
   --color-line: var(--qb-border);
   --color-line-soft: color-mix(in oklab, var(--qb-border) 55%, var(--qb-surface));
-  --color-line-strong: color-mix(in oklab, var(--qb-border), var(--qb-text) 15%);
+  --color-line-strong: var(--qb-border-strong);
   --color-accent: var(--qb-accent);
-  --color-accent-hover: color-mix(in oklab, var(--qb-accent) 85%, var(--qb-surface));
+  --color-accent-hover: var(--qb-accent-hover);
   --color-accent-fg: var(--qb-accent-text);
   --color-danger: var(--qb-danger);
   --color-danger-hover: color-mix(in oklab, var(--qb-danger) 88%, var(--qb-surface));
-  --color-danger-strong: color-mix(in oklab, var(--qb-danger) 80%, var(--qb-text));
+  --color-danger-strong: var(--qb-danger-strong);
   --color-danger-fg: var(--qb-danger-text);
   --color-danger-soft: color-mix(in oklab, var(--qb-danger) 8%, var(--qb-surface));
   --color-danger-line: color-mix(in oklab, var(--qb-danger) 30%, var(--qb-surface));
   --color-success: var(--qb-success);
+  --color-success-strong: var(--qb-success-strong);
   --color-success-soft: color-mix(in oklab, var(--qb-success) 8%, var(--qb-surface));
   --color-success-line: color-mix(in oklab, var(--qb-success) 30%, var(--qb-surface));
   --color-warning: var(--qb-warning);
@@ -100,6 +110,15 @@
     --qb-heading-size: 0.875rem;
     --qb-heading-weight: 600;
     --qb-table-row-height: 2.5rem;
+    --qb-card-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --qb-button-radius: var(--qb-radius);
+    /* Optional tokens, derived from the ones above by default. */
+    --qb-heading-text: var(--qb-text);
+    --qb-border-strong: color-mix(in oklab, var(--qb-border), var(--qb-text) 15%);
+    --qb-accent-hover: color-mix(in oklab, var(--qb-accent) 85%, var(--qb-surface));
+    --qb-selected: color-mix(in oklab, var(--qb-text) 6%, var(--qb-surface));
+    --qb-danger-strong: color-mix(in oklab, var(--qb-danger) 80%, var(--qb-text));
+    --qb-success-strong: var(--qb-success);
     --qb-font-sans:
       ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
       "Segoe UI Symbol", "Noto Color Emoji";
@@ -162,6 +181,7 @@
  * from `getAdminNav(…).page`.
  */
 .qb-page-title {
+  color: var(--qb-heading-text);
   font-size: var(--qb-title-size);
   font-weight: var(--qb-title-weight);
   line-height: 1.25;
@@ -172,6 +192,7 @@
 }
 
 .qb-heading {
+  color: var(--qb-heading-text);
   font-size: var(--qb-heading-size);
   font-weight: var(--qb-heading-weight);
 }

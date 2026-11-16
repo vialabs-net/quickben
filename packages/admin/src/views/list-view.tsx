@@ -142,7 +142,7 @@ function Pagination(props: Readonly<ListViewProps>) {
             aria-current={size === state.limit ? "true" : undefined}
             className={
               size === state.limit
-                ? `${linkClass} qb:bg-surface-strong qb:font-medium qb:text-fg`
+                ? `${linkClass} qb:bg-selected qb:font-medium qb:text-fg`
                 : linkClass
             }
           >

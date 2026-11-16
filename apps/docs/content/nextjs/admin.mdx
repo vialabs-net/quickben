@@ -200,6 +200,8 @@ export const llms = defineCollection({
 | `timeZone`       | config   | Wins over `admin.timeZone`.                                                    |
 | `chrome`         | `full`   | `none` renders only the page. See [Embedded mode](#embedded-mode).             |
 | `pageTitle`      | `render` | `none` hides page titles and breadcrumbs. See [Embedded mode](#embedded-mode). |
+| `theme`          | none     | Values for the `--qb-*` tokens. See [Theme tokens](#theme-tokens).             |
+| `logo`           | none     | Element shown before the title in the sidebar.                                 |
 
 ## Extensions
 
@@ -444,7 +446,7 @@ Without `pathname`, `page` is absent. The playground's `app/embedded` renders it
 
 ## Theme tokens
 
-The admin and plugin pages read only these custom properties. Override them on `.qb-root` from unlayered CSS:
+The admin and plugin pages read only these custom properties. Set them with the `theme` option of `createAdminPage` (see [Example: a custom brand](#example-a-custom-brand)), or override them on `.qb-root` from unlayered CSS:
 
 ```css
 .qb-root {
@@ -454,27 +456,94 @@ The admin and plugin pages read only these custom properties. Override them on `
 }
 ```
 
-| Token                                       | Use                                |
-| ------------------------------------------- | ---------------------------------- |
-| `--qb-surface`                              | cards, inputs, sidebar             |
-| `--qb-surface-muted`                        | page background, table headers     |
-| `--qb-text`, `--qb-text-muted`              | text, secondary text               |
-| `--qb-border`                               | borders, dividers                  |
-| `--qb-accent`, `--qb-accent-text`           | primary buttons, toasts            |
-| `--qb-danger`, `--qb-danger-text`           | errors, delete buttons             |
-| `--qb-success`, `--qb-warning`, `--qb-info` | badges and notices                 |
-| `--qb-focus-ring`                           | focus outline                      |
-| `--qb-radius`                               | control radius                     |
-| `--qb-card-radius`                          | card radius (default radius + 2px) |
-| `--qb-card-padding`                         | card and form padding (`1.25rem`)  |
-| `--qb-title-size`, `--qb-title-weight`      | page titles (`1.5rem`, `600`)      |
-| `--qb-heading-size`, `--qb-heading-weight`  | card titles (`0.875rem`, `600`)    |
-| `--qb-table-row-height`                     | smallest table row (`2.5rem`)      |
-| `--qb-font-sans`, `--qb-font-mono`          | fonts                              |
+| Token                   | `theme` key      | Use                                 | Default                         |
+| ----------------------- | ---------------- | ----------------------------------- | ------------------------------- |
+| `--qb-surface`          | `surface`        | cards, inputs, sidebar              | white                           |
+| `--qb-surface-muted`    | `surfaceMuted`   | page background, table headers      | near white                      |
+| `--qb-text`             | `text`           | body text                           | near black                      |
+| `--qb-text-muted`       | `textMuted`      | secondary text                      | gray                            |
+| `--qb-heading-text`     | `headingText`    | page and card titles, sidebar title | `--qb-text`                     |
+| `--qb-border`           | `border`         | borders, dividers                   | light gray                      |
+| `--qb-border-strong`    | `borderStrong`   | input and secondary button borders  | mixed from border and text      |
+| `--qb-accent`           | `accent`         | primary buttons, toasts             | near black                      |
+| `--qb-accent-hover`     | `accentHover`    | primary buttons on hover            | mixed from accent               |
+| `--qb-accent-text`      | `accentText`     | text on accent                      | white                           |
+| `--qb-selected`         | `selected`       | current sidebar link, active option | `--qb-text` at 6%               |
+| `--qb-danger`           | `danger`         | errors, delete buttons              | red                             |
+| `--qb-danger-strong`    | `dangerStrong`   | error text on soft backgrounds      | mixed from danger and text      |
+| `--qb-danger-text`      | `dangerText`     | text on danger                      | white                           |
+| `--qb-success`          | `success`        | success fills                       | green                           |
+| `--qb-success-strong`   | `successStrong`  | success text on soft backgrounds    | `--qb-success`                  |
+| `--qb-warning`          | `warning`        | badges and notices                  | amber                           |
+| `--qb-info`             | `info`           | badges and notices                  | blue                            |
+| `--qb-focus-ring`       | `focusRing`      | focus outline                       | blue                            |
+| `--qb-radius`           | `radius`         | control radius                      | `0.375rem`                      |
+| `--qb-button-radius`    | `buttonRadius`   | button radius; `9999px` for pills   | `--qb-radius`                   |
+| `--qb-card-radius`      | `cardRadius`     | card radius                         | radius + 2px                    |
+| `--qb-card-padding`     | `cardPadding`    | card and form padding               | `1.25rem`                       |
+| `--qb-card-shadow`      | `cardShadow`     | card `box-shadow`                   | `0 1px 2px 0 rgb(0 0 0 / 0.05)` |
+| `--qb-title-size`       | `titleSize`      | page titles                         | `1.5rem`                        |
+| `--qb-title-weight`     | `titleWeight`    | page titles                         | `600`                           |
+| `--qb-heading-size`     | `headingSize`    | card titles                         | `0.875rem`                      |
+| `--qb-heading-weight`   | `headingWeight`  | card titles                         | `600`                           |
+| `--qb-table-row-height` | `tableRowHeight` | smallest table row                  | `2.5rem`                        |
+| `--qb-font-sans`        | `fontSans`       | text font                           | system UI font                  |
+| `--qb-font-mono`        | `fontMono`       | code font                           | system monospace font           |
 
 Tables scroll inside their own box, with shadows at the edges that can scroll, and never widen the page. Selects and relation chips fit their column; a cut label shows in full in the open list or as a tooltip.
 
 Hover and soft shades are mixed from these with `color-mix()`. Defaults use `light-dark()`. `.qb-root` does not set `color-scheme`: it inherits the page's, so `:root { color-scheme: light dark }` follows the system.
+
+### Example: a custom brand
+
+These values are only an example. The logo and the tokens are options of `createAdminPage`, so no CSS file is needed. The product name is `admin.title` in `defineConfig`.
+
+```tsx filename="app/admin/[[...segments]]/brand.tsx"
+import { Inter } from "next/font/google";
+
+import type { AdminOptions } from "@quickben/admin";
+
+const inter = Inter({ subsets: ["latin"] });
+
+export const brand = {
+  logo: <img src="/logo.svg" alt="" width={28} height={28} />,
+  theme: {
+    fontSans: inter.style.fontFamily,
+    surfaceMuted: "#F6F9FC", // page background
+    surface: "#FFFFFF", // cards and the sidebar
+    border: "#DBE6F0",
+    borderStrong: "#C3D4E3",
+    headingText: "#0A3256",
+    text: "#33465A",
+    textMuted: "#69809A",
+    accent: "#045EA0",
+    accentHover: "#085084",
+    accentText: "#FFFFFF",
+    selected: "#E0F0FE",
+    focusRing: "#045EA0",
+    success: "#00BB6C",
+    successStrong: "#00875C",
+    warning: "#B54708",
+    danger: "#E02424",
+    dangerStrong: "#9C1818",
+    cardRadius: "16px",
+    cardShadow: "0 3px 14px rgba(10,50,86,.08)",
+    buttonRadius: "9999px",
+  },
+} satisfies AdminOptions;
+```
+
+In the page file: `createAdminPage(config, { serverFunction, ...brand })`.
+
+| Part         | Where                                                                 |
+| ------------ | --------------------------------------------------------------------- |
+| Product name | `admin.title` in `defineConfig`. Shown in the sidebar and dashboard.  |
+| Logo         | `logo`: any element, shown before the title. Use `alt=""` next to it. |
+| Sidebar      | `surface`, with a right border in `border`.                           |
+| Buttons      | `buttonRadius: "9999px"` gives pill buttons.                          |
+| Font         | Load it yourself (`next/font`) and pass its family to `fontSans`.     |
+
+Plain colors apply in light and dark mode. To keep a dark mode, pass `light-dark(<light>, <dark>)` values.
 
 ## Styles
 

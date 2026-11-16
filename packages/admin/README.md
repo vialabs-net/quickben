@@ -226,7 +226,7 @@ Without `pathname`, `page` is absent. The playground's `app/embedded` renders it
 
 ## Theme tokens
 
-The admin and plugin pages read only these custom properties. Override them on `.qb-root` from unlayered CSS:
+The admin and plugin pages read only these custom properties. Set them with the `theme` option of `createAdminPage`, or override them on `.qb-root` from unlayered CSS:
 
 ```css
 .qb-root {
@@ -236,23 +236,46 @@ The admin and plugin pages read only these custom properties. Override them on `
 }
 ```
 
-| Token                                       | Use                                |
-| ------------------------------------------- | ---------------------------------- |
-| `--qb-surface`                              | cards, inputs, sidebar             |
-| `--qb-surface-muted`                        | page background, table headers     |
-| `--qb-text`, `--qb-text-muted`              | text, secondary text               |
-| `--qb-border`                               | borders, dividers                  |
-| `--qb-accent`, `--qb-accent-text`           | primary buttons, toasts            |
-| `--qb-danger`, `--qb-danger-text`           | errors, delete buttons             |
-| `--qb-success`, `--qb-warning`, `--qb-info` | badges and notices                 |
-| `--qb-focus-ring`                           | focus outline                      |
-| `--qb-radius`                               | control radius                     |
-| `--qb-card-radius`                          | card radius (default radius + 2px) |
-| `--qb-card-padding`                         | card and form padding (`1.25rem`)  |
-| `--qb-title-size`, `--qb-title-weight`      | page titles (`1.5rem`, `600`)      |
-| `--qb-heading-size`, `--qb-heading-weight`  | card titles (`0.875rem`, `600`)    |
-| `--qb-table-row-height`                     | smallest table row (`2.5rem`)      |
-| `--qb-font-sans`, `--qb-font-mono`          | fonts                              |
+```tsx
+export default createAdminPage(config, {
+  logo: <img src="/logo.svg" alt="" width={28} height={28} />, // before admin.title in the sidebar
+  theme: { accent: "var(--brand-600)", cardRadius: "16px", buttonRadius: "9999px" },
+});
+```
+
+| Token                   | `theme` key      | Use                                 | Default                         |
+| ----------------------- | ---------------- | ----------------------------------- | ------------------------------- |
+| `--qb-surface`          | `surface`        | cards, inputs, sidebar              | white                           |
+| `--qb-surface-muted`    | `surfaceMuted`   | page background, table headers      | near white                      |
+| `--qb-text`             | `text`           | body text                           | near black                      |
+| `--qb-text-muted`       | `textMuted`      | secondary text                      | gray                            |
+| `--qb-heading-text`     | `headingText`    | page and card titles, sidebar title | `--qb-text`                     |
+| `--qb-border`           | `border`         | borders, dividers                   | light gray                      |
+| `--qb-border-strong`    | `borderStrong`   | input and secondary button borders  | mixed from border and text      |
+| `--qb-accent`           | `accent`         | primary buttons, toasts             | near black                      |
+| `--qb-accent-hover`     | `accentHover`    | primary buttons on hover            | mixed from accent               |
+| `--qb-accent-text`      | `accentText`     | text on accent                      | white                           |
+| `--qb-selected`         | `selected`       | current sidebar link, active option | `--qb-text` at 6%               |
+| `--qb-danger`           | `danger`         | errors, delete buttons              | red                             |
+| `--qb-danger-strong`    | `dangerStrong`   | error text on soft backgrounds      | mixed from danger and text      |
+| `--qb-danger-text`      | `dangerText`     | text on danger                      | white                           |
+| `--qb-success`          | `success`        | success fills                       | green                           |
+| `--qb-success-strong`   | `successStrong`  | success text on soft backgrounds    | `--qb-success`                  |
+| `--qb-warning`          | `warning`        | badges and notices                  | amber                           |
+| `--qb-info`             | `info`           | badges and notices                  | blue                            |
+| `--qb-focus-ring`       | `focusRing`      | focus outline                       | blue                            |
+| `--qb-radius`           | `radius`         | control radius                      | `0.375rem`                      |
+| `--qb-button-radius`    | `buttonRadius`   | button radius; `9999px` for pills   | `--qb-radius`                   |
+| `--qb-card-radius`      | `cardRadius`     | card radius                         | radius + 2px                    |
+| `--qb-card-padding`     | `cardPadding`    | card and form padding               | `1.25rem`                       |
+| `--qb-card-shadow`      | `cardShadow`     | card `box-shadow`                   | `0 1px 2px 0 rgb(0 0 0 / 0.05)` |
+| `--qb-title-size`       | `titleSize`      | page titles                         | `1.5rem`                        |
+| `--qb-title-weight`     | `titleWeight`    | page titles                         | `600`                           |
+| `--qb-heading-size`     | `headingSize`    | card titles                         | `0.875rem`                      |
+| `--qb-heading-weight`   | `headingWeight`  | card titles                         | `600`                           |
+| `--qb-table-row-height` | `tableRowHeight` | smallest table row                  | `2.5rem`                        |
+| `--qb-font-sans`        | `fontSans`       | text font                           | system UI font                  |
+| `--qb-font-mono`        | `fontMono`       | code font                           | system monospace font           |
 
 Tables scroll inside their own box, with shadows at the edges that can scroll, and never widen the page. Selects and relation chips fit their column; a cut label shows in full in the open list or as a tooltip.
 

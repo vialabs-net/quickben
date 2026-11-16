@@ -51,7 +51,7 @@ export function PageHeader({
             </ol>
           </nav>
         ) : null}
-        <h1 className="qb-page-title qb:truncate qb:tracking-tight qb:text-fg">{title}</h1>
+        <h1 className="qb-page-title qb:truncate qb:tracking-tight">{title}</h1>
         {description ? <p className="qb:mt-1 qb:text-sm qb:text-fg-muted">{description}</p> : null}
       </div>
       {actions ? <div className="qb:flex qb:gap-2">{actions}</div> : null}
@@ -74,7 +74,7 @@ export function NotAllowed({
   return (
     <Card className="qb:max-w-xl">
       <CardBody className="qb:space-y-3">
-        <h1 className="qb:text-lg qb:font-semibold">
+        <h1 className="qb:text-lg qb:font-semibold qb:text-fg-heading">
           {signedIn ? i18n.t("access.denied") : i18n.t("access.signInRequired")}
         </h1>
         <p className="qb:text-sm qb:text-fg-muted">{message}</p>

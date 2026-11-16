@@ -26,7 +26,7 @@ const sizes: Record<ButtonSize, string> = {
 /** Class names of a button, for elements that should look like one. */
 export function buttonClass(variant: ButtonVariant = "primary", size: ButtonSize = "md"): string {
   return cn(
-    "qb:inline-flex qb:shrink-0 qb:items-center qb:justify-center qb:gap-2 qb:rounded-md qb:font-medium qb:whitespace-nowrap qb:transition-colors qb:disabled:pointer-events-none qb:disabled:opacity-50",
+    "qb:inline-flex qb:shrink-0 qb:items-center qb:justify-center qb:gap-2 qb:rounded-(--qb-button-radius) qb:font-medium qb:whitespace-nowrap qb:transition-colors qb:disabled:pointer-events-none qb:disabled:opacity-50",
     focusRing,
     variants[variant],
     sizes[size],
