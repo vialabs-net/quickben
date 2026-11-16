@@ -119,6 +119,8 @@ const invoice: DocumentTypeInput = {
 | `email`    | Lowercase.                                                       |
 | `phone`    | Digits, with `+` when printed.                                   |
 
+Field keys are camelCase words joined by `.`, for example `total` or `vehicle.make`. A type can then mirror a nested JSON: `nestValues(reading.fields)` builds `{ vehicle: { make } }`, and `importSamples` reads nested expected values by dotted key (`flattenValues`). Reports, the admin and exports show the keys as written.
+
 Every field also takes `transform` (`upper`, `compact`: uppercase without spaces, dots and dashes) and `pattern` (a regular expression the value must match). A value that fails is dropped, also from a model.
 
 A parameter with `excludes` lists values that can never be the value of those fields, for example the issuer's own tax id.
@@ -130,7 +132,7 @@ Steps run in order. Per field, the first value at or above `threshold` wins. The
 | Extractor    | Cost | Config                                                                                                |
 | ------------ | ---- | ----------------------------------------------------------------------------------------------------- |
 | `text-layer` | free | `template` (a key of `templates`, or an inline template) or `reader` (a key of `readers`). PDFs only. |
-| `vision-llm` | paid | `connectionId`, `model` (default: the connection's), `maxPages`.                                      |
+| `vision-llm` | paid | `connectionId` or `connection` (name), `model`, `maxPages`, and the options below.                    |
 | your own     | any  | Pass `extractors: [{ key, paid, extract }]`.                                                          |
 
 Templates are regular expressions over the text, whitespace collapsed:
@@ -145,6 +147,41 @@ docReader({
   },
 });
 ```
+
+**`vision-llm` options**
+
+| Config            | Default                         | Purpose                                                                                    |
+| ----------------- | ------------------------------- | ------------------------------------------------------------------------------------------ |
+| `connection`      | none                            | Connection name, used when `connectionId` is absent. Needs `resolveConnectionId`.          |
+| `includeText`     | `false`                         | Send the PDF's text layer with the images. Scans send images only.                         |
+| `textBoxes`       | `true`                          | With `includeText`: each text line starts with its box in thousandths.                     |
+| `maxOutputTokens` | provider's                      | Output token cap of one call.                                                              |
+| `temperature`     | `0`                             | `null` sends none.                                                                         |
+| `reasoning`       | provider's                      | AI SDK reasoning effort: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`.       |
+| `providerOptions` | none                            | Passed to the AI SDK as is, e.g. `{ anthropic: { effort: "low" } }`.                       |
+| `output`          | `structured` when supported     | `structured`: the provider enforces the schema. `json`: JSON in the reply, checked by zod. |
+| `groupSize`       | 24 (`structured`), all (`json`) | Most fields in one call. More fields make more calls in parallel; each sends the pages.    |
+| `repair`          | `1`                             | Extra calls for fields missing, invalid, or required and empty. `0` turns it off.          |
+
+```ts nocheck
+{
+  extractor: "vision-llm",
+  config: {
+    connection: "anthropic",
+    model: "claude-haiku-5-5",
+    includeText: true,
+    maxOutputTokens: 8000,
+    providerOptions: { anthropic: { effort: "low" } },
+    temperature: null,
+  },
+}
+```
+
+**Large types.** A structured-output schema has a size limit; Anthropic refuses a 48-field type with HTTP 400 "The compiled grammar is too large". Fields are read in groups of `groupSize`, one call per group in parallel, with tokens and cost added up. When the provider still refuses a group's schema, the group is split in two, down to 4 fields, and then asked as plain JSON. Refused calls are not billed. `output: "json"` skips the grammar: the reply is checked field by field and invalid fields go to the repair call.
+
+**Repairs.** After the first answer, fields that are missing, not valid, or required and empty are asked again in one smaller call, with the reason per field. The attempt records `repairs` and `problems.repaired`; its `usage` includes every call (`usage.calls`). Test run metrics count `repaired` samples, `repairs` calls and `stepErrors`.
+
+**Provider errors** show in the step's `problems.error` with the HTTP status and the provider's message, for example `the model provider rejected the request (HTTP 400): The compiled grammar is too large`. Words with digits are cut out of the message, and authentication errors (401, 403) show only their status. Only timeouts, 429 and 5xx count as transient (retried by test runs); a refused request counts as an error. A test run sample lists every step error, as `step: message`, even when a later step read the document.
 
 Results: `OK`, `INCOMPLETE` (required fields missing), `NO_MATCH`, `NO_TEXT`, `ERROR`. Each step is recorded in `attempts`, with `SKIPPED` for paid steps over budget.
 
@@ -162,7 +199,7 @@ import { connectionModels } from "@quickben/plugin-doc-reader/connections";
 plugins: [connections({ masterKey }), docReader({ ...connectionModels() })];
 ```
 
-`connectionModels()` resolves a step's `connectionId` and `model` with `resolveLanguageModel` from `@quickben/plugin-connections/ai`, and lists connections with vision models for the admin. Model prices come from the connection. Connections do not store a page limit: `connectionModels({ maxPages })` sets it (default 4).
+`connectionModels()` resolves a step's `connectionId` and `model` with `resolveLanguageModel` from `@quickben/plugin-connections/ai`, resolves a `connection` name with `findConnectionIdByName` (an error when no connection or more than one has that name), and lists connections with vision models for the admin. Names are the same in every database, ids are not: name connections in code and in types you ship. Model prices come from the connection. Connections do not store a page limit: `connectionModels({ maxPages })` sets it (default 4).
 
 **Your own resolver**
 
@@ -187,7 +224,7 @@ docReader({
 ```
 
 - Cost = tokens × the model's prices per million. Cached input tokens use `cachedInputPerMTokUsd` when the model has it, else the input price. A billed call that returns no fields still records its usage.
-- One call per step, no retries, 60 s deadline (`modelTimeoutMs`). Provider errors show a fixed message.
+- No SDK retries, 60 s deadline per call (`modelTimeoutMs`). Extra calls are the field groups and repairs above.
 - The answer schema has no nullable or union types: Anthropic rejects schemas with more than 16 union parameters.
 - Boxes are read as `x0,y0,x1,y1` in thousandths of the page and stored as fractions 0..1.
 - PDF pages are rendered with `unpdf` and the optional peer `@napi-rs/canvas`. In Next.js add `@napi-rs/canvas` to `serverExternalPackages`, or pass your own `rasterize`.
@@ -206,7 +243,7 @@ A connection model takes `inputPerMTokUsd`, `outputPerMTokUsd` and, optionally, 
 
 **An external extraction service**
 
-Register an extractor that calls your service and returns the fields. Steps name it by `key`, and test runs compare it like any other step.
+Register an extractor that calls your service and returns the fields. Its context has `qb` (the Quickben instance, e.g. to resolve a connection), `tenant` and `user` (who asked for the reading; `null` in test runs), like the built-in ones. Steps name it by `key`, and test runs compare it like any other step.
 
 ```ts
 import { docReader } from "@quickben/plugin-doc-reader";
@@ -368,7 +405,7 @@ const [run] = await startTestRun(qb, ctx, "receipt", 3, {
 });
 ```
 
-A variant names a version, a connection and model, or both. With a connection the pipeline is that model alone. `test` and `unseen` need `heldOut: true`; each such run is logged (`held-out-run`) with who, when and the version.
+A variant names a version, a connection (`connectionId`, or `connection` by name) and model, `options`, or a mix. With a connection the pipeline is that model alone. `options` sets `vision-llm` options for the run, for example `{ connection: "anthropic", options: { maxOutputTokens: 4000, providerOptions: { anthropic: { effort: "low" } } } }`. `test` and `unseen` need `heldOut: true`; each such run is logged (`held-out-run`) with who, when and the version.
 
 **4. Read the metrics.** `getTestRun(...).metrics`:
 
@@ -464,24 +501,27 @@ Boxes: for a PDF with a text layer, the value (else its evidence text) is looked
 
 ## Options
 
-| Option                 | Default               | Purpose                                         |
-| ---------------------- | --------------------- | ----------------------------------------------- |
-| `files`                | config `storage`      | Where uploads and samples are kept.             |
-| `runner`               | `inProcessRunner()`   | How jobs reach a worker.                        |
-| `resolveModel`         | none                  | Models for `vision-llm` steps.                  |
-| `listModels`           | none                  | Model pickers in the admin.                     |
-| `templates`, `readers` | none                  | What `text-layer` steps can name.               |
-| `extractors`           | none                  | More extractors, or replacements by `key`.      |
-| `types`                | none                  | Types added as published versions when missing. |
-| `isStaff`              | `platform-admin` role | Platform staff.                                 |
-| `jobAccess`            | own readings          | Access rules of `doc-jobs`.                     |
-| `maxWaitMs`            | `30000`               | Longest `wait`.                                 |
-| `maxFileBytes`         | 20 MB                 | Largest upload.                                 |
-| `rasterize`            | unpdf + canvas        | Page images for vision models.                  |
-| `modelTimeoutMs`       | `60000`               | Deadline of one model call.                     |
-| `testRetryDelayMs`     | `1000`                | Wait before a test run tries a sample again.    |
-| `onReadingDone`        | none                  | Called when a reading ends.                     |
-| `log`                  | `console.warn`        | Failures that do not fail a reading.            |
+| Option                 | Default               | Purpose                                      |
+| ---------------------- | --------------------- | -------------------------------------------- |
+| `files`                | config `storage`      | Where uploads and samples are kept.          |
+| `runner`               | `inProcessRunner()`   | How jobs reach a worker.                     |
+| `resolveModel`         | none                  | Models for `vision-llm` steps.               |
+| `resolveConnectionId`  | none                  | Connection names in steps and variants.      |
+| `listModels`           | none                  | Model pickers in the admin.                  |
+| `templates`, `readers` | none                  | What `text-layer` steps can name.            |
+| `extractors`           | none                  | More extractors, or replacements by `key`.   |
+| `types`                | none                  | Types shipped with the code; see below.      |
+| `isStaff`              | `platform-admin` role | Platform staff.                              |
+| `jobAccess`            | own readings          | Access rules of `doc-jobs`.                  |
+| `maxWaitMs`            | `30000`               | Longest `wait`.                              |
+| `maxFileBytes`         | 20 MB                 | Largest upload.                              |
+| `rasterize`            | unpdf + canvas        | Page images for vision models.               |
+| `modelTimeoutMs`       | `60000`               | Deadline of one model call.                  |
+| `testRetryDelayMs`     | `1000`                | Wait before a test run tries a sample again. |
+| `onReadingDone`        | none                  | Called when a reading ends.                  |
+| `log`                  | `console.warn`        | Failures that do not fail a reading.         |
+
+**Types in code.** A version of `types` not stored yet is added as published. When the code changes a stored version, the published version stays as it is: the change becomes a new draft marked as coming from the code, or updates the draft an earlier start made. The admin shows it on the types list and the version page, and `log` gets `type-changed-in-code`. A draft made in the admin is left alone and the log says so; publish or delete it to get the code's change.
 
 ## Admin languages
 
