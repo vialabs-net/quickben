@@ -270,7 +270,7 @@ export function RowsEditor({
     // Keep focus on the moved row: the same button, or the other one at the ends.
     const to = index + by;
     const atEnd = by < 0 ? to === 0 : to === next.length - 1;
-    const button = (by < 0) !== atEnd ? "up" : "down";
+    const button = by < 0 !== atEnd ? "up" : "down";
     focusNext.current = `${id}-${button}-${String(to)}`;
     restructure(next);
   };

@@ -1,17 +1,28 @@
 /* A host design system mapped onto the admin theme tokens in one place. */
 .host {
-  --host-brand: #4338ca;
+  --host-brand: light-dark(#4338ca, #818cf8);
   --host-radius: 0.75rem;
+  --host-surface: light-dark(#fff, #1c1917);
+  --host-page: light-dark(#f5f5f4, #0c0a09);
+  --host-text: light-dark(#1c1917, #f5f5f4);
 
+  /* Follows the system theme. The admin tokens use light-dark(), so they follow it too. */
+  color-scheme: light dark;
   min-height: 100vh;
-  background: #f5f5f4;
+  color: var(--host-text);
+  background: var(--host-page);
 }
 
 .host .qb-root {
   --qb-accent: var(--host-brand);
-  --qb-accent-text: #fff;
+  --qb-accent-text: light-dark(#fff, #1e1b4b);
   --qb-focus-ring: var(--host-brand);
   --qb-radius: var(--host-radius);
+  --qb-surface: var(--host-surface);
+  --qb-card-radius: 1rem;
+  --qb-card-padding: 1.5rem;
+  --qb-heading-size: 1rem;
+  --qb-table-row-height: 3rem;
 }
 
 .host-header {
@@ -21,14 +32,15 @@
   align-items: center;
   padding: 0.75rem 1.5rem;
   color: #fff;
-  background: var(--host-brand);
+  background: light-dark(#4338ca, #312e81);
 }
 
 .host-brand {
   font-weight: 700;
 }
 
-.host-nav ul {
+.host-nav ul,
+.host-title ol {
   display: flex;
   flex-wrap: wrap;
   gap: 1rem;
@@ -51,4 +63,35 @@
   max-width: 72rem;
   margin: 0 auto;
   padding: 1.5rem;
+}
+
+.host-title {
+  margin-bottom: 1.25rem;
+}
+
+.host-title ol {
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: light-dark(#57534e, #a8a29e);
+}
+
+.host-title li + li::before {
+  content: "›";
+  margin-right: 0.5rem;
+}
+
+.host-title a {
+  color: inherit;
+}
+
+.host-title h1 {
+  margin: 0.25rem 0 0;
+  font-size: 1.75rem;
+}
+
+@media (width < 40rem) {
+  .host-header,
+  .host-main {
+    padding-inline: 1rem;
+  }
 }

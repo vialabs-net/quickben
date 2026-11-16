@@ -30,6 +30,44 @@ test("admin pages render inside the host layout", async ({ page }) => {
   await expect(button).toHaveCSS("border-top-left-radius", "12px");
 });
 
+test("the host shows the page title; the admin hides its own", async ({ page }) => {
+  await page.goto("/embedded/posts");
+  // One <h1>: the host's, from getAdminNav(…).page. The admin's is hidden (pageTitle: "none").
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+  await expect(page.locator(".host-title h1").filter({ visible: true })).toHaveText("Posts");
+  await expect(page.locator(".qb-root[data-qb-page-title='none'] .qb-page-title")).toBeHidden();
+  // The admin keeps its actions and description.
+  await expect(page.getByRole("link", { name: "New post" })).toBeVisible();
+
+  await page.getByRole("link", { name: "New post" }).click();
+  await expect(page.locator(".host-title h1").filter({ visible: true })).toHaveText("New post");
+  const crumbs = page.getByRole("navigation", { name: "Host breadcrumb" });
+  await expect(crumbs.getByRole("link", { name: "Posts" })).toHaveAttribute(
+    "href",
+    "/embedded/posts",
+  );
+
+  await page.goto("/embedded");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+});
+
+test("tables scroll inside their container on phones", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/embedded/posts");
+  await expect(page.getByRole("table")).toBeVisible();
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(0);
+  const scroller = page.locator(".qb-table-scroll").first();
+  const { scrollWidth, clientWidth } = await scroller.evaluate((element) => ({
+    scrollWidth: element.scrollWidth,
+    clientWidth: element.clientWidth,
+  }));
+  expect(clientWidth).toBeLessThanOrEqual(390);
+  expect(scrollWidth).toBeGreaterThanOrEqual(clientWidth);
+});
+
 test("create and delete a document in embedded mode", async ({ page }) => {
   await page.goto("/embedded/tags/new");
   await page.getByRole("textbox", { name: "Name", exact: true }).fill("embedded-tag");
