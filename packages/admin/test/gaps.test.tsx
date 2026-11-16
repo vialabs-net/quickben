@@ -276,6 +276,20 @@ describe("RowsEditor", () => {
     expect(screen.queryByText("Duplicate model a")).toBeNull();
   });
 
+  it("keeps compact columns narrow and lets text columns take the free width", () => {
+    const { container } = renderRows([{ id: "a", price: 3, vision: true, tier: "fast" }]);
+    const fit = [...container.querySelectorAll("th")].map((th) =>
+      th.classList.contains("qb-rows-fit"),
+    );
+    // Row number, then each column (text columns flexible), then the actions.
+    expect(fit).toEqual([true, ...columns.map((column) => column.type !== "text"), true]);
+    expect(container.querySelector(".qb-rows .qb-table-scroll")).toBeTruthy();
+    expect(screen.getByLabelText("Id, row 1").className).toContain("qb-rows-text");
+    expect(screen.getByLabelText("Tier, row 1").className).toContain("qb-rows-select");
+    const number = container.querySelector('input[type="number"]');
+    expect(number?.className).toContain("qb-rows-number");
+  });
+
   it("is read-only when disabled", () => {
     renderRows([{ id: "a" }], { disabled: true });
     expect(screen.queryByRole("button", { name: "Add row" })).toBeNull();

@@ -167,7 +167,7 @@ function CellInput({
           {...shared}
           value={value}
           required={column.required && !column.options?.includes("")}
-          className="qb:min-w-32"
+          className="qb-rows-select"
           onChange={(event) => {
             onChange(event.currentTarget.value);
           }}
@@ -191,7 +191,7 @@ function CellInput({
           max={column.max}
           required={column.required}
           value={value}
-          className="qb:w-28"
+          className="qb-rows-number"
           onChange={(event) => {
             onChange(event.currentTarget.value);
           }}
@@ -207,7 +207,7 @@ function CellInput({
           // A required property may still be an empty string; only a minimum length needs text.
           required={column.required && (column.minLength ?? 0) > 0}
           value={value}
-          className="qb:min-w-40"
+          className="qb-rows-text"
           onChange={(event) => {
             onChange(event.currentTarget.value);
           }}
@@ -384,18 +384,18 @@ export function RowsEditor({
       className="qb:space-y-2 qb:outline-none"
     >
       <input type="hidden" name={name} value={serialize(columns, rows, empty)} />
-      <div className="qb:rounded-md qb:border qb:border-line">
+      <div className="qb-rows qb:rounded-md qb:border qb:border-line">
         <Table>
           <thead>
             <tr>
-              <Th scope="col" className="qb:w-10 qb:px-3">
+              <Th scope="col" className="qb-rows-fit">
                 <span className="qb:sr-only">{i18n.t("rows.number")}</span>
               </Th>
               {columns.map((column) => (
                 <Th
                   key={column.key}
                   scope="col"
-                  className="qb:px-3"
+                  className={column.type === "text" ? undefined : "qb-rows-fit"}
                   title={column.description ?? undefined}
                 >
                   {column.label}
@@ -408,7 +408,7 @@ export function RowsEditor({
                 </Th>
               ))}
               {disabled ? null : (
-                <Th scope="col" className="qb:px-3">
+                <Th scope="col" className="qb-rows-fit">
                   <span className="qb:sr-only">{i18n.t("rows.actions")}</span>
                 </Th>
               )}
@@ -419,7 +419,7 @@ export function RowsEditor({
               const number = index + 1;
               return (
                 <tr key={row.uid}>
-                  <Td className="qb:px-3 qb:text-fg-muted qb:tabular-nums">{number}</Td>
+                  <Td className="qb:text-fg-muted qb:tabular-nums">{number}</Td>
                   {columns.map((column) => {
                     const cell = cellId(index, column.key);
                     const error = cellError(index, column.key);
@@ -427,7 +427,7 @@ export function RowsEditor({
                       <Td
                         key={column.key}
                         className={cn(
-                          "qb:px-3 qb:align-top",
+                          "qb:align-top",
                           column.type === "boolean" && "qb:text-center",
                         )}
                       >
@@ -454,8 +454,8 @@ export function RowsEditor({
                     );
                   })}
                   {disabled ? null : (
-                    <Td className="qb:px-3 qb:align-top">
-                      <div className="qb:flex qb:gap-1">
+                    <Td className="qb:align-top">
+                      <div className="qb-rows-actions qb:flex qb:gap-0.5">
                         <Button
                           id={`${id}-up-${String(index)}`}
                           size="sm"

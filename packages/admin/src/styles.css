@@ -210,6 +210,29 @@
 }
 
 /*
+ * Detail page with a side column: `.qb-detail` measures the width it has and
+ * `.qb-detail-columns` inside it holds the main column, then the side column. The main
+ * column takes the free width and the side column stays 17rem. Under 84rem of width (an
+ * admin embedded in a host's settings column, a narrow window) the side column goes under
+ * the main one, so the form keeps the full width.
+ */
+.qb-detail {
+  container-type: inline-size;
+}
+
+.qb-detail-columns {
+  display: grid;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@container (min-width: 84rem) {
+  .qb-detail-columns {
+    grid-template-columns: minmax(0, 1fr) 17rem;
+  }
+}
+
+/*
  * Tables scroll inside their own box and never widen the page: `contain: inline-size`
  * keeps the table's width out of the parent's sizing (grid and flex items included).
  * Shadows at the edges show that there is more to scroll (`background-attachment: local`
@@ -241,4 +264,69 @@
 
 .qb-table-scroll td {
   height: var(--qb-table-row-height);
+}
+
+/*
+ * Row editor (`RowsEditor`). Headers wrap, so a long label does not widen its column. Text
+ * columns share the free width; number, checkbox and select columns and the row number and
+ * actions columns (`.qb-rows-fit`) stay as narrow as their content. Number inputs fit their
+ * value. The table scrolls (`.qb-table-scroll`) only when the columns still do not fit.
+ */
+.qb-rows :is(th, td) {
+  padding-inline: 0.5rem;
+}
+
+.qb-rows :is(th, td):first-child {
+  padding-inline-start: 0.75rem;
+}
+
+.qb-rows :is(th, td):last-child {
+  padding-inline-end: 0.75rem;
+}
+
+.qb-rows th {
+  white-space: normal;
+  vertical-align: bottom;
+  line-height: 1.25;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.qb-rows th.qb-rows-fit {
+  width: 1%;
+}
+
+.qb-rows .qb-rows-text {
+  min-inline-size: 7rem;
+}
+
+.qb-rows .qb-rows-select {
+  inline-size: auto;
+  min-inline-size: 6rem;
+}
+
+/* No spin buttons: they take a third of a narrow input, and the arrow keys still step. */
+.qb-rows .qb-rows-number {
+  inline-size: 5rem;
+  padding-inline: 0.5rem;
+  appearance: textfield;
+}
+
+.qb-rows .qb-rows-number::-webkit-inner-spin-button,
+.qb-rows .qb-rows-number::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+@supports (field-sizing: content) {
+  .qb-rows .qb-rows-number {
+    field-sizing: content;
+    inline-size: auto;
+    min-inline-size: 4rem;
+    max-inline-size: 9rem;
+  }
+}
+
+.qb-rows .qb-rows-actions > button {
+  padding-inline: 0.5rem;
 }
