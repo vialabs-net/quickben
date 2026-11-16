@@ -12,6 +12,7 @@ import { ForbiddenError, NotFoundError, ValidationError } from "./errors";
 import { isFileRef, queueFileCleanup, storageOf, storeUploads } from "./files";
 import { uuidv7 } from "./id";
 import { cursorWhere, encodeCursor, parsePaging, parseSort } from "./query";
+import { toDatetimeValue } from "./time";
 import { validateData } from "./validation";
 import { andWhere, matchesWhere, normalizeWhere } from "./where";
 
@@ -381,9 +382,44 @@ async function assertWriteAccess(
   return access;
 }
 
+function parseTimestamp(value: unknown): string | null {
+  return typeof value === "string" || value instanceof Date ? toDatetimeValue(value, "UTC") : null;
+}
+
+/**
+ * Split `createdAt` and `updatedAt` off the input when `ctx.preserveTimestamps` and
+ * `ctx.overrideAccess` are set. Otherwise the input is returned as is, and validation rejects
+ * the keys.
+ */
+function takeTimestamps(
+  scope: OperationScope,
+  input: Record<string, unknown>,
+): { data: Record<string, unknown>; createdAt?: string; updatedAt?: string } {
+  if (scope.ctx.preserveTimestamps !== true || scope.ctx.overrideAccess !== true) {
+    return { data: input };
+  }
+  const { createdAt, updatedAt, ...data } = input;
+  const result: { data: Record<string, unknown>; createdAt?: string; updatedAt?: string } = {
+    data,
+  };
+  const issues: { path: string; message: string }[] = [];
+  for (const [key, value] of [
+    ["createdAt", createdAt],
+    ["updatedAt", updatedAt],
+  ] as const) {
+    if (value === undefined) continue;
+    const parsed = parseTimestamp(value);
+    if (parsed === null) issues.push({ path: key, message: "Expected a date and time" });
+    else result[key] = parsed;
+  }
+  if (issues.length > 0) throw new ValidationError(issues);
+  return result;
+}
+
 async function create(scope: OperationScope, slug: string, input: unknown) {
   const collection = getCollection(scope.collections, slug);
-  const data = assertObject(input);
+  const timestamps = takeTimestamps(scope, assertObject(input));
+  const data = timestamps.data;
   const access = await checkAccess(collection, "create", scope.ctx, { data, qb: scope.api });
   if (access === false) throw accessDenied(scope.ctx, "create", slug);
   await assertWritableFields(scope, collection, "create", data);
@@ -406,11 +442,12 @@ async function create(scope: OperationScope, slug: string, input: unknown) {
     data: fillMissing(collection, stored),
   });
   const now = new Date().toISOString();
+  const createdAt = timestamps.createdAt ?? now;
   const record: DocumentData = {
     id: typeof inputId === "string" ? inputId : uuidv7(),
     ...fillMissing(collection, changed),
-    createdAt: now,
-    updatedAt: now,
+    createdAt,
+    updatedAt: timestamps.updatedAt ?? (timestamps.createdAt === undefined ? now : createdAt),
   };
   if (access !== true && !matchesWhere(record, access))
     throw accessDenied(scope.ctx, "create", slug);
@@ -424,7 +461,8 @@ async function create(scope: OperationScope, slug: string, input: unknown) {
 async function update(scope: OperationScope, slug: string, id: unknown, input: unknown) {
   const collection = getCollection(scope.collections, slug);
   const docId = assertId(id);
-  const data = assertObject(input);
+  const timestamps = takeTimestamps(scope, assertObject(input));
+  const data = timestamps.data;
   const original = await loadOriginal(scope, "update", collection, docId);
   const access = await assertWriteAccess(scope, collection, "update", original, data);
   await assertWritableFields(scope, collection, "update", data, docId);
@@ -446,6 +484,7 @@ async function update(scope: OperationScope, slug: string, id: unknown, input: u
   const fieldData = { ...changed };
   delete fieldData.id;
   delete fieldData.createdAt;
+  delete fieldData.updatedAt;
   // A filter rule also limits where a document can go: the updated document must match it.
   if (access !== true && !matchesWhere({ ...original, ...fieldData }, access)) {
     throw accessDenied(scope.ctx, "update", slug);
@@ -453,7 +492,11 @@ async function update(scope: OperationScope, slug: string, id: unknown, input: u
   const stored = await scope.db.update({
     collection: slug,
     id: docId,
-    data: { ...fieldData, updatedAt: new Date().toISOString() },
+    data: {
+      ...fieldData,
+      ...(timestamps.createdAt === undefined ? {} : { createdAt: timestamps.createdAt }),
+      updatedAt: timestamps.updatedAt ?? new Date().toISOString(),
+    },
   });
   if (!stored) throw new NotFoundError(`Document "${docId}" not found in "${slug}"`);
   const doc = normalizeDoc(collection, stored);

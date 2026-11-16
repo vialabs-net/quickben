@@ -5,11 +5,12 @@ import { createOpenAI } from "@ai-sdk/openai";
 
 import { getConnection, systemContext } from "./api";
 import { ConnectionError } from "./errors";
+import { getConnectionsOptions } from "./options";
 import { parseServiceAccount } from "./providers/google-auth";
-import { pickModel } from "./providers/shared";
+import { llmModelSchema, pickModel } from "./providers/shared";
 
 import type { ConnectionRecord, ResolvedConnection } from "./api";
-import type { LlmModel } from "./providers/shared";
+import type { LlmModel, ModelSchema } from "./providers/shared";
 import type { Quickben, RequestContext } from "@quickben/core";
 import type { LanguageModel } from "ai";
 
@@ -65,11 +66,14 @@ export interface LanguageModelOptions {
   factories?: Readonly<Record<string, LanguageModelFactory>>;
 }
 
-/** A connection's LLM, ready for `generateText` and friends. */
-export interface ResolvedLanguageModel {
+/**
+ * A connection's LLM, ready for `generateText` and friends. `TModel` is the model entry type,
+ * for a `modelSchema`: `resolveLanguageModel<ModelOf<typeof plugin>>(…)`.
+ */
+export interface ResolvedLanguageModel<TModel extends LlmModel = LlmModel> {
   readonly connection: ConnectionRecord;
-  /** The model entry from the connection's metadata (prices, vision, …). */
-  readonly model: LlmModel;
+  /** The model entry from the connection's metadata (prices, vision, keys of `modelSchema`). */
+  readonly model: TModel;
   readonly languageModel: LanguageModel;
 }
 
@@ -82,18 +86,19 @@ export interface ResolvedLanguageModel {
  * await generateText({ model: languageModel, prompt: "…" });
  * ```
  */
-export async function resolveLanguageModel(
+export async function resolveLanguageModel<TModel extends LlmModel = LlmModel>(
   qb: Quickben,
   connectionId: string,
   options: LanguageModelOptions = {},
-): Promise<ResolvedLanguageModel> {
+): Promise<ResolvedLanguageModel<TModel>> {
   const resolved = await getConnection(qb, connectionId, options.ctx ?? systemContext);
   const { connection, provider } = resolved;
   const factory = options.factories?.[provider.type] ?? languageModelFactories[provider.type];
   if (!provider.capabilities.includes("llm") || !factory) {
     throw new ConnectionError("not-llm", `Connection "${connection.name}" is not an LLM`);
   }
-  const model = pickModel(resolved.metadata, options.model);
+  const schema = (getConnectionsOptions(qb).modelSchema ?? llmModelSchema) as ModelSchema<TModel>;
+  const model = pickModel(resolved.metadata, options.model, schema);
   if (!model) {
     throw new ConnectionError(
       "no-model",

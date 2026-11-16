@@ -8,13 +8,13 @@ import { editor, makeConfig } from "./fixtures";
 
 const incoming = new Headers();
 const jar = new Map<string, string>();
-vi.mock("next/headers", () => ({
+vi.mock("next/headers.js", () => ({
   headers: () => Promise.resolve(incoming),
   cookies: () =>
     Promise.resolve({ getAll: () => [...jar].map(([name, value]) => ({ name, value })) }),
 }));
 const connection = vi.hoisted(() => vi.fn(() => Promise.resolve()));
-vi.mock("next/server", () => ({ connection }));
+vi.mock("next/server.js", () => ({ connection }));
 
 describe("singleton", () => {
   it("creates a value once per key", () => {

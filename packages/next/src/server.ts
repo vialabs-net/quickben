@@ -1,5 +1,5 @@
-import { cookies, headers } from "next/headers";
-import { connection } from "next/server";
+import { cookies, headers } from "next/headers.js";
+import { connection } from "next/server.js";
 
 import type { QuickbenConfig, QuickbenUser, RequestContext } from "@quickben/core";
 

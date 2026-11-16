@@ -1,7 +1,7 @@
 import type { DatabaseAdapter } from "./adapter";
 import type { AuthAdapter, QuickbenUser } from "./auth";
 import type { AnyEndpoint } from "./endpoints";
-import type { AnyField, Fields, FieldTypes, FileRef, RelationField } from "./fields";
+import type { AnyField, Fields, FieldTypes, FileRef, RelationField, TextField } from "./fields";
 import type { LocalizedText } from "./localize";
 import type { StorageAdapter } from "./storage";
 
@@ -187,6 +187,20 @@ export interface RequestContext {
   req?: Request;
   /** Skip access checks. Default `false`. Use only for trusted server code. */
   overrideAccess?: boolean;
+  /**
+   * Take `createdAt` and `updatedAt` from the input of `create` and `update`, for imports.
+   * Needs `overrideAccess: true`. Missing values are set as usual. Default `false`.
+   */
+  preserveTimestamps?: boolean;
+}
+
+/**
+ * Timestamps that `create` and `update` accept with `ctx.preserveTimestamps` (and
+ * `overrideAccess`). Without that option they are rejected.
+ */
+export interface TimestampsInput {
+  createdAt?: string | Date;
+  updatedAt?: string | Date;
 }
 
 /** Operations that have access rules. */
@@ -361,9 +375,20 @@ export interface CollectionConfig<TSlug extends string = string, F extends Field
   access?: CollectionAccess<F>;
   hooks?: CollectionHooks<F>;
   admin?: CollectionAdmin<F>;
+  /**
+   * Add `createdBy` and `updatedBy` text fields, set to `ctx.user.id` on create and update.
+   * Users cannot write them. Trusted code with `overrideAccess` can, for imports. Default `false`.
+   */
+  trackAuthor?: boolean;
   /** HTTP API options, such as `{ openapi: true }`. */
   api?: CollectionApi;
 }
+
+/** Fields that `trackAuthor: true` adds. A call without a user stores `null`. */
+export type TrackAuthorFields = {
+  createdBy: TextField<"text", false, false>;
+  updatedBy: TextField<"text", false, false>;
+};
 
 /** A collection returned by `defineCollection`. */
 export interface Collection<TSlug extends string = string, F extends Fields = Fields> {
@@ -748,7 +773,7 @@ export interface Quickben<R extends Registry = Registry> {
   /** Create a document. Runs validation and hooks in one transaction. */
   create<S extends Slug<R>>(
     slug: S,
-    data: InferCreateInput<R[S]>,
+    data: InferCreateInput<R[S]> & TimestampsInput,
     ctx: RequestContext,
   ): Promise<InferDoc<R[S]>>;
 
@@ -756,7 +781,7 @@ export interface Quickben<R extends Registry = Registry> {
   update<S extends Slug<R>>(
     slug: S,
     id: string,
-    data: InferUpdateInput<R[S]>,
+    data: InferUpdateInput<R[S]> & TimestampsInput,
     ctx: RequestContext,
   ): Promise<InferDoc<R[S]>>;
 

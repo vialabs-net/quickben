@@ -55,6 +55,18 @@ The plugin adds an `audit-log` collection and an `afterChange` hook on every oth
 | `modules`           | after `extendCollections` | Modules to register.                                       |
 | `onInit`            | after `db.init`           | Runs once with the local API.                              |
 
+### Plugin state
+
+Keep per-config state with `pluginState<T>(id)`. It lives on `globalThis`, so it survives dev hot reloads of the plugin module. Use the package name as `id`.
+
+```ts nocheck
+import { pluginState } from "@quickben/core";
+
+const state = pluginState<{ apiKey: string }>("@acme/quickben-plugin");
+// onInit: (qb) => state.set(qb.config, { apiKey })
+// later:  state.get(qb.config)
+```
+
 ### Order
 
 `defineConfig` applies plugins in the order listed, then validates the result. A plugin sees the collections of the config and of the plugins before it. It does not see collections added by later plugins.

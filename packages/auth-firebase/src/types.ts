@@ -25,4 +25,17 @@ export interface FirebaseAdminAuth {
   createSessionCookie(idToken: string, options: { expiresIn: number }): Promise<string>;
   verifySessionCookie(sessionCookie: string, checkRevoked?: boolean): Promise<FirebaseClaims>;
   revokeRefreshTokens(uid: string): Promise<void>;
+  /** Load a user record. Used by `session` to read custom claims. */
+  getUser?(uid: string): Promise<FirebaseUserRecord>;
+}
+
+/** The part of a `firebase-admin` `UserRecord` this package uses. */
+export interface FirebaseUserRecord {
+  uid: string;
+  email?: string;
+  emailVerified: boolean;
+  displayName?: string;
+  photoURL?: string;
+  disabled: boolean;
+  customClaims?: Record<string, unknown>;
 }

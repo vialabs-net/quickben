@@ -11,11 +11,11 @@ export { GEMINI_URL, gemini } from "./gemini";
 export { parseServiceAccount } from "./google-auth";
 export { authHeaders, http, httpFields } from "./http";
 export { OPENAI_URL, openaiCompatible } from "./openai";
-export { llmFields, llmModelSchema, llmModelsSchema, pickModel } from "./shared";
+export { llmFields, llmModelSchema, llmModelsSchema, modelListSchema, pickModel } from "./shared";
 export { VERTEX_TEST_MODEL, vertex, vertexFields, vertexRoot } from "./vertex";
 
 export type { ServiceAccount } from "./google-auth";
-export type { LlmModel } from "./shared";
+export type { LlmModel, ModelSchema } from "./shared";
 
 /** The providers `connections()` registers unless `builtins: false`. */
 export const builtinProviders: readonly AnyProvider[] = [

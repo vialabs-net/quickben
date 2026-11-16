@@ -59,6 +59,23 @@ export default defineConfig({
 
 The value is a user id (`u1`) or JSON (`{"id":"u1","roles":["admin"]}`). Invalid JSON gives `null`. When `NODE_ENV` is `production`, `getUser` rejects with `ConfigError` unless `allowInProduction` is `true`.
 
+## Your own sessions and several adapters
+
+| Helper                    | Does                                                                                                           |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `customAuth({ getUser })` | An adapter from one function. `getUser(req)` returns a user, `null` or `undefined`, sync or async.             |
+| `chainAuth(...adapters)`  | Tries adapters in order. The first user wins. `null` or `UnauthorizedError` moves on; other errors are thrown. |
+
+```ts nocheck
+import { chainAuth, customAuth } from "@quickben/core";
+import { firebaseAuth } from "@quickben/auth-firebase";
+
+export const auth = chainAuth(
+  customAuth({ getUser: (req) => readMySession(req) }), // your own cookie
+  firebaseAuth({ bearer: true }), // API clients with Firebase ID tokens
+);
+```
+
 ## Packages
 
 | Package                      | Sessions                                       | Page                                  |

@@ -96,6 +96,7 @@ Common options: `required`, `unique`, `index`, `default` (value or function), `l
 Rules:
 
 - Every document has `id`, `createdAt` and `updatedAt` (ISO strings).
+- `trackAuthor: true` on a collection adds `createdBy` and `updatedBy` text fields, typed in `InferDoc`. A `beforeChange` hook (before the collection's own) sets them to `ctx.user.id`: both on create, `updatedBy` on update. Without a user, create stores `null` and update keeps the old value. Field rules deny writes from users; `overrideAccess` code can set them. The admin shows them read-only.
 - `required` fields are never `null`. Other fields are `null` when unset.
 - `many` fields are arrays, never `null` (`[]` when unset). `required` on a `many` field means at least one value. Values must be unique within the array.
 - `default` makes a field optional on create.
@@ -201,9 +202,11 @@ qb.collections.posts; // collection metadata
 qb.db.raw; // native client
 ```
 
-`ctx` is `{ user, req?, overrideAccess? }`, is required and is always the last argument (never merged with query options). `createQuickben(config)` calls `db.init(schema)`, then each plugin's `onInit`. `getQuickben` drops a failed instance so the next call retries.
+`ctx` is `{ user, req?, overrideAccess?, preserveTimestamps? }`, is required and is always the last argument (never merged with query options). `createQuickben(config)` calls `db.init(schema)`, then each plugin's `onInit`. `getQuickben` drops a failed instance so the next call retries.
 
 Writes (`create`, `update`, `delete`) run in one transaction together with their hooks. If a hook throws, nothing is written. After the outermost transaction commits, queued `afterCommit` hooks run in write order with a `qb` outside the transaction. Their errors are logged. A rollback drops them. The write call resolves after them.
+
+**Imports:** with `overrideAccess: true` and `preserveTimestamps: true`, `create` and `update` take `createdAt` and `updatedAt` (a `Date` or ISO string; no offset means UTC) from the input. Missing ones are set as usual; on create, `updatedAt` defaults to `createdAt`. Without both flags the keys are rejected as unknown.
 
 **create:** access → defaults → `beforeValidate` → validation → related ids → `beforeChange` → access filter on the new document → write → `afterChange` → `afterRead`.
 
@@ -284,6 +287,7 @@ const audit = definePlugin({
 - `definePlugin` throws if the same plugin is applied twice. `addFields` throws for an unknown slug.
 - Registry types: `Plugin<Added, Extends>` carries added collections and added fields (keyed by slug) at type level; `defineConfig` merges them into the registry.
 - `extendCollection(collection, { fields, hooks })` returns a copy; new hooks run after existing ones.
+- `pluginState<T>(id)` keeps per-config plugin state in a `WeakMap` on `globalThis` (key `Symbol.for("quickben.plugin-state.<id>")`). A dev hot reload that re-runs the plugin module still finds the state of the cached instance. The tenancy, templates, doc-reader and connections plugins use it.
 - **Modules** (`{ key, label, collections, nav }`) group collections into feature areas. They are carried in `config.modules` for the admin sidebar and for tenancy entitlements.
 
 ### Auth
@@ -300,7 +304,7 @@ interface QuickbenUser {
 }
 ```
 
-Extend `QuickbenUser` with declaration merging. Auth adapters should set `emailVerified`; `false` stops email-based features such as accepting tenancy invitations by email. `devAuth()` reads the user from the `x-quickben-user` header or the `QUICKBEN_DEV_USER` variable (an id or JSON). It throws when `NODE_ENV` is `production` unless `allowInProduction: true`. Core stores no passwords. `@quickben/auth-firebase` (Firebase session cookies) and `@quickben/auth-better-auth` (Better Auth sessions, organization bridge to tenancy) are adapters for real auth.
+Extend `QuickbenUser` with declaration merging. Auth adapters should set `emailVerified`; `false` stops email-based features such as accepting tenancy invitations by email. `customAuth({ getUser })` wraps one function (it may return `undefined`). `chainAuth(...adapters)` tries adapters in order: the first user wins; `null` or `UnauthorizedError` moves to the next; other errors are thrown. `devAuth()` reads the user from the `x-quickben-user` header or the `QUICKBEN_DEV_USER` variable (an id or JSON). It throws when `NODE_ENV` is `production` unless `allowInProduction: true`. Core stores no passwords. `@quickben/auth-firebase` (Firebase session cookies, or the host's own session through `session: { read(req) → uid }`, plus Bearer ID tokens) and `@quickben/auth-better-auth` (Better Auth sessions, organization bridge to tenancy) are adapters for real auth.
 
 ### Errors
 
@@ -395,7 +399,7 @@ export default createAdminPage(config, { serverFunction }); // async server comp
 - Errors: `{ error: { code, message, details } }` with the status of the error. `details` is `{ issues }` for `VALIDATION`, `{ field }` for `CONFLICT` and `{ fields }` for `FORBIDDEN` from field rules.
 - `GET /_meta` leaves out unreadable fields and gives each field `access: { create, update }`. HTTP-only codes: `METHOD_NOT_ALLOWED` 405, `PAYLOAD_TOO_LARGE` 413, `UNSUPPORTED_MEDIA_TYPE` 415, `INTERNAL` 500 (message hidden, error logged; also for 5xx Quickben errors such as `CONFIG`).
 - CSRF: `POST`, `PATCH` and `DELETE` require a same-origin `Origin` (or a trusted one) when the browser sends one, and reject `Sec-Fetch-Site: cross-site`.
-- Server helpers: `getRequestContext` / `getUser` resolve the user from `next/headers`, `singleton(key, create)` keeps database clients per process. No `next.config` wrapper.
+- Server helpers: `getRequestContext` / `getUser` resolve the user from `next/headers` (imported as `next/headers.js` and `next/server.js`, so the built package also loads in plain Node ESM; a test checks this), `singleton(key, create)` keeps database clients per process. No `next.config` wrapper.
 
 ### `@quickben/admin`
 
@@ -439,6 +443,10 @@ export default createAdminPage(config, { serverFunction }); // async server comp
 - `readDocument(qb, input, ctx)` checks the file by its first bytes (core `sniffMime`), stores it in the plugin's `files` storage adapter (default: the config `storage`; a deprecated `FileStore` still works), creates a job and queues it through a `JobRunner` (`inProcessRunner` by default, `bullmqRunner` in `/bullmq`). A run claims a job by queue version, so cancelled or retried jobs keep the newer state.
 - Studio rules: one draft per type, published versions never change, publishing needs a finished test run of the draft's current revision.
 - `@quickben/plugin-doc-reader/admin`: `docReaderAdmin(config)` adds Document types, Readings and Usage pages. Server actions redirect with fixed `?toast=` / `?error=` codes.
+
+### `@quickben/plugin-connections`
+
+- `connections({ modelSchema: (base) => base.extend({ … }) })` replaces the model entry schema of the built-in LLM providers. The connection form validates and keeps the extra keys, and `resolveLanguageModel` returns them. `ModelOf<typeof plugin>` is the entry type: `resolveLanguageModel<ModelOf<typeof plugin>>(qb, id)`.
 
 ## create-quickben
 

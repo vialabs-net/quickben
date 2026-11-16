@@ -1,4 +1,4 @@
-import { ConfigError, memoryStorage } from "@quickben/core";
+import { ConfigError, memoryStorage, pluginState } from "@quickben/core";
 
 import { parseDocumentType } from "./definition";
 import { createTextLayerExtractor } from "./extractors/text-layer";
@@ -167,7 +167,8 @@ export function resolveOptions(options: DocReaderOptions): DocReaderState {
   };
 }
 
-const registered = new WeakMap<QuickbenConfig, DocReaderState>();
+/** Kept on `globalThis`, so lookups survive dev hot reloads of this module. */
+const registered = pluginState<DocReaderState>("@quickben/plugin-doc-reader");
 
 export function register(config: QuickbenConfig, state: DocReaderState): void {
   registered.set(config, state);

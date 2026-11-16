@@ -1,4 +1,4 @@
-import { ConfigError } from "./errors";
+import { ConfigError, UnauthorizedError } from "./errors";
 
 /**
  * The authenticated user. Extend it with declaration merging:
@@ -97,4 +97,56 @@ function parseDevUser(raw: string): QuickbenUser | null {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Options of {@link customAuth}. */
+export interface CustomAuthOptions {
+  /**
+   * Resolve the user of a request, for example from your own session cookie. Return `null` (or
+   * `undefined`) for anonymous requests.
+   */
+  getUser(req: Request): QuickbenUser | null | undefined | Promise<QuickbenUser | null | undefined>;
+}
+
+/**
+ * An auth adapter from one function, for hosts that already have sessions:
+ *
+ * ```ts
+ * customAuth({ getUser: async (req) => lookUpSession(req.headers.get("cookie")) });
+ * ```
+ */
+export function customAuth(options: CustomAuthOptions): AuthAdapter {
+  return {
+    async getUser(req) {
+      return (await options.getUser(req)) ?? null;
+    },
+  };
+}
+
+/**
+ * Try several auth adapters in order. The first user found wins. An adapter that returns
+ * `null` or throws `UnauthorizedError` means "no user here", and the next one runs. Any other
+ * error is thrown.
+ *
+ * ```ts
+ * auth: chainAuth(customAuth({ getUser: readHostSession }), firebaseAuth({ bearer: true }));
+ * ```
+ */
+export function chainAuth(...adapters: readonly AuthAdapter[]): AuthAdapter {
+  if (adapters.length === 0) throw new ConfigError("chainAuth() needs at least one adapter");
+  return {
+    async getUser(req) {
+      for (const adapter of adapters) {
+        let user: QuickbenUser | null;
+        try {
+          user = await adapter.getUser(req);
+        } catch (error) {
+          if (error instanceof UnauthorizedError) continue;
+          throw error;
+        }
+        if (user) return user;
+      }
+      return null;
+    },
+  };
 }

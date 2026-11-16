@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import type { TestResult } from "../provider";
+import type { AnyProvider, TestResult } from "../provider";
 
 /** `https://x/v1/` → `https://x/v1`. */
 export function trimSlashes(url: string): string {
@@ -52,26 +52,34 @@ export const llmModelSchema = z.object({
 /** A model of an LLM connection, defaults filled. */
 export type LlmModel = z.output<typeof llmModelSchema>;
 
-/** The `models` list of an LLM connection: unique ids, at most one default. */
-export const llmModelsSchema = z
-  .array(llmModelSchema)
-  .max(100)
-  .superRefine((list, ctx) => {
-    const ids = new Set<string>();
-    for (const [index, model] of list.entries()) {
-      if (ids.has(model.id)) {
-        ctx.addIssue({
-          code: "custom",
-          path: [index, "id"],
-          message: `Duplicate model ${model.id}`,
-        });
+/** A schema of one model: {@link llmModelSchema}, or an extension of it. */
+export type ModelSchema<M extends LlmModel = LlmModel> = z.ZodType<M>;
+
+/** The `models` list for a model schema: unique ids, at most one default. */
+export function modelListSchema<S extends ModelSchema>(schema: S) {
+  return z
+    .array(schema)
+    .max(100)
+    .superRefine((list, ctx) => {
+      const ids = new Set<string>();
+      for (const [index, model] of list.entries()) {
+        if (ids.has(model.id)) {
+          ctx.addIssue({
+            code: "custom",
+            path: [index, "id"],
+            message: `Duplicate model ${model.id}`,
+          });
+        }
+        ids.add(model.id);
       }
-      ids.add(model.id);
-    }
-    if (list.filter((model) => model.default).length > 1) {
-      ctx.addIssue({ code: "custom", message: "Only one model can be the default" });
-    }
-  });
+      if (list.filter((model) => model.default).length > 1) {
+        ctx.addIssue({ code: "custom", message: "Only one model can be the default" });
+      }
+    });
+}
+
+/** The `models` list of an LLM connection: unique ids, at most one default. */
+export const llmModelsSchema = modelListSchema(llmModelSchema);
 
 /** Metadata of the built-in LLM providers. */
 export const llmFields = z.object({
@@ -82,11 +90,16 @@ export const llmFields = z.object({
   }),
 });
 
-/** The model to use: the one asked for, else the default, else the first. */
-export function pickModel(metadata: unknown, requested?: string): LlmModel | undefined {
-  const parsed = z
-    .array(llmModelSchema)
-    .safeParse((metadata as { models?: unknown } | null)?.models ?? []);
+/**
+ * The model to use: the one asked for, else the default, else the first. `schema` parses the
+ * entries (default {@link llmModelSchema}); pass your extended schema to keep its keys.
+ */
+export function pickModel<M extends LlmModel = LlmModel>(
+  metadata: unknown,
+  requested?: string,
+  schema: ModelSchema<M> = llmModelSchema as unknown as ModelSchema<M>,
+): M | undefined {
+  const parsed = z.array(schema).safeParse((metadata as { models?: unknown } | null)?.models ?? []);
   const models = parsed.success ? parsed.data : [];
   if (requested !== undefined) return models.find((model) => model.id === requested);
   return models.find((model) => model.default) ?? models[0];
@@ -113,3 +126,22 @@ export function requireSecret(
 
 /** JSON request headers. */
 export const jsonHeaders = { accept: "application/json", "content-type": "application/json" };
+
+/**
+ * Use `schema` for the `models` of a built-in LLM provider. Other providers are returned as
+ * they are.
+ */
+export function withModelSchema<P extends AnyProvider>(provider: P, schema: ModelSchema): P {
+  const fields = provider.fields;
+  if (!provider.capabilities.includes("llm") || !(fields instanceof z.ZodObject)) return provider;
+  const models = (fields.shape as Record<string, z.ZodType | undefined>).models;
+  if (!models) return provider;
+  return {
+    ...provider,
+    fields: fields.extend({
+      models: modelListSchema(schema)
+        .default([])
+        .meta(models.meta() ?? {}),
+    }),
+  };
+}
