@@ -11,7 +11,7 @@ import type { DocumentType, DocumentTypeInput } from "./definition";
 import type { Extractor } from "./extractor";
 import type { Rasterize } from "./extractors/page-images";
 import type { FileStore } from "./files";
-import type { ListModels, ResolveModel } from "./models";
+import type { ListModels, ResolveConnectionId, ResolveModel } from "./models";
 import type { Reading } from "./readings";
 import type { JobRunner } from "./runner";
 import type { ExtractionTemplate } from "./templates";
@@ -38,6 +38,11 @@ export interface DocReaderOptions {
    * `@quickben/plugin-connections`. Without it, `vision-llm` steps fail with `ERROR`.
    */
   resolveModel?: ResolveModel;
+  /**
+   * Turns a connection name into its id, so steps and variants can name a connection
+   * (`config.connection`) instead of an id. `connectionModels()` provides it.
+   */
+  resolveConnectionId?: ResolveConnectionId;
   /** Lists connections with vision models, for the admin's pickers. Optional. */
   listModels?: ListModels;
   /** Regex templates `text-layer` steps can name with `config.template`. */
@@ -46,7 +51,11 @@ export interface DocReaderOptions {
   readers?: Readonly<Record<string, TextReader>>;
   /** More extractors, or replacements for the built-in ones (same `key`). */
   extractors?: readonly Extractor[];
-  /** Types shipped with your code. Added as published versions when missing. */
+  /**
+   * Types shipped with your code. A missing version is added as published. When the code
+   * changes a version already stored, the change becomes a new draft (the published version
+   * never changes) and a `type-changed-in-code` event is logged.
+   */
   types?: readonly DocumentTypeInput[];
   /**
    * Platform staff: they manage types, samples, budgets and see every reading. Default: users
@@ -111,7 +120,7 @@ export function resolveOptions(options: DocReaderOptions): DocReaderState {
     if (!holder.qb) throw new ConfigError("docReader: Quickben has not started yet");
     return holder.qb;
   };
-  const { resolveModel, listModels } = options;
+  const { resolveModel, listModels, resolveConnectionId } = options;
   const builtin: Extractor[] = [
     createTextLayerExtractor({
       ...(options.templates ? { templates: options.templates } : {}),
@@ -123,6 +132,9 @@ export function resolveOptions(options: DocReaderOptions): DocReaderState {
             resolveModel: (connectionId: string, modelId?: string) =>
               resolveModel(connectionId, modelId, withQb()),
           }
+        : {}),
+      ...(resolveConnectionId
+        ? { resolveConnectionId: (name: string) => resolveConnectionId(name, withQb()) }
         : {}),
       ...(options.rasterize ? { rasterize: options.rasterize } : {}),
       ...(options.modelTimeoutMs === undefined ? {} : { timeoutMs: options.modelTimeoutMs }),

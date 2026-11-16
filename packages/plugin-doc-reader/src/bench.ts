@@ -27,7 +27,7 @@ import { StudioError } from "./errors";
 import { claim, sampleRevision } from "./eval-state";
 import { examplesRevision, loadExamples } from "./examples";
 import { locateEvidence } from "./extractors/text-layer";
-import { VISION_LLM } from "./extractors/vision-llm";
+import { REASONING_LEVELS, VISION_LLM } from "./extractors/vision-llm";
 import { checkFields, compareResults, resultsToCsv, runMetrics, summarize } from "./metrics";
 import { getDocReader } from "./options";
 import { attemptsCost, isTransientFailure, runPipeline } from "./pipeline";
@@ -61,24 +61,56 @@ function zodIssues(error: z.ZodError) {
 // ---------------------------------------------------------------------------------------------
 // Variants and runs
 
+/** `vision-llm` options a variant may set: effort, output cap, provider options and so on. */
+export const variantOptionsSchema = z
+  .object({
+    maxOutputTokens: z.number().int().min(1).max(200_000).optional(),
+    temperature: z.number().min(0).max(2).nullable().optional(),
+    reasoning: z.enum(REASONING_LEVELS).optional(),
+    providerOptions: z.record(z.string(), z.record(z.string(), z.unknown())).optional(),
+    output: z.enum(["structured", "json"]).optional(),
+    groupSize: z.number().int().min(1).max(100).optional(),
+    repair: z.number().int().min(0).max(3).optional(),
+    includeText: z.boolean().optional(),
+    textBoxes: z.boolean().optional(),
+  })
+  .strict();
+export type VariantOptions = z.infer<typeof variantOptionsSchema>;
+
 /**
- * What a run varies: another version of the type, a connection and model, or both. With a
- * connection the pipeline is that model alone, so a free step that reads a document first does
- * not hide the difference.
+ * What a run varies: another version of the type, a connection and model, step options, or a
+ * mix. With a connection (by id or by name) the pipeline is that model alone, so a free step
+ * that reads a document first does not hide the difference. Options alone change the type's
+ * `vision-llm` steps.
  */
 export const variantSchema = z
   .object({
     version: z.number().int().min(1).optional(),
     connectionId: z.string().trim().min(1).max(200).optional(),
+    /** Connection name, instead of `connectionId`. */
+    connection: z.string().trim().min(1).max(120).optional(),
     model: z.string().trim().min(1).max(200).optional(),
+    options: variantOptionsSchema.optional(),
   })
-  .refine((v) => v.version !== undefined || v.connectionId !== undefined, {
-    message: "A variant names a version, a connection or both",
+  .refine(
+    (v) =>
+      v.version !== undefined ||
+      v.connectionId !== undefined ||
+      v.connection !== undefined ||
+      v.options !== undefined,
+    { message: "A variant names a version, a connection, options or a mix" },
+  )
+  .refine((v) => v.connectionId === undefined || v.connection === undefined, {
+    message: "Name the connection by id or by name, not both",
+    path: ["connection"],
   })
-  .refine((v) => v.model === undefined || v.connectionId !== undefined, {
-    message: "A model needs its connection",
-    path: ["model"],
-  });
+  .refine(
+    (v) => v.model === undefined || v.connectionId !== undefined || v.connection !== undefined,
+    {
+      message: "A model needs its connection",
+      path: ["model"],
+    },
+  );
 export type Variant = z.infer<typeof variantSchema>;
 
 export interface TestRun {
@@ -137,15 +169,31 @@ export const toRun = (record: TestRunRecord): TestRun => ({
   metrics: record.metrics ?? null,
 });
 
-/** The pipeline of a variant with a connection: that model alone. */
+/**
+ * The pipeline of a variant. With a connection: that model alone, with the options of the
+ * type's first `vision-llm` step and the variant's. With options only: every `vision-llm`
+ * step gets them.
+ */
 export function variantPipeline(
   pipeline: Pipeline,
-  variant: Pick<Variant, "connectionId" | "model">,
+  variant: Pick<Variant, "connectionId" | "model"> &
+    Partial<Pick<Variant, "connection" | "options">>,
 ): Pipeline {
-  if (variant.connectionId === undefined) return pipeline;
+  const options = variant.options ?? {};
+  if (variant.connectionId === undefined && variant.connection === undefined) {
+    if (Object.keys(options).length === 0) return pipeline;
+    return {
+      ...pipeline,
+      steps: pipeline.steps.map((step) =>
+        step.extractor === VISION_LLM ? { ...step, config: { ...step.config, ...options } } : step,
+      ),
+    };
+  }
   const current = pipeline.steps.find((step) => step.extractor === VISION_LLM);
   const config = Object.fromEntries(
-    Object.entries(current?.config ?? {}).filter(([key]) => key !== "model"),
+    Object.entries(current?.config ?? {}).filter(
+      ([key]) => key !== "model" && key !== "connectionId" && key !== "connection",
+    ),
   );
   return {
     ...pipeline,
@@ -154,7 +202,10 @@ export function variantPipeline(
         extractor: VISION_LLM,
         config: {
           ...config,
-          connectionId: variant.connectionId,
+          ...options,
+          ...(variant.connectionId === undefined
+            ? { connection: variant.connection }
+            : { connectionId: variant.connectionId }),
           ...(variant.model ? { model: variant.model } : {}),
         },
       },
@@ -443,6 +494,8 @@ async function tryPipeline(
       input: { bytes, mime: sample.mime, pages: type.pages },
       params: sample.params,
       tenant: null,
+      qb,
+      user: null,
       extractors: state.extractors,
       ...(skip ? { skip } : {}),
       ...(examples.length > 0 ? { examples } : {}),
@@ -511,9 +564,11 @@ async function readSample(
   const tried = await tryPipeline(qb, run, type, sample, bytes, examples);
   const { result } = tried;
   // Without this a failed step (a provider rejecting the request) shows only "ERROR".
-  const errors = result.attempts
-    .map((attempt) => attempt.problems?.error)
-    .filter((error): error is string => typeof error === "string" && error.length > 0);
+  const errors = result.attempts.flatMap((attempt) => {
+    const error = attempt.problems?.error;
+    return typeof error === "string" && error.length > 0 ? [`${attempt.extractor}: ${error}`] : [];
+  });
+  const repairs = result.attempts.reduce((total, attempt) => total + (attempt.repairs ?? 0), 0);
   return {
     ...base,
     status: result.status,
@@ -524,6 +579,7 @@ async function readSample(
     outputTokens: tried.outputTokens,
     retries: tried.retries,
     pages: tried.pages,
+    ...(repairs > 0 ? { repairs } : {}),
     fields: checkFields(type, sample.expected, {
       attempts: result.attempts,
       // Boxes only help the viewer: failing to place them never fails the read.

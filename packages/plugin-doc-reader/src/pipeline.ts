@@ -16,8 +16,10 @@ import type {
   Extractor,
   ExtractorExample,
   ExtractorInput,
+  ExtractorUser,
   FieldValue,
 } from "./extractor";
+import type { Quickben } from "@quickben/core";
 
 export interface PipelineAttempt {
   readonly step: number;
@@ -26,6 +28,8 @@ export interface PipelineAttempt {
   readonly fields: Readonly<Record<string, FieldValue>>;
   readonly usage?: ExtractionUsage;
   readonly problems?: Readonly<Record<string, unknown>>;
+  /** Extra calls the step made to repair its answer. */
+  readonly repairs?: number;
   readonly durationMs: number;
 }
 
@@ -45,6 +49,10 @@ export interface PipelineOptions {
   readonly input: ExtractorInput;
   readonly params: ExtractionParams;
   readonly tenant: string | null;
+  /** Passed to every extractor in its context. */
+  readonly qb?: Quickben;
+  /** Who asked for the reading, passed to every extractor. */
+  readonly user?: ExtractorUser | null;
   readonly jobId?: string;
   readonly signal?: AbortSignal;
   readonly extractors: Readonly<Record<string, Extractor>>;
@@ -126,6 +134,8 @@ async function runStep(
   try {
     result = await extractor.extract(options.input, options.type, options.params, {
       tenant: options.tenant,
+      user: options.user ?? null,
+      ...(options.qb === undefined ? {} : { qb: options.qb }),
       config: step.config,
       ...(options.jobId === undefined ? {} : { jobId: options.jobId }),
       ...(options.signal === undefined ? {} : { signal: options.signal }),
@@ -140,6 +150,7 @@ async function runStep(
     fields: result.fields,
     ...(result.usage ? { usage: result.usage } : {}),
     ...(result.problems ? { problems: result.problems } : {}),
+    ...(result.repairs ? { repairs: result.repairs } : {}),
     durationMs: now() - started,
   };
 }

@@ -200,7 +200,12 @@ describe("providers with the vision-llm extractor", () => {
       {},
       { tenant: null, config: { connectionId: connection.id } },
     );
-    expect(result).toMatchObject({ status: "ERROR", problems: { transient: true } });
+    // A refused key fails again when retried: shown with its status, not retried, no secret.
+    expect(result).toMatchObject({
+      status: "ERROR",
+      problems: { error: "the model provider rejected the request (HTTP 401)" },
+    });
+    expect(result.problems?.transient).toBeUndefined();
     expect(JSON.stringify(result)).not.toContain("test-key");
   });
 });

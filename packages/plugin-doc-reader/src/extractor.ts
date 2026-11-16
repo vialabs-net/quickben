@@ -4,6 +4,7 @@
  * outage, and the pipeline records it as `ERROR`.
  */
 import type { DocumentType, ExtractionParams } from "./definition";
+import type { Quickben } from "@quickben/core";
 
 export const EXTRACTION_STATUSES = ["OK", "INCOMPLETE", "NO_MATCH", "NO_TEXT", "ERROR"] as const;
 export type ExtractionStatus = (typeof EXTRACTION_STATUSES)[number];
@@ -15,9 +16,22 @@ export interface ExtractorInput {
   readonly pages: readonly number[];
 }
 
+/** Who asked for a reading. */
+export interface ExtractorUser {
+  readonly id: string;
+  readonly email?: string;
+}
+
 export interface ExtractorContext {
   /** Tenant the read is billed to, or `null`. Extractors only pass it on. */
   readonly tenant: string | null;
+  /**
+   * The Quickben instance the plugin runs in, e.g. to resolve a connection. Set for every
+   * reading and test run; absent only when you call `runPipeline` without `qb`.
+   */
+  readonly qb?: Quickben;
+  /** Who asked for the reading. `null` for test runs and system work. */
+  readonly user?: ExtractorUser | null;
   readonly jobId?: string;
   /** The pipeline step's `config`. */
   readonly config: Readonly<Record<string, unknown>>;
@@ -67,6 +81,8 @@ export interface ExtractionUsage {
   readonly model: string;
   readonly connectionId: string;
   readonly connectionName?: string;
+  /** Model calls made, when more than one counts: field groups and repairs. */
+  readonly calls?: number;
 }
 
 export interface ExtractionResult {
@@ -74,6 +90,8 @@ export interface ExtractionResult {
   readonly fields: Readonly<Record<string, FieldValue>>;
   readonly usage?: ExtractionUsage;
   readonly problems?: Readonly<Record<string, unknown>>;
+  /** Extra calls made to repair an incomplete or invalid answer. Their cost is in `usage`. */
+  readonly repairs?: number;
 }
 
 export interface Extractor {

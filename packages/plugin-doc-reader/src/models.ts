@@ -40,6 +40,12 @@ export type ResolveModel = (
   qb: Quickben,
 ) => Promise<ResolvedModel>;
 
+/**
+ * A connection's id from its name. Throw a `QuickbenError` (its message is shown) when no
+ * connection, or more than one, has that name.
+ */
+export type ResolveConnectionId = (name: string, qb: Quickben) => Promise<string>;
+
 /** A connection and its vision models, for the admin's pickers. */
 export interface ModelChoice {
   readonly connectionId: string;

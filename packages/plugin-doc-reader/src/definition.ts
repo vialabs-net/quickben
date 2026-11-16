@@ -6,6 +6,8 @@
  */
 import { z } from "zod";
 
+import { FIELD_KEY, FIELD_KEY_MAX } from "./field-keys";
+
 /** Value types of a field. They decide how a read value is normalized and compared. */
 export const FIELD_TYPES = ["text", "date", "number", "email", "phone"] as const;
 export type FieldType = (typeof FIELD_TYPES)[number];
@@ -30,7 +32,11 @@ export const TYPE_KEY = /^[a-z][a-z\d]*(?:-[a-z\d]+)*$/;
 const pattern = z.string().max(500).refine(isValidPattern, "invalid regular expression");
 
 export const fieldSchema = z.object({
-  key: z.string().max(64).regex(KEY, "camelCase, starting with a letter"),
+  /** camelCase segments joined by `.`, e.g. `total` or `vehicle.make`. */
+  key: z
+    .string()
+    .max(FIELD_KEY_MAX)
+    .regex(FIELD_KEY, "camelCase words joined by ., each starting with a letter"),
   label: z.string().trim().min(1).max(120),
   type: z.enum(FIELD_TYPES),
   required: z.boolean().default(false),

@@ -7,6 +7,7 @@ import { ValidationError } from "@quickben/core";
 
 import { DOC_SAMPLES, DOC_TYPES } from "./collections";
 import { datasetWrite } from "./eval-state";
+import { flattenValues } from "./field-keys";
 import { getDocReader } from "./options";
 import { parseParams, readUpload, storageRef } from "./readings";
 import { splitFieldsFor } from "./splits";
@@ -49,7 +50,10 @@ export type ExpectedMapper = (
 ) => ExpectedValues;
 
 export interface ImportOptions {
-  /** Map each item's `expected` to field values. Default: `expected` is that already. */
+  /**
+   * Map each item's `expected` to field values. Default: `expected` is that already, and a
+   * nested object is read by dotted key (`{ vehicle: { make } }` → `vehicle.make`).
+   */
   readonly map?: ExpectedMapper;
   /** Called after each item. */
   readonly onProgress?: (progress: { done: number; key: string; outcome: ImportOutcome }) => void;
@@ -173,7 +177,7 @@ function sampleData(
   const attributes = parseAttributes(item.attributes);
   const mapped = options.map
     ? options.map(item.expected, { key: item.key, group, attributes })
-    : ((item.expected ?? {}) as ExpectedValues);
+    : (flattenValues(item.expected ?? {}) as ExpectedValues);
   const note = item.note?.trim().slice(0, 500) ?? "";
   return {
     expected: parseExpected(expectedValues(type, mapped, unknown), true),

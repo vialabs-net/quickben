@@ -40,6 +40,14 @@ async function pdfPageItems(pdf: Pdf, pages: readonly number[]): Promise<PageTex
   return out;
 }
 
+/** Text runs with their boxes, for the given 1-based pages of a PDF. */
+export async function pdfPagesItems(
+  bytes: Uint8Array,
+  pages: readonly number[],
+): Promise<PageText[]> {
+  return pdfPageItems(await open(bytes), pages);
+}
+
 /** A field's evidence, with where its box comes from. */
 export interface LocatedEvidence extends FieldEvidence {
   readonly source?: "text-layer" | "model";
