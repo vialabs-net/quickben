@@ -21,6 +21,7 @@ import { CredentialForm } from "./credential-form";
 import { DeleteButton } from "./delete-button";
 import { describeProvider, kindLabel, kindOptions } from "./describe";
 import {
+  allPages,
   isFiltered,
   listWhere,
   matchesFilter,
@@ -70,17 +71,23 @@ export function createCredentialsList(config: QuickbenConfig) {
       state: stateValues,
     });
     const where = listWhere(q, { kind: filters.kind === "" ? null : filters.kind });
+    const loadPage = (page: number) =>
+      qb.find(CREDENTIALS, { ...where, sort: ["name"], limit: 500, page } as never, ctx);
     const [credentials, connections] = await Promise.all([
-      qb.find(CREDENTIALS, { ...where, sort: ["name"], limit: 500 } as never, ctx),
-      qb.find(CONNECTIONS, { select: ["credential"], limit: 1000 } as never, ctx),
+      filters.use === "" && filters.state === ""
+        ? loadPage(1).then((r) => r.docs)
+        : allPages(loadPage),
+      allPages((page) =>
+        qb.find(CONNECTIONS, { select: ["credential"], limit: 1000, page } as never, ctx),
+      ),
     ]);
     const uses = new Map<string, number>();
-    for (const connection of connections.docs as unknown as ConnectionRecord[]) {
+    for (const connection of connections as unknown as ConnectionRecord[]) {
       if (connection.credential)
         uses.set(connection.credential, (uses.get(connection.credential) ?? 0) + 1);
     }
     // Use and state are not stored on the credential, so they are filtered here.
-    const docs = (credentials.docs as unknown as CredentialRecord[]).filter(
+    const docs = (credentials as unknown as CredentialRecord[]).filter(
       (doc) =>
         matchesFilter(filters.use, uses.has(doc.id) ? "used" : "unused") &&
         matchesFilter(filters.state, stateOf(doc.lastTest)),

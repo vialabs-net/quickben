@@ -13,7 +13,7 @@ import { defineConfig, devAuth, getQuickben } from "@quickben/core";
 import { memoryAdapter } from "@quickben/db-memory";
 import { getMeta } from "@quickben/next";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { connections, defineProvider } from "../src";
@@ -100,6 +100,7 @@ beforeEach(async () => {
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   actAs(null);
 });
 
@@ -349,6 +350,34 @@ describe("list search and filters", () => {
     expect(names()).toEqual(["Claude", "ID"]);
     await list({ q: "zzz" });
     expect(screen.getByText("No connections match the search or filters.")).toBeTruthy();
+  });
+
+  it("filters derived state and use across every page with request access", async () => {
+    // Tiny pages exercise the same boundaries as the production 500/1000-row limits.
+    const find = qb.find.bind(qb);
+    vi.spyOn(qb, "find").mockImplementation((slug, options, ctx) =>
+      find(slug, { ...options, limit: 1 }, ctx),
+    );
+    await testConnectionAction("/admin", ids.check!);
+    await renderView(
+      "connections",
+      "list",
+      await viewProps(admin, "connections", {
+        searchParams: { "filter.state": "active" },
+      }),
+    );
+    expect(names()).toEqual(["ID"]);
+    cleanup();
+    // Move the only reference to Spare to the second connections page.
+    await qb.update("connections", ids.check!, { credential: ids.spare! }, system);
+    await renderView(
+      "credentials",
+      "list",
+      await viewProps(admin, "credentials", {
+        searchParams: { "filter.use": "used" },
+      }),
+    );
+    expect(names()).toEqual(["Main key", "Spare"]);
   });
 
   it("filters credentials by name, kind, use and state", async () => {

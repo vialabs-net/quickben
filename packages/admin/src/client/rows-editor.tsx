@@ -166,7 +166,7 @@ function CellInput({
         <Select
           {...shared}
           value={value}
-          required={column.required}
+          required={column.required && !column.options?.includes("")}
           className="qb:min-w-32"
           onChange={(event) => {
             onChange(event.currentTarget.value);
@@ -205,7 +205,7 @@ function CellInput({
           minLength={column.minLength}
           maxLength={column.maxLength}
           // A required property may still be an empty string; only a minimum length needs text.
-          required={(column.minLength ?? 0) > 0}
+          required={column.required && (column.minLength ?? 0) > 0}
           value={value}
           className="qb:min-w-40"
           onChange={(event) => {
@@ -237,7 +237,9 @@ export function RowsEditor({
   const i18n = useAdminI18n();
   const formErrors = useFieldErrors();
   const initial = asObjects(defaultValue);
-  const empty = defaultValue === null || defaultValue === undefined ? "" : "[]";
+  const [empty, setEmpty] = useState(
+    defaultValue === null || defaultValue === undefined ? "" : "[]",
+  );
   const [rows, setRows] = useState<Row[]>(() => (initial ?? []).map((o) => toRow(columns, o)));
   const [mode, setMode] = useState<"rows" | "json">(initial === null ? "json" : "rows");
   const [jsonText, setJsonText] = useState(() =>
@@ -291,14 +293,17 @@ export function RowsEditor({
   const add = () => {
     const first = columns[0];
     if (first) focusNext.current = cellId(rows.length, first.key);
+    setEmpty("[]");
     restructure([...rows, toRow(columns, {}, true)]);
   };
   const remove = (index: number) => {
     focusNext.current = `${id}-add`;
+    setEmpty("[]");
     restructure(rows.filter((_, i) => i !== index));
   };
 
   const toJson = () => {
+    focusNext.current = `${id}-toggle`;
     // An empty list stays `[]` (or empty when the field had no value), as on submit.
     setJsonText(
       rows.length === 0
@@ -321,12 +326,17 @@ export function RowsEditor({
       return;
     }
     setJsonProblem(false);
+    if (objects.length === 0) {
+      setEmpty(text.trim() === "" ? "" : JSON.stringify(JSON.parse(text)));
+    }
     restructure(objects.map((object) => toRow(columns, object)));
+    focusNext.current = `${id}-toggle`;
     setMode("rows");
   };
 
   const toggle = (
     <Button
+      id={`${id}-toggle`}
       size="sm"
       variant="ghost"
       onClick={mode === "rows" ? toJson : toRows}

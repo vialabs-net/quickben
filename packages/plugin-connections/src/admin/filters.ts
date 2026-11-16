@@ -69,3 +69,17 @@ export function stateFilter(value: string, i18n: AdminI18n): ListToolbarFilter {
     options: states.map((state) => ({ value: state, label: t(`state.${state}`) })),
   };
 }
+
+/** Read every page before applying filters derived from related records or JSON data. */
+export async function allPages<T>(
+  load: (page: number) => Promise<{ docs: T[]; hasNextPage: boolean }>,
+): Promise<T[]> {
+  const docs: T[] = [];
+  let page = 1;
+  for (;;) {
+    const result = await load(page);
+    docs.push(...result.docs);
+    if (!result.hasNextPage) return docs;
+    page += 1;
+  }
+}

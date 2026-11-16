@@ -22,6 +22,7 @@ import { ConnectionForm } from "./connection-form";
 import { DeleteButton } from "./delete-button";
 import { describeProvider } from "./describe";
 import {
+  allPages,
   isFiltered,
   listWhere,
   matchesFilter,
@@ -88,13 +89,11 @@ export function createConnectionsList(config: QuickbenConfig, key: string) {
       providerType: filters.provider === "" ? null : filters.provider,
       enabled: filters.enabled === "" ? null : filters.enabled === "true",
     });
-    const result = await qb.find(
-      CONNECTIONS,
-      { ...where, sort: ["name"], limit: 500, depth: 1 } as never,
-      ctx,
-    );
+    const loadPage = (page: number) =>
+      qb.find(CONNECTIONS, { ...where, sort: ["name"], limit: 500, depth: 1, page } as never, ctx);
+    const loaded = filters.state === "" ? (await loadPage(1)).docs : await allPages(loadPage);
     // The state comes from the last test, so it is filtered here.
-    const docs = (result.docs as unknown as Loaded[]).filter((doc) =>
+    const docs = (loaded as unknown as Loaded[]).filter((doc) =>
       matchesFilter(filters.state, stateOf(doc.lastTest)),
     );
     const listHref = `${basePath}/${CONNECTIONS}`;

@@ -207,6 +207,61 @@ describe("RowsEditor", () => {
     expect(screen.getByLabelText("Code, row 1")).toHaveProperty("required", true);
   });
 
+  it.each([
+    { initial: null, json: "[]", expected: [] },
+    { initial: [], json: "null", expected: null },
+    { initial: [], json: "", expected: "" },
+  ])("keeps JSON empty values through both modes: $json", ({ initial, json, expected }) => {
+    const { container } = renderRows(initial);
+    fireEvent.click(screen.getByRole("button", { name: "Edit as JSON" }));
+    fireEvent.change(container.querySelector("textarea")!, { target: { value: json } });
+    fireEvent.click(screen.getByRole("button", { name: "Edit as JSON" }));
+    expect(hiddenValue(container)).toEqual(expected);
+    fireEvent.click(screen.getByRole("button", { name: "Edit as JSON" }));
+    expect(container.querySelector("textarea")!.value).toBe(json);
+  });
+
+  it("allows an empty enum member and keeps focus when switching modes", async () => {
+    renderRows([{ tier: "" }], {
+      columns: [
+        {
+          key: "tier",
+          label: "Tier",
+          description: null,
+          type: "select",
+          required: true,
+          options: ["", "fast"],
+        },
+      ],
+    });
+    expect(screen.getByLabelText("Tier, row 1")).toHaveProperty("required", false);
+    const toggle = () => screen.getByRole("button", { name: "Edit as JSON" });
+    fireEvent.click(toggle());
+    await waitFor(() => {
+      expect(document.activeElement).toBe(toggle());
+    });
+    fireEvent.click(toggle());
+    await waitFor(() => {
+      expect(document.activeElement).toBe(toggle());
+    });
+  });
+
+  it("allows optional constrained text to stay empty", () => {
+    renderRows([{}], {
+      columns: [
+        {
+          key: "note",
+          label: "Note",
+          description: null,
+          type: "text",
+          required: false,
+          minLength: 2,
+        },
+      ],
+    });
+    expect(screen.getByLabelText("Note, row 1")).toHaveProperty("required", false);
+  });
+
   it("opens values that are not rows as JSON", () => {
     const { container } = renderRows({ a: 1 });
     expect(JSON.parse(container.querySelector("textarea")!.value)).toEqual({ a: 1 });

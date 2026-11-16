@@ -77,7 +77,11 @@ function column(key: string, raw: Node, required: boolean): JsonRowColumn | null
     key,
     label: node.title ?? words(key),
     description: node.description ?? null,
-    required: required && !nullable && node.default === undefined,
+    required:
+      required &&
+      !nullable &&
+      !(Array.isArray(node.type) && node.type.includes("null")) &&
+      node.default === undefined,
     ...(node.default === undefined ? {} : { default: node.default }),
   };
   if (Array.isArray(node.enum)) {

@@ -81,6 +81,19 @@ describe("jsonRowColumns", () => {
     expect(jsonRowColumns(z.array(item).nullable())?.map((c) => c.key)).toEqual(["id"]);
   });
 
+  it("does not require a value for nullable primitive columns", () => {
+    const columns = jsonRowColumns(
+      z.array(
+        z.object({
+          text: z.string().min(1).nullable(),
+          number: z.number().nullable(),
+          flag: z.boolean().nullable(),
+        }),
+      ),
+    );
+    expect(columns?.map((column) => column.required)).toEqual([false, false, false]);
+  });
+
   it("returns null for other shapes", () => {
     expect(jsonRowColumns(z.object({ id: z.string() }))).toBeNull();
     expect(jsonRowColumns(z.array(z.string()))).toBeNull();
