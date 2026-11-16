@@ -189,9 +189,10 @@ describe("guard rails", () => {
     await expect(removeMember(qb, ctx, aliceAtAcme.id)).rejects.toThrow(
       /at least one active owner/,
     );
-    await expect(qb.delete("memberships", aliceAtAcme.id, system)).rejects.toThrow(
-      /at least one active owner/,
-    );
+    // A trusted call keeps the rule when it asks for it.
+    await expect(
+      qb.delete("memberships", aliceAtAcme.id, { ...system, skipGuards: false }),
+    ).rejects.toThrow(/at least one active owner/);
     // With a second owner, the first can step down.
     await updateMembership(qb, as(alice), bobAtAcme.id, { role: "owner" });
     expect(
@@ -263,6 +264,30 @@ describe("guard rails", () => {
     await expect(
       qb.create("memberships", { organization: acme.id, email: "eve@example.com" }, system),
     ).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it("skips the guard rails for overrideAccess (imports, repairs)", async () => {
+    const { qb, aliceAtAcme } = await setup();
+    const demoted = await qb.update("memberships", aliceAtAcme.id, { role: "admin" }, system);
+    expect(demoted.role).toBe("admin");
+    await qb.update("memberships", aliceAtAcme.id, { role: "owner" }, system);
+    expect((await qb.delete("memberships", aliceAtAcme.id, system)).id).toBe(aliceAtAcme.id);
+  });
+
+  it("skips the guard rails for a user with skipGuards, access still applies", async () => {
+    const { qb, acme, aliceAtAcme, carolAtAcme } = await setup();
+    const asBob = { ...inOrg(bob, acme.id), skipGuards: true };
+    // Bob (admin) may not manage the owner by rank, but skipGuards lifts the rank rule.
+    expect((await updateMembership(qb, asBob, aliceAtAcme.id, { role: "admin" })).role).toBe(
+      "admin",
+    );
+    // Access rules still apply: Carol has no members:manage.
+    await expect(
+      updateMembership(qb, { ...inOrg(carol, acme.id), skipGuards: true }, aliceAtAcme.id, {
+        role: "member",
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    expect(carolAtAcme.role).toBe("member");
   });
 
   it("grants only modules the organization has", async () => {

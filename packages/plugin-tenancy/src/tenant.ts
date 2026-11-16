@@ -1,7 +1,14 @@
-import { ForbiddenError, UnauthorizedError } from "@quickben/core";
+import { ForbiddenError, QuickbenError, UnauthorizedError } from "@quickben/core";
 
 import { activeModules, isExpired, toGrant } from "./entitlements";
-import { accessOf, allCapabilities, capabilitiesOf, MEMBERSHIPS, ORGANIZATIONS } from "./options";
+import {
+  accessOf,
+  allCapabilities,
+  capabilitiesOf,
+  grantsAllModules,
+  MEMBERSHIPS,
+  ORGANIZATIONS,
+} from "./options";
 
 import type { ModuleEntitlement } from "./entitlements";
 import type { Capability, ResolvedTenancy } from "./options";
@@ -20,7 +27,18 @@ declare module "@quickben/core" {
      * a cookie or the user's only membership.
      */
     organizationId?: string;
+    /**
+     * Skip the tenancy guard rails (last owner, own role, rank, `canManageMember`). Default:
+     * skipped with `overrideAccess: true`, applied otherwise. Set `false` to keep them for a
+     * trusted call, `true` to skip them for trusted server code that acts for a user.
+     */
+    skipGuards?: boolean;
   }
+}
+
+/** Whether the tenancy guard rails are skipped for a context. See `ctx.skipGuards`. */
+export function guardsSkipped(ctx: RequestContext): boolean {
+  return ctx.skipGuards ?? ctx.overrideAccess === true;
 }
 
 /**
@@ -49,6 +67,8 @@ export type TenancyRule =
   | "own-membership"
   | "higher-role"
   | "platform-only"
+  /** `tenancy({ canManageMember })` refused the change. */
+  | "cannot-manage"
   /** An organization with scoped documents was deleted with `onOrganizationDelete: "restrict"`. */
   | "not-empty";
 
@@ -60,6 +80,17 @@ export class TenancyRuleError extends ForbiddenError {
     super(message);
     this.name = "TenancyRuleError";
     this.rule = rule;
+  }
+}
+
+/**
+ * Thrown by a member hook to stop a change with a message for the user. The tenancy admin
+ * shows the message. Status 400.
+ */
+export class MemberHookError extends QuickbenError {
+  constructor(message: string, options?: ErrorOptions) {
+    super("VALIDATION", message, options);
+    this.name = "MemberHookError";
   }
 }
 
@@ -83,6 +114,10 @@ export interface MembershipRecord {
   email: string | null;
   role: string;
   status: "invited" | "active" | "disabled";
+  /**
+   * Granted module keys. `["*"]` = every module of the organization. Empty = every module, or
+   * none with `tenancy({ emptyModules: "none" })`.
+   */
   modules: string[];
   [key: string]: unknown;
 }
@@ -198,8 +233,8 @@ export function readCookie(req: Request | undefined, name: string): string | und
 }
 
 /**
- * The organization the caller asks for: `ctx.organizationId`, then the header, then the
- * cookie. `undefined` when none is given. Nothing is checked here.
+ * The organization the caller asks for: `ctx.organizationId`, then `activeOrganization(req)`,
+ * then the header, then the cookie. `undefined` when none is given. Nothing is checked here.
  */
 export function requestedOrganization(
   tenancy: ResolvedTenancy,
@@ -207,16 +242,54 @@ export function requestedOrganization(
 ): string | undefined {
   const fromCtx = ctx.organizationId;
   if (typeof fromCtx === "string" && fromCtx !== "") return fromCtx;
+  if (ctx.req && tenancy.activeOrganization) {
+    const fromRequest = tenancy.activeOrganization(ctx.req);
+    if (typeof fromRequest === "string" && fromRequest !== "") return fromRequest;
+  }
   const fromHeader = ctx.req?.headers.get(tenancy.header)?.trim();
   if (fromHeader) return fromHeader;
   const fromCookie = readCookie(ctx.req, tenancy.cookie);
   return fromCookie === "" ? undefined : fromCookie;
 }
 
-function grantedModules(org: OrganizationRecord, membership: MembershipRecord | null): string[] {
+function grantedModules(
+  tenancy: ResolvedTenancy,
+  org: OrganizationRecord,
+  membership: MembershipRecord | null,
+): string[] {
   const enabled = activeModules(org.modules);
-  if (!membership || membership.modules.length === 0) return [...enabled];
+  if (!membership || grantsAllModules(tenancy, membership.modules)) return [...enabled];
   return enabled.filter((key) => membership.modules.includes(key));
+}
+
+/**
+ * An `activeOrganization` resolver that reads the id from the URL path. `pattern` is a path
+ * with one `:organization` segment; the path must start with it.
+ *
+ * ```ts
+ * tenancy({ scope, activeOrganization: organizationFromPath("/settings/t/:organization") })
+ * ```
+ *
+ * In Next.js server components the request URL has no path: set it with `pathnameHeaders`
+ * of `@quickben/next` in `proxy.ts`.
+ */
+export function organizationFromPath(pattern: string): (req: Request) => string | undefined {
+  const parts = pattern.split("/").filter((part) => part !== "");
+  const index = parts.indexOf(":organization");
+  if (index === -1) throw new TypeError('organizationFromPath: the pattern needs ":organization"');
+  return (req) => {
+    const segments = new URL(req.url).pathname.split("/").filter((part) => part !== "");
+    if (segments.length <= index) return undefined;
+    for (let i = 0; i < index; i += 1) {
+      const part = parts[i] ?? "";
+      if (!part.startsWith(":") && part !== segments[i]) return undefined;
+    }
+    try {
+      return decodeURIComponent(segments[index] ?? "");
+    } catch {
+      return undefined;
+    }
+  };
 }
 
 /** The membership to use: the requested one, else the only one. */
@@ -272,7 +345,7 @@ async function loadTenant(
     membership,
     role,
     capabilities: platform ? allCapabilities(tenancy) : capabilitiesOf(tenancy, role ?? ""),
-    modules: grantedModules(organization, platform ? null : membership),
+    modules: grantedModules(tenancy, organization, platform ? null : membership),
     platform,
   };
 }

@@ -1,9 +1,17 @@
 import { ForbiddenError, NotFoundError, UnauthorizedError, ValidationError } from "@quickben/core";
 
-import { getTenancy, MEMBERSHIPS, ORGANIZATIONS } from "./options";
-import { eq, OrganizationError, rawFind, tenantOf, trustedEmail } from "./tenant";
+import { actorIn, mayManage, rankAllows } from "./collections";
+import { ALL_MODULES, getTenancy, MEMBERSHIPS, ORGANIZATIONS } from "./options";
+import {
+  eq,
+  invalidateTenants,
+  OrganizationError,
+  rawFind,
+  tenantOf,
+  trustedEmail,
+} from "./tenant";
 
-import type { Capability } from "./options";
+import type { Capability, MemberAction, MemberHook, ResolvedTenancy } from "./options";
 import type { MembershipRecord, OrganizationRecord, Tenant } from "./tenant";
 import type { Quickben, QuickbenUser, RequestContext } from "@quickben/core";
 
@@ -110,6 +118,18 @@ export async function listMyInvitations(
   return result;
 }
 
+/**
+ * Modules granted to a membership: keys, or `"all"` for every module of the organization
+ * (stored as `["*"]`). An empty list grants every module, or none with
+ * `tenancy({ emptyModules: "none" })`.
+ */
+export type MemberModules = readonly string[] | "all";
+
+/** The stored form of {@link MemberModules}. */
+function storedModules(modules: MemberModules): string[] {
+  return modules === "all" ? [ALL_MODULES] : [...modules];
+}
+
 /** Input of {@link inviteMember}. Give `userId`, `email` or both. */
 export interface InviteMemberInput {
   /** Default: the active organization. */
@@ -118,8 +138,67 @@ export interface InviteMemberInput {
   email?: string;
   /** Default: `defaultRole`. */
   role?: string;
-  /** Granted module keys. Empty = every module of the organization. */
-  modules?: readonly string[];
+  /** Granted modules. Default: every module of the organization. */
+  modules?: MemberModules;
+}
+
+/** The hooks that run for a member change, in order. */
+function hooksFor(
+  tenancy: ResolvedTenancy,
+  action: MemberAction,
+  before: MembershipRecord | null,
+  after: MembershipRecord | null,
+): MemberHook[] {
+  const hooks = tenancy.memberHooks;
+  const list: (MemberHook | undefined)[] = [];
+  if (action === "invite") list.push(hooks.onInvite);
+  if (action === "accept") list.push(hooks.onAccept);
+  if (action === "remove") list.push(hooks.onRemove);
+  if (action === "update") {
+    if (before && after && before.role !== after.role) list.push(hooks.onRoleChange);
+    if (before && after && before.status !== after.status) list.push(hooks.onStatusChange);
+    list.push(hooks.onUpdate);
+  }
+  return list.filter((hook): hook is MemberHook => hook !== undefined);
+}
+
+/** A membership before and after a change. */
+interface MemberChange {
+  before: MembershipRecord | null;
+  after: MembershipRecord | null;
+}
+
+/**
+ * Run a member change and its hooks in one transaction. A hook that throws undoes the change.
+ * Without hooks the change runs as before, outside an extra transaction.
+ */
+async function withMemberHooks<T extends MemberChange>(
+  qb: Quickben,
+  ctx: RequestContext,
+  action: MemberAction,
+  change: (tx: Quickben) => Promise<T>,
+): Promise<T> {
+  const tenancy = getTenancy(qb);
+  if (!Object.values(tenancy.memberHooks).some((hook) => typeof hook === "function")) {
+    return change(qb);
+  }
+  try {
+    return await qb.transaction(async (tx) => {
+      const result = await change(tx);
+      for (const hook of hooksFor(tenancy, action, result.before, result.after)) {
+        await hook({ action, qb: tx, ctx, before: result.before, after: result.after });
+      }
+      return result;
+    });
+  } finally {
+    // A hook may have failed after the plugin dropped its cache for the rolled back write.
+    invalidateTenants();
+  }
+}
+
+async function membershipById(qb: Quickben, id: string): Promise<MembershipRecord | null> {
+  const [row] = await rawFind(qb, MEMBERSHIPS, eq("id", id));
+  return row ? (row as MembershipRecord) : null;
 }
 
 async function activeOrganization(qb: Quickben, ctx: RequestContext, given?: string) {
@@ -142,19 +221,22 @@ export async function inviteMember(
 ): Promise<MembershipRecord> {
   requireUser(ctx);
   const organization = await activeOrganization(qb, ctx, input.organizationId);
-  const doc = await qb.create(
-    MEMBERSHIPS,
-    {
-      organization,
-      user: input.userId ?? null,
-      email: input.email ?? null,
-      status: "invited",
-      ...(input.role === undefined ? {} : { role: input.role }),
-      ...(input.modules === undefined ? {} : { modules: [...input.modules] }),
-    },
-    ctx,
-  );
-  return doc as unknown as MembershipRecord;
+  const { after } = await withMemberHooks(qb, ctx, "invite", async (tx) => {
+    const doc = await tx.create(
+      MEMBERSHIPS,
+      {
+        organization,
+        user: input.userId ?? null,
+        email: input.email ?? null,
+        status: "invited",
+        ...(input.role === undefined ? {} : { role: input.role }),
+        ...(input.modules === undefined ? {} : { modules: storedModules(input.modules) }),
+      },
+      ctx,
+    );
+    return { before: null, after: doc as unknown as MembershipRecord };
+  });
+  return after;
 }
 
 /**
@@ -180,20 +262,25 @@ export async function acceptInvitation(
   if (invite.status !== "invited") {
     throw new ValidationError([{ path: "status", message: "The invitation is not pending" }]);
   }
-  const doc = await qb.update(
-    MEMBERSHIPS,
-    membershipId,
-    { user: user.id, status: "active" },
-    system,
-  );
-  return doc as unknown as MembershipRecord;
+  const { after } = await withMemberHooks(qb, ctx, "accept", async (tx) => {
+    const doc = await tx.update(
+      MEMBERSHIPS,
+      membershipId,
+      { user: user.id, status: "active" },
+      system,
+    );
+    return { before: invite as MembershipRecord, after: doc as unknown as MembershipRecord };
+  });
+  return after;
 }
 
 /** Changes accepted by {@link updateMembership}. */
 export interface MembershipPatch {
   role?: string;
   status?: "invited" | "active" | "disabled";
-  modules?: readonly string[];
+  modules?: MemberModules;
+  /** Values of fields a host added to `memberships`. */
+  fields?: Readonly<Record<string, unknown>>;
 }
 
 /**
@@ -207,11 +294,16 @@ export async function updateMembership(
   membershipId: string,
   patch: MembershipPatch,
 ): Promise<MembershipRecord> {
-  const data: Record<string, unknown> = {};
+  const data: Record<string, unknown> = { ...patch.fields };
   if (patch.role !== undefined) data.role = patch.role;
   if (patch.status !== undefined) data.status = patch.status;
-  if (patch.modules !== undefined) data.modules = [...patch.modules];
-  return (await qb.update(MEMBERSHIPS, membershipId, data, ctx)) as unknown as MembershipRecord;
+  if (patch.modules !== undefined) data.modules = storedModules(patch.modules);
+  const { after } = await withMemberHooks(qb, ctx, "update", async (tx) => {
+    const before = await membershipById(tx, membershipId);
+    const doc = await tx.update(MEMBERSHIPS, membershipId, data, ctx);
+    return { before, after: doc as unknown as MembershipRecord };
+  });
+  return after;
 }
 
 /**
@@ -223,7 +315,67 @@ export async function removeMember(
   ctx: RequestContext,
   membershipId: string,
 ): Promise<MembershipRecord> {
-  return (await qb.delete(MEMBERSHIPS, membershipId, ctx)) as unknown as MembershipRecord;
+  const { before } = await withMemberHooks(qb, ctx, "remove", async (tx) => {
+    const doc = await tx.delete(MEMBERSHIPS, membershipId, ctx);
+    return { before: doc as unknown as MembershipRecord, after: null };
+  });
+  return before;
+}
+
+/**
+ * Whether the user may change (`update`) or remove a membership: the `members:manage`
+ * capability in its organization, then the rank rule or `tenancy({ canManageMember })`.
+ * Platform staff, `overrideAccess` and `skipGuards` may. For UIs; the writes check it again.
+ */
+export async function canManageMember(
+  qb: Quickben,
+  ctx: RequestContext,
+  membership: MembershipRecord,
+  action: "update" | "remove" = "update",
+): Promise<boolean> {
+  const tenancy = getTenancy(qb);
+  const actor = await actorIn(tenancy, qb, ctx, membership.organization);
+  if (!actor) return ctx.user !== null || ctx.overrideAccess === true;
+  if (!(await hasCapabilityIn(qb, ctx, membership.organization, "members:manage"))) return false;
+  const next = action === "remove" ? null : membership;
+  const allowedByRank = rankAllows(tenancy, actor, [membership.role]);
+  return mayManage(tenancy, qb, actor, { action, target: membership, next }, allowedByRank);
+}
+
+async function hasCapabilityIn(
+  qb: Quickben,
+  ctx: RequestContext,
+  organizationId: string,
+  capability: Capability,
+): Promise<boolean> {
+  try {
+    const tenant = await resolveTenant(qb, { ...ctx, organizationId });
+    return tenant.capabilities.includes(capability);
+  } catch (error) {
+    if (error instanceof OrganizationError) return false;
+    throw error;
+  }
+}
+
+/**
+ * Give every membership with an empty `modules` list `["*"]` (every module). Run it once
+ * before you set `tenancy({ emptyModules: "none" })`, so members keep the modules they have.
+ * Writes straight to the adapter (no hooks). Returns how many memberships changed.
+ */
+export async function migrateEmptyModules(qb: Quickben): Promise<number> {
+  getTenancy(qb);
+  let changed = 0;
+  for (const row of await rawFind(qb, MEMBERSHIPS)) {
+    if (!Array.isArray(row.modules) || row.modules.length > 0) continue;
+    await qb.db.update({
+      collection: MEMBERSHIPS,
+      id: row.id as string,
+      data: { modules: [ALL_MODULES] },
+    });
+    changed += 1;
+  }
+  invalidateTenants();
+  return changed;
 }
 
 /** Cookie the Next layer sets after {@link switchOrganization}. */
