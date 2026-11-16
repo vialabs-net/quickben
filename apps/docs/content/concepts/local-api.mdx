@@ -44,11 +44,31 @@ The context is always the last argument and is never merged with query options, 
 
 Every call takes a context. It is required, so a call without a user is explicit.
 
-| Key              | Purpose                                                     |
-| ---------------- | ----------------------------------------------------------- |
-| `user`           | `QuickbenUser` or `null` for anonymous calls.               |
-| `req`            | The incoming `Request`, passed to access rules and hooks.   |
-| `overrideAccess` | `true` skips access rules. Use only in trusted server code. |
+| Key                  | Purpose                                                                                          |
+| -------------------- | ------------------------------------------------------------------------------------------------ |
+| `user`               | `QuickbenUser` or `null` for anonymous calls.                                                    |
+| `req`                | The incoming `Request`, passed to access rules and hooks.                                        |
+| `overrideAccess`     | `true` skips access rules. Use only in trusted server code.                                      |
+| `preserveTimestamps` | With `overrideAccess`, take `createdAt` and `updatedAt` from the input. See [Imports](#imports). |
+
+## Imports
+
+To copy rows from another system and keep their dates, pass `overrideAccess: true` and `preserveTimestamps: true`:
+
+```ts nocheck
+await qb.create(
+  "posts",
+  { title: row.title, createdAt: row.created_at, updatedAt: row.updated_at },
+  { user: null, overrideAccess: true, preserveTimestamps: true },
+);
+```
+
+| Rule              | Behaviour                                                     |
+| ----------------- | ------------------------------------------------------------- |
+| Values            | `Date` or ISO string. A string without an offset is UTC.      |
+| Missing values    | Set as usual. On create, `updatedAt` defaults to `createdAt`. |
+| `update`          | Also takes both keys.                                         |
+| Without the flags | `createdAt` and `updatedAt` in the input fail validation.     |
 
 ## Instances
 

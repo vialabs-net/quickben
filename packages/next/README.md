@@ -109,6 +109,8 @@ The JSON content type requirement also forces a CORS preflight for cross-site `f
 | `singleton(key, create)`    | One value per process. Use it for database clients created in the config.    |
 | `getMeta(qb, ctx)`          | The `GET /_meta` body.                                                       |
 
+The package imports `next/headers.js` and `next/server.js`, so it also loads in plain Node ESM.
+
 ```tsx
 // app/page.tsx (getQuickben comes from @quickben/core)
 const qb = await getQuickben(config);

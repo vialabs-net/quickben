@@ -181,6 +181,8 @@ Returns `{ title, user, collections, modules }`: the admin title, the current us
 
 ## Server helpers
 
+The built package imports `next/headers.js` and `next/server.js`, so it loads in plain Node ESM (scripts, workers, tests) as well as under Next.js.
+
 | Export                      | Purpose                                                                      |
 | --------------------------- | ---------------------------------------------------------------------------- |
 | `getRequestContext(config)` | `{ user, req }` for local API calls in server components and server actions. |

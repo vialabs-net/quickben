@@ -30,20 +30,21 @@ The browser signs in with the Firebase client SDK and posts the ID token to the 
 
 ## Options of `firebaseAuth`
 
-| Option                 | Default     | Purpose                                                          |
-| ---------------------- | ----------- | ---------------------------------------------------------------- |
-| `auth`                 | default app | `firebase-admin` Auth, or a function that returns it.            |
-| `cookieName`           | `__session` | Session cookie name.                                             |
-| `cookie`               | `{}`        | `path`, `domain`, `sameSite`, `secure`.                          |
-| `sessionMaxAge`        | 5 days      | Seconds, 5 minutes to 14 days.                                   |
-| `checkRevoked`         | `true`      | Revocation check on every request.                               |
-| `maxAuthAge`           | `300`       | Seconds since sign-in allowed when creating a session. `0`: off. |
-| `requireVerifiedEmail` | `false`     | Refuse sessions for unverified emails.                           |
-| `roles`                | `"roles"`   | Custom claim name, or a function of the claims.                  |
-| `resolveUser`          | none        | Map or refuse (`null`) the user.                                 |
-| `bearer`               | `false`     | Accept `Authorization: Bearer <ID token>`.                       |
-| `revokeOnSignOut`      | `false`     | Sign-out revokes refresh tokens on every device.                 |
-| `csrf`                 | same origin | `trustedOrigins` of the session route.                           |
+| Option                 | Default     | Purpose                                                                                                                  |
+| ---------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `auth`                 | default app | `firebase-admin` Auth, or a function that returns it.                                                                    |
+| `cookieName`           | `__session` | Session cookie name.                                                                                                     |
+| `cookie`               | `{}`        | `path`, `domain`, `sameSite`, `secure`.                                                                                  |
+| `sessionMaxAge`        | 5 days      | Seconds, 5 minutes to 14 days.                                                                                           |
+| `checkRevoked`         | `true`      | Revocation check on every request.                                                                                       |
+| `maxAuthAge`           | `300`       | Seconds since sign-in allowed when creating a session. `0`: off.                                                         |
+| `requireVerifiedEmail` | `false`     | Refuse sessions for unverified emails.                                                                                   |
+| `roles`                | `"roles"`   | Custom claim name, or a function of the claims.                                                                          |
+| `resolveUser`          | none        | Map or refuse (`null`) the user.                                                                                         |
+| `bearer`               | `false`     | Accept `Authorization: Bearer <ID token>`.                                                                               |
+| `revokeOnSignOut`      | `false`     | Sign-out revokes refresh tokens on every device.                                                                         |
+| `csrf`                 | same origin | `trustedOrigins` of the session route.                                                                                   |
+| `session`              | none        | `{ read(req) → uid \| null, loadUser? }`: use your own session instead of the Firebase cookie. Bearer tokens still work. |
 
 `firebase` and `firebase-admin` are optional peers: the server entry needs `firebase-admin`, the client and admin entries need `firebase`.
 

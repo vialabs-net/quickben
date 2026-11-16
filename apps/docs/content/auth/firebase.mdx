@@ -52,20 +52,41 @@ export const { GET, POST, DELETE } = firebase.handlers;
 
 ## Options
 
-| Option                 | Default     | Purpose                                                                                     |
-| ---------------------- | ----------- | ------------------------------------------------------------------------------------------- |
-| `auth`                 | default app | The `firebase-admin` Auth API, or a function that returns it.                               |
-| `cookieName`           | `__session` | Session cookie. Firebase Hosting forwards only `__session`.                                 |
-| `cookie`               | `{}`        | `path`, `domain`, `sameSite` (`lax`), `secure` (on https).                                  |
-| `sessionMaxAge`        | 5 days      | Session lifetime in seconds. 5 minutes to 14 days.                                          |
-| `checkRevoked`         | `true`      | Check revocation on every request. Costs one call to Firebase per request.                  |
-| `maxAuthAge`           | `300`       | A session needs a sign-in this recent, in seconds. `0` turns it off.                        |
-| `requireVerifiedEmail` | `false`     | Refuse sessions for unverified emails.                                                      |
-| `roles`                | `"roles"`   | Custom claim with the roles, or a function of the claims.                                   |
-| `resolveUser`          | none        | Gets the claims and the default user. Return another user, or `null` to refuse the account. |
-| `bearer`               | `false`     | Also accept `Authorization: Bearer <ID token>`.                                             |
-| `revokeOnSignOut`      | `false`     | Sign-out revokes refresh tokens: the user is signed out on every device.                    |
-| `csrf`                 | same origin | `trustedOrigins` for the session route.                                                     |
+| Option                 | Default     | Purpose                                                                                         |
+| ---------------------- | ----------- | ----------------------------------------------------------------------------------------------- |
+| `auth`                 | default app | The `firebase-admin` Auth API, or a function that returns it.                                   |
+| `cookieName`           | `__session` | Session cookie. Firebase Hosting forwards only `__session`.                                     |
+| `cookie`               | `{}`        | `path`, `domain`, `sameSite` (`lax`), `secure` (on https).                                      |
+| `sessionMaxAge`        | 5 days      | Session lifetime in seconds. 5 minutes to 14 days.                                              |
+| `checkRevoked`         | `true`      | Check revocation on every request. Costs one call to Firebase per request.                      |
+| `maxAuthAge`           | `300`       | A session needs a sign-in this recent, in seconds. `0` turns it off.                            |
+| `requireVerifiedEmail` | `false`     | Refuse sessions for unverified emails.                                                          |
+| `roles`                | `"roles"`   | Custom claim with the roles, or a function of the claims.                                       |
+| `resolveUser`          | none        | Gets the claims and the default user. Return another user, or `null` to refuse the account.     |
+| `bearer`               | `false`     | Also accept `Authorization: Bearer <ID token>`.                                                 |
+| `revokeOnSignOut`      | `false`     | Sign-out revokes refresh tokens: the user is signed out on every device.                        |
+| `csrf`                 | same origin | `trustedOrigins` for the session route.                                                         |
+| `session`              | none        | Use your own session instead of the Firebase cookie. See [Your own session](#your-own-session). |
+
+## Your own session
+
+If your app already has a session (for example an opaque cookie in your own store), give the adapter a function that returns the Firebase uid of a request:
+
+```ts nocheck
+export const firebase = firebaseAuth({
+  bearer: true,
+  session: { read: async (req) => (await mySessions.lookUp(req))?.firebaseUid ?? null },
+});
+```
+
+| Behaviour              | With `session`                                                                     |
+| ---------------------- | ---------------------------------------------------------------------------------- |
+| Firebase cookie        | Ignored.                                                                           |
+| User data              | `auth.getUser(uid)` loads email and custom claims (one Firebase call per request). |
+| Disabled or unknown    | Anonymous.                                                                         |
+| `loadUser: false`      | No Firebase call. The user has the uid only; use `resolveUser` to add more.        |
+| Bearer ID tokens       | Still accepted with `bearer: true`, when `read` returns `null`.                    |
+| `roles`, `resolveUser` | Run as usual, on the claims of the user record.                                    |
 
 ## User mapping
 

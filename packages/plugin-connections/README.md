@@ -65,17 +65,18 @@ Generate a key once with `generateMasterKey()` (32 random bytes, base64) and kee
 
 ## Options
 
-| Option               | Default                                    | Purpose                                                         |
-| -------------------- | ------------------------------------------ | --------------------------------------------------------------- |
-| `masterKey`          | none                                       | 32 bytes: hex, base64 or bytes.                                 |
-| `previousMasterKeys` | `[]`                                       | Old keys, used only to read. See [key rotation](#key-rotation). |
-| `providers`          | `[]`                                       | Your providers. Same `type` as a built-in replaces it.          |
-| `builtins`           | `true`                                     | `false`, or a list of built-in types to keep.                   |
-| `canManage`          | `user.roles` includes `admin`              | Who may create, change, delete and test.                        |
-| `canRead`            | managers and `user.roles` includes `staff` | Who may read (never secrets).                                   |
-| `fetch`              | global `fetch`                             | Used by provider tests.                                         |
-| `testTimeoutMs`      | `20000`                                    | Test timeout.                                                   |
-| `group`              | `Integrations`                             | Admin sidebar group, a string or one per locale.                |
+| Option               | Default                                    | Purpose                                                          |
+| -------------------- | ------------------------------------------ | ---------------------------------------------------------------- |
+| `masterKey`          | none                                       | 32 bytes: hex, base64 or bytes.                                  |
+| `previousMasterKeys` | `[]`                                       | Old keys, used only to read. See [key rotation](#key-rotation).  |
+| `providers`          | `[]`                                       | Your providers. Same `type` as a built-in replaces it.           |
+| `builtins`           | `true`                                     | `false`, or a list of built-in types to keep.                    |
+| `canManage`          | `user.roles` includes `admin`              | Who may create, change, delete and test.                         |
+| `canRead`            | managers and `user.roles` includes `staff` | Who may read (never secrets).                                    |
+| `fetch`              | global `fetch`                             | Used by provider tests.                                          |
+| `testTimeoutMs`      | `20000`                                    | Test timeout.                                                    |
+| `group`              | `Integrations`                             | Admin sidebar group, a string or one per locale.                 |
+| `modelSchema`        | none                                       | `(base) => base.extend({ … })`: extra keys on LLM model entries. |
 
 ## Built-in providers
 
@@ -169,6 +170,8 @@ const usd = callCost(model, result.usage.inputTokens ?? 0, result.usage.outputTo
 ```
 
 Pass `{ model: "id" }` to choose a model of the connection, and `factories` for your own provider types.
+
+With `connections({ modelSchema: (base) => base.extend({ maxPages: z.number().default(4) }) })`, the connection form keeps `maxPages` and `resolveLanguageModel<ModelOf<typeof plugin>>(qb, id)` returns it, typed.
 
 ## Admin
 

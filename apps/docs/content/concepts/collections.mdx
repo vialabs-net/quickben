@@ -26,14 +26,15 @@ export const posts = defineCollection({
 
 ## Options
 
-| Option   | Purpose                                                                        |
-| -------- | ------------------------------------------------------------------------------ |
-| `slug`   | Identifier used in the API, URLs and table names.                              |
-| `labels` | `{ singular, plural }`. Default: humanized slug (`blog-posts` → `Blog posts`). |
-| `fields` | Field definitions keyed by name. See [Fields](/docs/concepts/fields).          |
-| `access` | Rules per operation. See [Access control](/docs/concepts/access-control).      |
-| `hooks`  | Functions per stage. See [Hooks](/docs/concepts/hooks).                        |
-| `admin`  | Admin UI options (below).                                                      |
+| Option        | Purpose                                                                        |
+| ------------- | ------------------------------------------------------------------------------ |
+| `slug`        | Identifier used in the API, URLs and table names.                              |
+| `labels`      | `{ singular, plural }`. Default: humanized slug (`blog-posts` → `Blog posts`). |
+| `fields`      | Field definitions keyed by name. See [Fields](/docs/concepts/fields).          |
+| `access`      | Rules per operation. See [Access control](/docs/concepts/access-control).      |
+| `hooks`       | Functions per stage. See [Hooks](/docs/concepts/hooks).                        |
+| `admin`       | Admin UI options (below).                                                      |
+| `trackAuthor` | `true` adds `createdBy` and `updatedBy` (below). Default `false`.              |
 
 ## Naming rules
 
@@ -52,6 +53,17 @@ Every document has these fields. You do not declare them.
 | `id`        | String. UUIDv7 unless you pass an `id` on create. |
 | `createdAt` | ISO 8601 UTC string                               |
 | `updatedAt` | ISO 8601 UTC string                               |
+
+### Author fields
+
+With `trackAuthor: true` the collection gets two text fields, typed in `InferDoc`:
+
+| Field       | Set to                                                                 |
+| ----------- | ---------------------------------------------------------------------- |
+| `createdBy` | `ctx.user.id` on create. `null` without a user.                        |
+| `updatedBy` | `ctx.user.id` on create and update. An update without a user keeps it. |
+
+Users cannot write them, and the admin shows them read-only. Code with `overrideAccess: true` can set them, for imports. A collection that already has a field with one of these names throws `ConfigError`.
 
 ## Admin options
 
