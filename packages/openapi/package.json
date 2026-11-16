@@ -1,6 +1,6 @@
 {
   "name": "@quickben/openapi",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "OpenAPI 3.1 documents for Quickben endpoints and collections, and a CLI that checks API contracts.",
   "keywords": [
     "quickben",
