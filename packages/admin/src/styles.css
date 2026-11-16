@@ -157,14 +157,17 @@
 }
 
 /* Component classes. Unlayered like the utilities, so app resets do not override them. */
-/* Page titles. Hidden with `pageTitle: "none"`, where the host shows its own title. */
+/*
+ * Page titles and breadcrumbs. Hidden with `pageTitle: "none"`, where the host shows its own,
+ * from `getAdminNav(…).page`.
+ */
 .qb-page-title {
   font-size: var(--qb-title-size);
   font-weight: var(--qb-title-weight);
   line-height: 1.25;
 }
 
-.qb-root[data-qb-page-title="none"] .qb-page-title {
+.qb-root[data-qb-page-title="none"] :is(.qb-page-title, .qb-page-crumbs) {
   display: none;
 }
 
@@ -189,9 +192,11 @@
  * Tables scroll inside their own box and never widen the page: `contain: inline-size`
  * keeps the table's width out of the parent's sizing (grid and flex items included).
  * Shadows at the edges show that there is more to scroll (`background-attachment: local`
- * covers them at the ends of the scroll range).
+ * covers them at the ends of the scroll range). `position: relative` makes it the containing
+ * block of absolutely positioned content (`sr-only` headers), so that is clipped too.
  */
 .qb-table-scroll {
+  position: relative;
   contain: inline-size;
   max-width: 100%;
   overflow-x: auto;

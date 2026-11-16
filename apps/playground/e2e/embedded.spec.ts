@@ -41,6 +41,8 @@ test("the host shows the page title; the admin hides its own", async ({ page }) 
 
   await page.getByRole("link", { name: "New post" }).click();
   await expect(page.locator(".host-title h1").filter({ visible: true })).toHaveText("New post");
+  // The admin's own breadcrumb is hidden too; the host shows its own.
+  await expect(page.getByRole("navigation", { name: "Breadcrumb", exact: true })).toHaveCount(0);
   const crumbs = page.getByRole("navigation", { name: "Host breadcrumb" });
   await expect(crumbs.getByRole("link", { name: "Posts" })).toHaveAttribute(
     "href",

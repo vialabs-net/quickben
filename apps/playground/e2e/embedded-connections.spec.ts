@@ -23,7 +23,9 @@ test("edit the models of a connection as rows, in embedded mode", async ({ page 
 
   await page.goto("/embedded/connections/new?provider=anthropic");
   await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
-  await expect(page.locator(".host-title h1").filter({ visible: true })).toHaveText("New connection");
+  await expect(page.locator(".host-title h1").filter({ visible: true })).toHaveText(
+    "New connection",
+  );
   await page.getByRole("textbox", { name: "Name" }).fill(connectionName);
 
   // The credential picker fits its column; the full label is in the open list.
@@ -55,6 +57,7 @@ test("edit the models of a connection as rows, in embedded mode", async ({ page 
   await expect(page.getByRole("status").filter({ hasText: "Connection created" })).toBeVisible();
   await expect(page).toHaveURL(/\/embedded\/connections\/[^/?]+/);
   await expect(page.locator(".host-title h1").filter({ visible: true })).toHaveText(connectionName);
+  const editUrl = page.url().replace(/\?.*$/, "");
 
   // Stored in order, defaults filled.
   const saved = page.getByRole("group", { name: "Models" });
@@ -91,4 +94,15 @@ test("edit the models of a connection as rows, in embedded mode", async ({ page 
   await expect(page.getByRole("link", { name: connectionName })).toHaveCount(0);
   await page.getByRole("link", { name: "Clear" }).click();
   await expect(page.getByRole("link", { name: connectionName })).toBeVisible();
+
+  // On a phone, tables and the row editor scroll inside their box; the page never does.
+  await page.setViewportSize({ width: 390, height: 844 });
+  for (const url of ["/embedded/connections", "/embedded/credentials", editUrl]) {
+    await page.goto(url);
+    await expect(page.getByRole("table").first()).toBeVisible();
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow, url).toBeLessThanOrEqual(0);
+  }
 });
