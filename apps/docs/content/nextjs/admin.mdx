@@ -112,6 +112,7 @@ Relation columns show the title of the related document.
 | select / select `many`     | `<select>` / checkbox group                                         |
 | relation / relation `many` | Search box with keyboard support, chips for many                    |
 | json                       | Textarea with live syntax check and Format button                   |
+| json with a list schema    | Row editor: add, remove, reorder rows; raw JSON toggle              |
 | file                       | File input with `accept`, size check, preview and a remove checkbox |
 
 | Field option                             | Effect                                                  |
@@ -128,6 +129,39 @@ Relation columns show the title of the related document.
 Validation errors from the local API are shown next to their field. The first invalid field gets focus.
 
 **File fields.** The form shows the stored file (an image, or a PDF in a `<details>` preview) with a download link, and previews a chosen file before saving. Files larger than `maxBytes` block submit. Without a new file the stored one is kept; the "Remove file" checkbox clears a field that is not required. Previews and links use `GET <apiBasePath>/:collection/:id/:field` of the [route handlers](/docs/nextjs/route-handlers#files). Uploads go through the server function, whose body is limited to 1 MB by default: raise `experimental.serverActions.bodySizeLimit` in `next.config` for larger files.
+
+### List of objects in a json field
+
+A `json` field whose `schema` is an array of objects with string, number, boolean or enum properties gets a row editor instead of JSON text. `FieldMeta.rows` (from `jsonRowColumns`) lists the columns.
+
+```ts
+import { defineCollection, fields as f } from "@quickben/core";
+import { z } from "zod";
+
+export const llms = defineCollection({
+  slug: "llms",
+  fields: {
+    models: f.json({
+      schema: z.array(
+        z.object({
+          id: z.string().min(1),
+          inputPerMTokUsd: z.number().min(0).default(0).meta({ title: "Input USD / 1M" }),
+          vision: z.boolean().default(false),
+        }),
+      ),
+    }),
+  },
+});
+```
+
+| Feature     | Behavior                                                                   |
+| ----------- | -------------------------------------------------------------------------- |
+| Columns     | One input per property; the label is `.meta({ title })`, else the key.     |
+| Rows        | Add, remove, move up and down. Keyboard focus follows the row.             |
+| Empty cells | Optional cells are left out, so schema defaults apply.                     |
+| Errors      | Issues like `models.1.id` show on the cell and focus it.                   |
+| Raw JSON    | "Edit as JSON" toggles a JSON editor; values that are not rows open in it. |
+| Other keys  | Properties without a column are kept.                                      |
 
 ## Config the admin reads
 
@@ -148,23 +182,24 @@ Validation errors from the local API are shown next to their field. The first in
 
 ## `createAdminPage` options
 
-| Option           | Default  | Purpose                                                                   |
-| ---------------- | -------- | ------------------------------------------------------------------------- |
-| `serverFunction` | built-in | Server function for saves, deletes and relation searches.                 |
-| `basePath`       | `/admin` | URL path of the admin route.                                              |
-| `apiBasePath`    | `/api`   | URL path of the route handlers, for file previews and downloads.          |
-| `signInHref`     | none     | Link shown to anonymous users who cannot read anything.                   |
-| `components`     | `{}`     | Custom field components by name.                                          |
-| `views`          | `{}`     | Replace the list or edit view of a collection, by slug.                   |
-| `pages`          | `[]`     | Custom pages inside the admin shell.                                      |
-| `nav`            | `[]`     | Extra sidebar links.                                                      |
-| `sidebar`        | `[]`     | Components at the top of the sidebar. Props: `user`, `basePath`.          |
-| `extensions`     | `[]`     | `{ components, views, pages, nav, sidebar }` from plugins. Applied first. |
-| `catalogs`       | `[]`     | Message bundles from `defineMessages`.                                    |
-| `locale`         | config   | Wins over `admin.locale`.                                                 |
-| `messages`       | none     | Merged over `admin.messages`.                                             |
-| `timeZone`       | config   | Wins over `admin.timeZone`.                                               |
-| `chrome`         | `full`   | `none` renders only the page. See [Embedded mode](#embedded-mode).        |
+| Option           | Default  | Purpose                                                                        |
+| ---------------- | -------- | ------------------------------------------------------------------------------ |
+| `serverFunction` | built-in | Server function for saves, deletes and relation searches.                      |
+| `basePath`       | `/admin` | URL path of the admin route.                                                   |
+| `apiBasePath`    | `/api`   | URL path of the route handlers, for file previews and downloads.               |
+| `signInHref`     | none     | Link shown to anonymous users who cannot read anything.                        |
+| `components`     | `{}`     | Custom field components by name.                                               |
+| `views`          | `{}`     | Replace the list or edit view of a collection, by slug.                        |
+| `pages`          | `[]`     | Custom pages inside the admin shell.                                           |
+| `nav`            | `[]`     | Extra sidebar links.                                                           |
+| `sidebar`        | `[]`     | Components at the top of the sidebar. Props: `user`, `basePath`.               |
+| `extensions`     | `[]`     | `{ components, views, pages, nav, sidebar }` from plugins. Applied first.      |
+| `catalogs`       | `[]`     | Message bundles from `defineMessages`.                                         |
+| `locale`         | config   | Wins over `admin.locale`.                                                      |
+| `messages`       | none     | Merged over `admin.messages`.                                                  |
+| `timeZone`       | config   | Wins over `admin.timeZone`.                                                    |
+| `chrome`         | `full`   | `none` renders only the page. See [Embedded mode](#embedded-mode).             |
+| `pageTitle`      | `render` | `none` hides page titles and breadcrumbs. See [Embedded mode](#embedded-mode). |
 
 ## Extensions
 
@@ -376,6 +411,37 @@ export default async function Layout({ children }: { children: ReactNode }) {
 
 `getAdminNav` returns `{ title, basePath, dashboard, groups, current }`. Each link has `label`, `href`, `key`, `external` and `active`. Pass the same options as to `createAdminPage` so custom and plugin pages appear. Without `pathname`, mark the active link on the client (`usePathname()`). The organization switcher is `createOrganizationSwitcher` from `@quickben/plugin-tenancy/admin`.
 
+### Page title in the host
+
+With `pageTitle: "none"` the admin hides its own `<h1>` and breadcrumb (dashboard, collection pages, plugin pages). Descriptions and actions stay. Show the title in your layout from `getAdminNav(…, { pathname }).page`:
+
+```ts
+import { getAdminNav } from "@quickben/admin";
+
+import config from "../quickben.config";
+
+export async function currentPage() {
+  const { page } = await getAdminNav(
+    config,
+    { basePath: "/data" },
+    { pathname: "/data/posts/new" },
+  );
+  // { title: "New post", crumbs: [{ label: "Posts", href: "/data/posts" }, { label: "New" }] }
+  return page;
+}
+```
+
+| Path                  | `page.title`     | `page.crumbs`            |
+| --------------------- | ---------------- | ------------------------ |
+| dashboard             | `admin.title`    | `[]`                     |
+| `/:collection`        | plural label     | `[plural]`               |
+| `/:collection/new`    | `New <singular>` | `[plural (link), New]`   |
+| `/:collection/:id`    | document title   | `[plural (link), title]` |
+| custom or plugin page | its nav label    | `[label]`                |
+| unknown or outside    | `page` is `null` |                          |
+
+Without `pathname`, `page` is absent. The playground's `app/embedded` renders it in the page file, where `params` give the path.
+
 ## Theme tokens
 
 The admin and plugin pages read only these custom properties. Override them on `.qb-root` from unlayered CSS:
@@ -398,8 +464,15 @@ The admin and plugin pages read only these custom properties. Override them on `
 | `--qb-danger`, `--qb-danger-text`           | errors, delete buttons             |
 | `--qb-success`, `--qb-warning`, `--qb-info` | badges and notices                 |
 | `--qb-focus-ring`                           | focus outline                      |
-| `--qb-radius`                               | control radius; cards use it + 2px |
+| `--qb-radius`                               | control radius                     |
+| `--qb-card-radius`                          | card radius (default radius + 2px) |
+| `--qb-card-padding`                         | card and form padding (`1.25rem`)  |
+| `--qb-title-size`, `--qb-title-weight`      | page titles (`1.5rem`, `600`)      |
+| `--qb-heading-size`, `--qb-heading-weight`  | card titles (`0.875rem`, `600`)    |
+| `--qb-table-row-height`                     | smallest table row (`2.5rem`)      |
 | `--qb-font-sans`, `--qb-font-mono`          | fonts                              |
+
+Tables scroll inside their own box, with shadows at the edges that can scroll, and never widen the page. Selects and relation chips fit their column; a cut label shows in full in the open list or as a tooltip.
 
 Hover and soft shades are mixed from these with `color-mix()`. Defaults use `light-dark()`. `.qb-root` does not set `color-scheme`: it inherits the page's, so `:root { color-scheme: light dark }` follows the system.
 
@@ -416,7 +489,12 @@ Hover and soft shades are mixed from these with `color-mix()`. Defaults use `lig
 
 The `qb:` utilities are not in a cascade layer, so a global reset in your app such as `* { margin: 0; padding: 0 }` does not remove the admin's spacing. The base styles inside `.qb-root` are in `@layer base`, so your own Tailwind classes still apply in custom components.
 
-`@quickben/admin/ui` exports the component kit: `Button`, `ButtonLink`, `Input`, `Textarea`, `Select`, `Checkbox`, `Label` (requires `htmlFor`), `Card`, `CardHeader`, `CardBody`, `Badge`, `Table`, `Toast`. Use it in custom components to match the admin.
+`@quickben/admin/ui` exports the component kit: `Button`, `ButtonLink`, `Input`, `Textarea`, `Select`, `Checkbox`, `Label` (requires `htmlFor`), `Card`, `CardHeader`, `CardBody`, `Badge`, `Table`, `Toast`, `ListToolbar`, `RowsEditor`. Use it in custom components to match the admin.
+
+| Component     | Use                                                                                                          |
+| ------------- | ------------------------------------------------------------------------------------------------------------ |
+| `ListToolbar` | Search box and filter selects of a list page, as a `GET` form. Read `q` and the filters from `searchParams`. |
+| `RowsEditor`  | Row editor for a JSON list of objects. Columns from `FieldMeta.rows` or `jsonRowColumns` (`@quickben/core`). |
 
 ## Limits
 

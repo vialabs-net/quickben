@@ -7,6 +7,7 @@ import {
 } from "@quickben/core";
 import { memoryAdapter } from "@quickben/db-memory";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
 import { getMeta } from "../src";
 
@@ -59,5 +60,37 @@ describe("getMeta with a locale", () => {
     const meta = await getMeta(qb, { user: null });
     expect(meta.title).toBe("Back office");
     expect(meta.collections[0]?.labels.plural).toBe("Clients");
+  });
+});
+
+describe("row columns of json fields", () => {
+  it("describes lists of objects and leaves other json fields alone", async () => {
+    const models = z.array(z.object({ id: z.string(), price: z.number().min(0).default(0) }));
+    const config = defineConfig({
+      db: memoryAdapter(),
+      collections: [
+        defineCollection({
+          slug: "llms",
+          fields: {
+            models: f.json({ schema: models }),
+            again: f.json({ schema: models }),
+            settings: f.json({ schema: z.object({ a: z.string() }) }),
+            free: f.json(),
+          },
+          access: { read: () => true },
+        }),
+      ],
+    });
+    const qb = await getQuickben(config);
+    const meta = await getMeta(qb, { user: null });
+    const fields = meta.collections[0]?.fields ?? [];
+    const rows = (name: string) => fields.find((field) => field.name === name)?.rows;
+    expect(rows("models")?.map((column) => [column.key, column.type])).toEqual([
+      ["id", "text"],
+      ["price", "number"],
+    ]);
+    expect(rows("again")).toEqual(rows("models"));
+    expect(rows("settings")).toBeUndefined();
+    expect(rows("free")).toBeUndefined();
   });
 });

@@ -10,10 +10,11 @@ export function toFormState(
   error: unknown,
   fieldNames: readonly string[],
   i18n: AdminI18n,
+  nested: readonly string[] = [],
 ): ErrorState {
   const fixFields = i18n.t("error.fixFields");
   if (error instanceof ValidationError) {
-    const { fieldErrors, formError } = issuesToErrors(error.issues, fieldNames);
+    const { fieldErrors, formError } = issuesToErrors(error.issues, fieldNames, { nested });
     return { status: "error", message: formError ?? fixFields, fieldErrors };
   }
   if (error instanceof ConflictError) {

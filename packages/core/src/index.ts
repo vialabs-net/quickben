@@ -45,6 +45,7 @@ export {
   sniffMime,
   streamToBytes,
 } from "./storage";
+export { jsonRowColumns, jsonSchemaRowColumns } from "./rows";
 export { isFileUpload } from "./validation";
 export { compareBySort, compareValues, matchesWhere } from "./where";
 
@@ -86,6 +87,7 @@ export type {
 } from "./endpoints";
 export type { ErrorCode, ForbiddenErrorOptions, ValidationIssue } from "./errors";
 export type { LocaleFromRequestOptions, LocalizedText } from "./localize";
+export type { JsonRowColumn } from "./rows";
 export type {
   MemoryStorage,
   SignedUrlOptions,

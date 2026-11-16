@@ -4,17 +4,22 @@ import { defineMessages, englishI18n } from "../src/i18n";
 
 import type {
   AdminChrome,
+  AdminCrumb,
   AdminExtension,
   AdminMessageKey,
   AdminNav,
   AdminOptions,
+  AdminPageInfo,
+  AdminPageTitle,
   AdminText,
   MessageBundle,
   PageProps,
   Translator,
 } from "../src";
 import type { FullMessageKey, MessageKey } from "../src/i18n";
-import type { LocalizedText } from "@quickben/core";
+import type { ListToolbarFilter, ListToolbarProps, RowsEditorProps } from "../src/ui";
+import type { JsonRowColumn, LocalizedText } from "@quickben/core";
+import type { FieldMeta } from "@quickben/next";
 
 const reports = defineMessages("reports", {
   en: { title: "Reports", count: { one: "{count} report", other: "{count} reports" } },
@@ -65,5 +70,25 @@ describe("options", () => {
     expectTypeOf<LocalizedText>().toExtend<AdminText>();
     expectTypeOf<PageProps["i18n"]["locale"]>().toEqualTypeOf<string>();
     expectTypeOf<AdminNav["groups"][number]["links"][number]["active"]>().toEqualTypeOf<boolean>();
+  });
+});
+
+describe("0.3.x additions", () => {
+  it("types the page title option and the page info of the nav", () => {
+    expectTypeOf<AdminPageTitle>().toEqualTypeOf<"render" | "none">();
+    expectTypeOf<AdminOptions["pageTitle"]>().toEqualTypeOf<AdminPageTitle | undefined>();
+    expectTypeOf<AdminNav["page"]>().toEqualTypeOf<AdminPageInfo | null | undefined>();
+    expectTypeOf<AdminPageInfo["crumbs"]>().toEqualTypeOf<AdminCrumb[]>();
+  });
+
+  it("types the row editor and the list toolbar", () => {
+    expectTypeOf<RowsEditorProps["columns"]>().toEqualTypeOf<readonly JsonRowColumn[]>();
+    expectTypeOf<RowsEditorProps["cellId"]>().toEqualTypeOf<
+      ((row: number, key: string) => string) | undefined
+    >();
+    expectTypeOf<ListToolbarProps["filters"]>().toEqualTypeOf<
+      readonly ListToolbarFilter[] | undefined
+    >();
+    expectTypeOf<FieldMeta["rows"]>().toEqualTypeOf<JsonRowColumn[] | undefined>();
   });
 });

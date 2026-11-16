@@ -31,7 +31,7 @@ export function PageHeader({
     <header className="qb:mb-6 qb:flex qb:flex-wrap qb:items-end qb:justify-between qb:gap-4">
       <div className="qb:min-w-0">
         {crumbs.length > 0 ? (
-          <nav aria-label={i18n?.t("nav.breadcrumb")} className="qb:mb-1">
+          <nav aria-label={i18n?.t("nav.breadcrumb")} className="qb-page-crumbs qb:mb-1">
             <ol className="qb:flex qb:flex-wrap qb:items-center qb:gap-1.5 qb:text-sm qb:text-fg-muted">
               {crumbs.map((crumb, index) => (
                 <li
@@ -51,9 +51,7 @@ export function PageHeader({
             </ol>
           </nav>
         ) : null}
-        <h1 className="qb:truncate qb:text-2xl qb:font-semibold qb:tracking-tight qb:text-fg">
-          {title}
-        </h1>
+        <h1 className="qb-page-title qb:truncate qb:tracking-tight qb:text-fg">{title}</h1>
         {description ? <p className="qb:mt-1 qb:text-sm qb:text-fg-muted">{description}</p> : null}
       </div>
       {actions ? <div className="qb:flex qb:gap-2">{actions}</div> : null}

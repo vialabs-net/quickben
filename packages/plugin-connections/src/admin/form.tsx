@@ -89,9 +89,9 @@ export function ActionForm({
             {formMessage(t, state.message)}
           </div>
         ) : null}
-        <div className="qb:p-5">{children}</div>
+        <div className="qb-card-padding">{children}</div>
         {readOnly ? null : (
-          <div className="qb:flex qb:items-center qb:gap-3 qb:border-t qb:border-line qb:bg-surface-muted qb:px-5 qb:py-3 qb:rounded-b-lg">
+          <div className="qb:flex qb:items-center qb:gap-3 qb:border-t qb:border-line qb:bg-surface-muted qb:px-(--qb-card-padding) qb:py-3 qb:rounded-b-(--qb-card-radius)">
             <Button type="submit" disabled={pending || !ready}>
               {pending ? t("action.saving") : submitLabel}
             </Button>
@@ -102,6 +102,14 @@ export function ActionForm({
     </FormStateContext>
   );
 }
+
+/** Field errors of the last submit of the enclosing {@link ActionForm}. */
+export function useFieldErrors(): Readonly<Record<string, string>> {
+  const state = use(FormStateContext);
+  return state.status === "error" ? state.fieldErrors : noErrors;
+}
+
+const noErrors: Readonly<Record<string, string>> = Object.freeze({});
 
 /** Props of {@link FormField}. */
 export interface FormFieldProps {
@@ -136,7 +144,7 @@ export function FormField({
         span === "full" ? "qb:space-y-1.5 qb:md:col-span-6" : "qb:space-y-1.5 qb:md:col-span-3"
       }
     >
-      <Label htmlFor={id}>
+      <Label htmlFor={id} id={`${id}-label`}>
         {label}
         {required ? <span className="qb:text-danger"> *</span> : null}
       </Label>

@@ -78,9 +78,35 @@ Relation columns show the title of the related document.
 | select / select `many`     | `<select>` / checkbox group                                   |
 | relation / relation `many` | search box with keyboard support, chips for many              |
 | json                       | textarea with live syntax check and Format button             |
+| json with a list schema    | Row editor: add, remove, reorder rows; raw JSON toggle        |
 | file                       | file input, size check, image or PDF preview, remove checkbox |
 
 Field options: `admin.hidden` (not rendered, not sent), `admin.readOnly` (shown disabled, not sent), field `access.read` denied (not in lists, filters or forms), `access.create` / `access.update` denied (shown disabled, not sent), `admin.width` (`full`, `half`, `third`), `description` (hint text). Validation errors from the local API are shown next to their field; the first invalid field gets focus. File previews and links use `GET <apiBasePath>/:collection/:id/:field` (option `apiBasePath`, default `/api`). Uploads go through the server function: raise `experimental.serverActions.bodySizeLimit` for files over 1 MB.
+
+### List of objects in a json field
+
+A `json` field whose `schema` is an array of objects with string, number, boolean or enum properties gets a row editor instead of JSON text. `FieldMeta.rows` (from `jsonRowColumns`) lists the columns.
+
+```ts
+models: f.json({
+  schema: z.array(
+    z.object({
+      id: z.string().min(1),
+      inputPerMTokUsd: z.number().min(0).default(0).meta({ title: "Input USD / 1M" }),
+      vision: z.boolean().default(false),
+    }),
+  ),
+}),
+```
+
+| Feature     | Behavior                                                                   |
+| ----------- | -------------------------------------------------------------------------- |
+| Columns     | One input per property; the label is `.meta({ title })`, else the key.     |
+| Rows        | Add, remove, move up and down. Keyboard focus follows the row.             |
+| Empty cells | Optional cells are left out, so schema defaults apply.                     |
+| Errors      | Issues like `models.1.id` show on the cell and focus it.                   |
+| Raw JSON    | "Edit as JSON" toggles a JSON editor; values that are not rows open in it. |
+| Other keys  | Properties without a column are kept.                                      |
 
 ## Extensions
 
@@ -178,6 +204,26 @@ const nav = await getAdminNav(config, { basePath: "/data" }, { pathname });
 
 `getAdminNav` returns `{ title, basePath, dashboard, groups, current }`. Each link has `label`, `href`, `key`, `external` and `active`. Pass the same options as to `createAdminPage` so custom and plugin pages appear. Without `pathname`, mark the active link on the client (`usePathname()`). The organization switcher is `createOrganizationSwitcher` from `@quickben/plugin-tenancy/admin`.
 
+### Page title in the host
+
+With `pageTitle: "none"` the admin hides its own `<h1>` and breadcrumb (dashboard, collection pages, plugin pages). Descriptions and actions stay. Show the title in your layout from `getAdminNav(…, { pathname }).page`:
+
+```tsx
+const { page } = await getAdminNav(config, options, { pathname: "/data/posts/new" });
+// { title: "New post", crumbs: [{ label: "Posts", href: "/data/posts" }, { label: "New" }] }
+```
+
+| Path                  | `page.title`     | `page.crumbs`            |
+| --------------------- | ---------------- | ------------------------ |
+| dashboard             | `admin.title`    | `[]`                     |
+| `/:collection`        | plural label     | `[plural]`               |
+| `/:collection/new`    | `New <singular>` | `[plural (link), New]`   |
+| `/:collection/:id`    | document title   | `[plural (link), title]` |
+| custom or plugin page | its nav label    | `[label]`                |
+| unknown or outside    | `page` is `null` |                          |
+
+Without `pathname`, `page` is absent. The playground's `app/embedded` renders it in the page file, where `params` give the path.
+
 ## Theme tokens
 
 The admin and plugin pages read only these custom properties. Override them on `.qb-root` from unlayered CSS:
@@ -200,8 +246,15 @@ The admin and plugin pages read only these custom properties. Override them on `
 | `--qb-danger`, `--qb-danger-text`           | errors, delete buttons             |
 | `--qb-success`, `--qb-warning`, `--qb-info` | badges and notices                 |
 | `--qb-focus-ring`                           | focus outline                      |
-| `--qb-radius`                               | control radius; cards use it + 2px |
+| `--qb-radius`                               | control radius                     |
+| `--qb-card-radius`                          | card radius (default radius + 2px) |
+| `--qb-card-padding`                         | card and form padding (`1.25rem`)  |
+| `--qb-title-size`, `--qb-title-weight`      | page titles (`1.5rem`, `600`)      |
+| `--qb-heading-size`, `--qb-heading-weight`  | card titles (`0.875rem`, `600`)    |
+| `--qb-table-row-height`                     | smallest table row (`2.5rem`)      |
 | `--qb-font-sans`, `--qb-font-mono`          | fonts                              |
+
+Tables scroll inside their own box, with shadows at the edges that can scroll, and never widen the page. Selects and relation chips fit their column; a cut label shows in full in the open list or as a tooltip.
 
 Hover and soft shades are mixed from these with `color-mix()`. Defaults use `light-dark()`. `.qb-root` does not set `color-scheme`: it inherits the page's, so `:root { color-scheme: light dark }` follows the system.
 

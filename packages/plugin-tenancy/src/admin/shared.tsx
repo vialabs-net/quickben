@@ -20,7 +20,7 @@ function first(value: string | string[] | undefined): string | undefined {
 export function Heading({ title, description }: Readonly<{ title: string; description: string }>) {
   return (
     <header className="qb:mb-6">
-      <h1 className="qb:text-2xl qb:font-semibold qb:tracking-tight qb:text-fg">{title}</h1>
+      <h1 className="qb-page-title qb:tracking-tight qb:text-fg">{title}</h1>
       <p className="qb:mt-1 qb:text-sm qb:text-fg-muted">{description}</p>
     </header>
   );

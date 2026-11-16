@@ -1,9 +1,10 @@
 "use client";
 
 import { useAdminI18n } from "@quickben/admin/i18n";
-import { Checkbox, Input, Select, Textarea } from "@quickben/admin/ui";
+import { Checkbox, Input, RowsEditor, Select, Textarea } from "@quickben/admin/ui";
+import { useMemo } from "react";
 
-import { ActionForm, FormField } from "./form";
+import { ActionForm, FormField, useFieldErrors } from "./form";
 import { connectionsMessages } from "./messages";
 
 import type { FieldView, ProviderView } from "./describe";
@@ -53,7 +54,32 @@ function MetadataControl({
 }>) {
   const i18n = useAdminI18n();
   const name = `metadata.${field.key}`;
+  const formErrors = useFieldErrors();
+  // `<row>.<key>` errors of the row editor, stable between renders of the same submit.
+  const cellErrors = useMemo(() => {
+    const prefix = `${name}.`;
+    return Object.fromEntries(
+      Object.entries(formErrors)
+        .filter(([key]) => key.startsWith(prefix))
+        .map(([key, message]) => [key.slice(prefix.length), message]),
+    );
+  }, [formErrors, name]);
   const current = value === undefined ? field.default : value;
+  if (field.control === "json" && field.rows) {
+    return (
+      <RowsEditor
+        id={id}
+        name={name}
+        columns={field.rows}
+        defaultValue={current}
+        required={field.required}
+        disabled={disabled}
+        describedBy={describedBy}
+        errors={cellErrors}
+        cellId={(row, key) => `${id}-${String(row)}-${key.replaceAll(/[^\w-]/g, "-")}`}
+      />
+    );
+  }
   switch (field.control) {
     case "checkbox":
       return (
@@ -173,8 +199,14 @@ export function ConnectionForm({
           hint={credentials.length === 0 ? t("field.noCredential") : null}
         >
           {(control) => (
-            <div className="qb:flex qb:items-center qb:gap-2">
+            <div className="qb:flex qb:flex-wrap qb:items-center qb:gap-x-3 qb:gap-y-1">
               <Select
+                className="qb:min-w-0 qb:flex-1 qb:basis-48"
+                // The full label of the chosen credential, also when the select cuts it.
+                title={credentials.find((credential) => credential.id === values.credential)?.label}
+                onChange={(event) => {
+                  event.currentTarget.title = event.currentTarget.selectedOptions[0]?.text ?? "";
+                }}
                 id={control.id}
                 name="credential"
                 defaultValue={values.credential ?? ""}

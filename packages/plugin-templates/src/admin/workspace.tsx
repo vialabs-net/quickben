@@ -189,7 +189,7 @@ function WorkspaceHeader({
         <ButtonLink href={back} variant="ghost" size="sm" className="qbt:-ml-3 qbt:mb-1">
           {t("workspace.back")}
         </ButtonLink>
-        <h1 className="qbt:text-2xl qbt:font-semibold qbt:tracking-tight qbt:text-fg">{label}</h1>
+        <h1 className="qb-page-title qbt:tracking-tight qbt:text-fg">{label}</h1>
         <p className="qbt:mt-2 qbt:flex qbt:flex-wrap qbt:gap-1">
           {published ? (
             <Badge tone="green">{t("status.published", { number: published.number })}</Badge>

@@ -85,8 +85,7 @@ export const llmModelsSchema = modelListSchema(llmModelSchema);
 export const llmFields = z.object({
   models: llmModelsSchema.default([]).meta({
     title: "Models",
-    description:
-      'Models callers may use, e.g. [{ "id": "claude-haiku-4-5", "vision": true, "default": true }].',
+    description: "Models callers may use. One row per model; at most one is the default.",
   }),
 });
 

@@ -6,6 +6,7 @@ import { cn, focusRing } from "../ui/cn";
 
 import type { AdminI18n } from "../i18n/translator";
 import type { NavGroup } from "../nav";
+import type { AdminPageTitle } from "../types";
 import type { QuickbenUser } from "@quickben/core";
 import type { ReactNode } from "react";
 
@@ -20,6 +21,8 @@ export interface ShellProps {
   i18n: AdminI18n;
   /** Shown at the top of the sidebar, under the title. */
   sidebarTop?: ReactNode;
+  /** `none` hides the page titles. Default `render`. */
+  pageTitle?: AdminPageTitle;
   children: ReactNode;
 }
 
@@ -40,10 +43,21 @@ function linkClass(active: boolean): string {
 export function AdminFrame({
   i18n,
   className,
+  pageTitle = "render",
   children,
-}: Readonly<{ i18n: AdminI18n; className?: string; children: ReactNode }>) {
+}: Readonly<{
+  i18n: AdminI18n;
+  className?: string;
+  /** `none` hides the page titles (`.qb-page-title`). */
+  pageTitle?: AdminPageTitle;
+  children: ReactNode;
+}>) {
   return (
-    <div className={cn("qb-root", className)} lang={i18n.locale}>
+    <div
+      className={cn("qb-root", className)}
+      lang={i18n.locale}
+      data-qb-page-title={pageTitle === "none" ? "none" : undefined}
+    >
       <AdminI18nProvider value={i18n.data}>{children}</AdminI18nProvider>
     </div>
   );
@@ -58,10 +72,15 @@ export function Shell({
   user,
   i18n,
   sidebarTop,
+  pageTitle,
   children,
 }: Readonly<ShellProps>) {
   return (
-    <AdminFrame i18n={i18n} className="qb:min-h-screen qb:bg-surface-muted qb:text-fg qb:md:flex">
+    <AdminFrame
+      i18n={i18n}
+      pageTitle={pageTitle}
+      className="qb:min-h-screen qb:bg-surface-muted qb:text-fg qb:md:flex"
+    >
       <a
         href="#qb-main"
         className="qb:sr-only qb:focus:not-sr-only qb:focus:absolute qb:focus:top-2 qb:focus:left-2 qb:focus:z-50 qb:focus:rounded-md qb:focus:bg-surface qb:focus:px-3 qb:focus:py-2 qb:focus:shadow"

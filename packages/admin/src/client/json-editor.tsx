@@ -16,6 +16,8 @@ export interface JsonEditorProps {
   required: boolean;
   disabled: boolean;
   describedBy: string;
+  /** Id of the element that names the textarea, when no `<label for>` points to it. */
+  labelledBy?: string;
 }
 
 function jsonError(text: string, fallback: string): string | null {
@@ -36,6 +38,7 @@ export function JsonEditor({
   required,
   disabled,
   describedBy,
+  labelledBy,
 }: Readonly<JsonEditorProps>) {
   const [error, setError] = useState<string | null>(null);
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -67,6 +70,7 @@ export function JsonEditor({
         rows={8}
         spellCheck={false}
         aria-describedby={`${describedBy} ${id}-json`}
+        aria-labelledby={labelledBy}
         className="qb:font-mono qb:text-xs"
         onChange={(event: ChangeEvent<HTMLTextAreaElement>) => {
           check(event.currentTarget);

@@ -1,9 +1,10 @@
-import { checkAccess, checkFieldAccess, localize } from "@quickben/core";
+import { checkAccess, checkFieldAccess, jsonRowColumns, localize } from "@quickben/core";
 
 import type {
   AccessOperation,
   FieldAdmin,
   FieldType,
+  JsonRowColumn,
   QuickbenUser,
   Quickben,
   RequestContext,
@@ -40,6 +41,11 @@ export interface FieldMeta {
   maxBytes?: number;
   /** Whether the user may set the field on create and on update (field access rules). */
   access: { create: boolean; update: boolean };
+  /**
+   * Columns of `json` fields whose `schema` is an array of objects with string, number,
+   * boolean or enum properties. The admin edits them as rows. Absent for other fields.
+   */
+  rows?: JsonRowColumn[];
 }
 
 /**
@@ -92,6 +98,15 @@ interface FieldDenials {
   update: ReadonlySet<string>;
 }
 
+const rowsCache = new WeakMap<object, JsonRowColumn[] | null>();
+
+function rowsOf(field: SanitizedField): JsonRowColumn[] | undefined {
+  if (field.type !== "json" || field.schema === undefined) return undefined;
+  const { schema } = field;
+  if (!rowsCache.has(schema)) rowsCache.set(schema, jsonRowColumns(schema));
+  return rowsCache.get(schema) ?? undefined;
+}
+
 function fieldMeta(
   field: SanitizedField,
   locale: string | undefined,
@@ -121,6 +136,7 @@ function fieldMeta(
       ? { ...optional("accept", field.accept), maxBytes: field.maxBytes }
       : {}),
     access: { create: !denied.create.has(field.name), update: !denied.update.has(field.name) },
+    ...optional("rows", rowsOf(field)),
   };
 }
 

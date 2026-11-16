@@ -19,9 +19,17 @@ export function Textarea({ className, ...props }: Readonly<ComponentProps<"texta
   return <textarea className={cn(control, "qb:min-h-24", className)} {...props} />;
 }
 
-/** Native select. */
+/**
+ * Native select. It fits its column: a long selected label is cut with an ellipsis, and the
+ * open list shows the options in full.
+ */
 export function Select({ className, ...props }: Readonly<ComponentProps<"select">>) {
-  return <select className={cn(control, "qb:h-9 qb:pr-8", className)} {...props} />;
+  return (
+    <select
+      className={cn(control, "qb:h-9 qb:max-w-full qb:min-w-0 qb:truncate qb:pr-8", className)}
+      {...props}
+    />
+  );
 }
 
 /** Checkbox. Pair it with a `<label>`. */
