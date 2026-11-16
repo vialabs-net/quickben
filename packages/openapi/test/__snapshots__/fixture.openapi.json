@@ -1203,16 +1203,12 @@
           }
         },
         "required": [
-          "id",
-          "createdAt",
-          "updatedAt",
-          "name",
-          "site",
-          "photo"
+          "id"
         ],
         "type": "object"
       },
       "AuthorCreateInput": {
+        "additionalProperties": false,
         "properties": {
           "name": {
             "maxLength": 120,
@@ -1304,6 +1300,7 @@
         "type": "object"
       },
       "AuthorUpdateInput": {
+        "additionalProperties": false,
         "properties": {
           "name": {
             "maxLength": 120,
@@ -1865,28 +1862,12 @@
           }
         },
         "required": [
-          "id",
-          "createdAt",
-          "updatedAt",
-          "title",
-          "status",
-          "views",
-          "rating",
-          "featured",
-          "publishedOn",
-          "publishedAt",
-          "author",
-          "reviewer",
-          "tags",
-          "labels",
-          "priority",
-          "meta",
-          "extra",
-          "body"
+          "id"
         ],
         "type": "object"
       },
       "PostCreateInput": {
+        "additionalProperties": false,
         "properties": {
           "title": {
             "description": "Shown in lists.",
@@ -2077,6 +2058,7 @@
         "type": "object"
       },
       "PostUpdateInput": {
+        "additionalProperties": false,
         "properties": {
           "title": {
             "description": "Shown in lists.",

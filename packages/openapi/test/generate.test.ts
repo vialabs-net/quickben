@@ -1,4 +1,10 @@
-import { defineCollection, defineConfig, defineEndpoint, fields } from "@quickben/core";
+import {
+  defineCollection,
+  defineConfig,
+  defineEndpoint,
+  fields,
+  getQuickben,
+} from "@quickben/core";
 import { memoryAdapter } from "@quickben/db-memory";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
@@ -286,6 +292,29 @@ describe("generateOpenApi", () => {
       ]);
     });
 
+    it("preserves all literal alternatives of a union query parameter", () => {
+      const search = defineEndpoint({
+        method: "GET",
+        path: "/union-query",
+        input: {
+          query: z.union([z.object({ kind: z.literal("a") }), z.object({ kind: z.literal("b") })]),
+        },
+        handler: () => 1,
+      });
+      const parameter = operation(generateOpenApi(config([search])), "/union-query", "get")
+        .parameters?.[0];
+      expect(parameter).toMatchObject({
+        name: "kind",
+        required: true,
+        schema: {
+          anyOf: [
+            { type: "string", const: "a" },
+            { type: "string", const: "b" },
+          ],
+        },
+      });
+    });
+
     it("throws on duplicate operation ids", () => {
       const a = defineEndpoint({
         method: "GET",
@@ -356,15 +385,16 @@ describe("generateOpenApi", () => {
       expect(schemas.Post?.description).toBe("Articles.");
     });
 
-    it("leaves fields with read rules out of required", () => {
-      expect(schemas.Author?.required).toEqual([
-        "id",
-        "createdAt",
-        "updatedAt",
-        "name",
-        "site",
-        "photo",
-      ]);
+    it("allows projected documents and fields removed by read rules", async () => {
+      expect(schemas.Author?.required).toEqual(["id"]);
+      const qb = await getQuickben(fixtureConfig());
+      const ctx = { user: { id: "editor" } };
+      const created = await qb.create("authors", { name: "Ada" }, ctx);
+      const selected = await qb.findById("authors", created.id, { select: ["name"] }, ctx);
+      expect(Object.keys(selected)).toEqual(expect.arrayContaining(["id", "name"]));
+      expect(Object.keys(selected)).toHaveLength(2);
+      for (const key of schemas.Author?.required as string[])
+        expect(Object.hasOwn(selected, key)).toBe(true);
       const props = schemas.Author?.properties as Record<string, Record<string, unknown>>;
       expect(props.email).toMatchObject({ type: ["string", "null"], format: "email" });
       expect(props.site).toMatchObject({ format: "uri" });
@@ -378,6 +408,15 @@ describe("generateOpenApi", () => {
       expect(schemas.PostUpdateInput?.required).toBeUndefined();
       const input = schemas.PostCreateInput?.properties as Record<string, Record<string, unknown>>;
       expect(input.author).toMatchObject({ type: ["string", "null"] });
+    });
+
+    it("closes write inputs like the core validator", async () => {
+      expect(schemas.AuthorCreateInput?.additionalProperties).toBe(false);
+      expect(schemas.AuthorUpdateInput?.additionalProperties).toBe(false);
+      const qb = await getQuickben(fixtureConfig());
+      await expect(
+        qb.create("authors", { name: "Ada", unknown: true } as never, { user: { id: "u" } }),
+      ).rejects.toMatchObject({ code: "VALIDATION" });
     });
 
     it("documents the list query parameters", () => {

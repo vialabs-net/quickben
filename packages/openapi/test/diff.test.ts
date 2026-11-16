@@ -276,7 +276,10 @@ describe("diffOpenApi", () => {
     it("treats a removed field of a closed object as breaking", () => {
       const base = object({ a: { type: "string" } });
       const head = { ...object({}), additionalProperties: false };
-      expect(kinds(withBody(base), withBody(head))).toEqual([["removed-field", true]]);
+      expect(kinds(withBody(base), withBody(head))).toEqual([
+        ["removed-field", true],
+        ["narrowed-constraint", true],
+      ]);
     });
 
     it("classifies request enums", () => {
@@ -427,6 +430,47 @@ describe("diffOpenApi", () => {
       expect(kinds(secured(undefined), secured([{}, { session: [] }]))).toEqual([]);
     });
 
+    it("detects newly required OAuth scopes but allows scope relaxation", () => {
+      const schemes = {
+        session: {
+          type: "oauth2",
+          flows: {
+            clientCredentials: {
+              tokenUrl: "https://auth.test/token",
+              scopes: { read: "Read", write: "Write" },
+            },
+          },
+        },
+      };
+      const before = secured([{ session: ["read"] }], schemes);
+      const after = secured([{ session: ["read", "write"] }], schemes);
+      expect(diffOpenApi(before, after).breaking).toBe(1);
+      expect(diffOpenApi(after, before).breaking).toBe(0);
+      expect(
+        diffOpenApi(
+          before,
+          secured([{ session: ["read", "write"] }, { session: ["read"] }], schemes),
+        ).breaking,
+      ).toBe(0);
+    });
+
+    it("allows relaxing an AND of credentials", () => {
+      const both = secured([{ session: [], bearer: [] }]);
+      const one = secured([{ session: [] }]);
+      expect(diffOpenApi(both, one).breaking).toBe(0);
+      expect(diffOpenApi(one, both).breaking).toBe(1);
+    });
+
+    it("ignores documentation and key order of security schemes", () => {
+      const base = secured(undefined, {
+        session: { type: "http", scheme: "bearer", bearerFormat: "JWT", description: "Old" },
+      });
+      const head = secured(undefined, {
+        session: { description: "New", scheme: "bearer", type: "http" },
+      });
+      expect(diffOpenApi(base, head).changes).toEqual([]);
+    });
+
     it("treats removed or changed schemes as breaking", () => {
       const both = secured([{ session: [] }, { bearer: [] }]);
       expect(kinds(both, secured([{ session: [] }]))).toEqual([["removed-security", true]]);
@@ -457,6 +501,45 @@ describe("diffOpenApi", () => {
       ]);
     });
 
+    it("compares object closure and typed additional properties", () => {
+      const open = { type: "object", properties: { a: { type: "string" } } };
+      const closed = { ...open, additionalProperties: false };
+      expect(diffOpenApi(withBody(open), withBody(closed)).breaking).toBe(1);
+      expect(diffOpenApi(withBody(closed), withBody(open)).breaking).toBe(0);
+      expect(diffOpenApi(withResponse(closed), withResponse(open)).breaking).toBe(1);
+      const typed = { ...open, additionalProperties: { type: "string" } };
+      expect(diffOpenApi(withBody(open), withBody(typed)).breaking).toBe(1);
+      expect(diffOpenApi(withResponse(typed), withResponse(open)).breaking).toBe(1);
+    });
+
+    it("compares tuple elements in both directions", () => {
+      const tuple = (type: string) => ({
+        type: "array",
+        prefixItems: [{ type }],
+        minItems: 1,
+        maxItems: 1,
+      });
+      expect(diffOpenApi(withBody(tuple("string")), withBody(tuple("number"))).breaking).toBe(1);
+      expect(
+        diffOpenApi(withResponse(tuple("string")), withResponse(tuple("number"))).breaking,
+      ).toBe(1);
+    });
+
+    it("compares multipleOf by inclusion in each direction", () => {
+      const n = (multipleOf?: number): JsonSchema => ({
+        type: "number",
+        ...(multipleOf === undefined ? {} : { multipleOf }),
+      });
+      expect(diffOpenApi(withBody(n(2)), withBody(n(3))).breaking).toBe(1);
+      expect(diffOpenApi(withBody(n(2)), withBody(n(4))).breaking).toBe(1);
+      expect(diffOpenApi(withBody(n(4)), withBody(n(2))).breaking).toBe(0);
+      expect(diffOpenApi(withResponse(n(4)), withResponse(n(2))).breaking).toBe(1);
+      expect(diffOpenApi(withResponse(n(2)), withResponse(n(4))).breaking).toBe(0);
+      expect(diffOpenApi(withBody(n()), withBody(n(2))).breaking).toBe(1);
+      expect(diffOpenApi(withResponse(n(2)), withResponse(n())).breaking).toBe(1);
+      expect(diffOpenApi(withBody(n(0.3)), withBody(n(0.1))).breaking).toBe(0);
+    });
+
     it("treats wider response bounds and changed patterns as breaking", () => {
       const count = (schema: JsonSchema) => withResponse(object({ n: schema }));
       expect(
@@ -482,6 +565,23 @@ describe("diffOpenApi", () => {
       expect(diffOpenApi(union("string"), union("number")).changes.map((c) => c.message)).toEqual([
         'response 200 field "<1>.n" changed type from string to number',
       ]);
+    });
+
+    it("checks removed request variants, added response variants and reordered unions", () => {
+      const a = object({ kind: { const: "a" }, name: { type: "string" } }, ["kind", "name"]);
+      const b = object({ kind: { const: "b" } }, ["kind"]);
+      const c = object({ kind: { const: "c" } }, ["kind"]);
+      const union = (...anyOf: JsonSchema[]): JsonSchema => ({ anyOf });
+      expect(diffOpenApi(withBody(union(a, b)), withBody(a)).breaking).toBeGreaterThan(0);
+      expect(diffOpenApi(withResponse(a), withResponse(union(a, b))).breaking).toBeGreaterThan(0);
+      expect(diffOpenApi(withBody(union(a, b)), withBody(union(b, a))).breaking).toBe(0);
+      expect(diffOpenApi(withResponse(union(a, b)), withResponse(union(b, a))).breaking).toBe(0);
+      expect(diffOpenApi(withBody(a), withBody(union(a, b))).breaking).toBe(0);
+      expect(diffOpenApi(withResponse(union(a, b)), withResponse(a)).breaking).toBe(0);
+      const withoutName = object({ kind: { const: "a" } }, ["kind"]);
+      expect(
+        diffOpenApi(withResponse(union(a, b, c)), withResponse(union(withoutName, b))).breaking,
+      ).toBeGreaterThan(0);
     });
 
     it("compares the values of maps", () => {

@@ -67,7 +67,8 @@ export function createOpenApiHandler(
       const response = json(doc);
       return req.method === "HEAD" ? new Response(null, response) : response;
     } catch (error) {
-      return errorResponse(error);
+      const response = errorResponse(error);
+      return req.method === "HEAD" ? new Response(null, response) : response;
     }
   };
 }

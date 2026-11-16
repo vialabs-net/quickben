@@ -47,6 +47,23 @@ function textChange(key: string, b: JsonSchema, h: JsonSchema): ConstraintChange
   return [{ narrowed: typeof hv === "string", message }];
 }
 
+function multipleChanges(b: JsonSchema, h: JsonSchema): ConstraintChange[] {
+  const before = numberAt(b, "multipleOf");
+  const after = numberAt(h, "multipleOf");
+  if (before === after) return [];
+  const message = `multipleOf changed from ${String(before ?? "none")} to ${String(after ?? "none")}`;
+  const divides = (a: number, value: number) => {
+    const ratio = value / a;
+    return Math.abs(ratio - Math.round(ratio)) <= Number.EPSILON * Math.max(1, Math.abs(ratio)) * 4;
+  };
+  const changes: ConstraintChange[] = [];
+  if (after !== undefined && (before === undefined || !divides(after, before)))
+    changes.push({ narrowed: true, message });
+  if (before !== undefined && (after === undefined || !divides(before, after)))
+    changes.push({ narrowed: false, message });
+  return changes;
+}
+
 /** Changes of bounds (`maximum`, `maxLength`, …), `pattern` and `format`. */
 export function constraintChanges(b: JsonSchema, h: JsonSchema): ConstraintChange[] {
   const changes: ConstraintChange[] = [];
@@ -58,6 +75,10 @@ export function constraintChanges(b: JsonSchema, h: JsonSchema): ConstraintChang
     const change = boundChange(key, b, h, false);
     if (change) changes.push(change);
   }
-  changes.push(...textChange("pattern", b, h), ...textChange("format", b, h));
+  changes.push(
+    ...textChange("pattern", b, h),
+    ...textChange("format", b, h),
+    ...multipleChanges(b, h),
+  );
   return changes;
 }

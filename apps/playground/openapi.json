@@ -1526,17 +1526,12 @@
           }
         },
         "required": [
-          "id",
-          "createdAt",
-          "updatedAt",
-          "name",
-          "bio",
-          "photo",
-          "active"
+          "id"
         ],
         "type": "object"
       },
       "AuthorCreateInput": {
+        "additionalProperties": false,
         "properties": {
           "name": {
             "maxLength": 120,
@@ -1636,6 +1631,7 @@
         "type": "object"
       },
       "AuthorUpdateInput": {
+        "additionalProperties": false,
         "properties": {
           "name": {
             "maxLength": 120,
@@ -2151,21 +2147,12 @@
           }
         },
         "required": [
-          "id",
-          "createdAt",
-          "updatedAt",
-          "title",
-          "slug",
-          "status",
-          "author",
-          "publishedAt",
-          "tags",
-          "featured",
-          "body"
+          "id"
         ],
         "type": "object"
       },
       "PostCreateInput": {
+        "additionalProperties": false,
         "properties": {
           "title": {
             "maxLength": 200,
@@ -2286,6 +2273,7 @@
         "type": "object"
       },
       "PostUpdateInput": {
+        "additionalProperties": false,
         "properties": {
           "title": {
             "maxLength": 200,
@@ -2825,15 +2813,12 @@
           }
         },
         "required": [
-          "id",
-          "createdAt",
-          "updatedAt",
-          "name",
-          "color"
+          "id"
         ],
         "type": "object"
       },
       "TagCreateInput": {
+        "additionalProperties": false,
         "properties": {
           "name": {
             "maxLength": 60,
@@ -2913,6 +2898,7 @@
         "type": "object"
       },
       "TagUpdateInput": {
+        "additionalProperties": false,
         "properties": {
           "name": {
             "maxLength": 60,

@@ -41,6 +41,9 @@ describe("createOpenApiHandler", () => {
     const closed = createOpenApiHandler(fixtureConfig({ auth: anonymous }), { serve: true });
     const response = await closed(get("/api/openapi.json"));
     expect(response?.status).toBe(401);
+    const head = await closed(get("/api/openapi.json", "HEAD"));
+    expect(head?.status).toBe(401);
+    expect(head?.body).toBeNull();
     expect(await response?.json()).toMatchObject({ error: { code: "UNAUTHORIZED" } });
     const rule = vi.fn(() => false);
     const denied = createOpenApiHandler(fixtureConfig({ auth: signedIn }), {

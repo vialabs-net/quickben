@@ -60,7 +60,15 @@ function objectParts(registry: SchemaRegistry, schema: JsonSchema): ObjectParts 
   if (Array.isArray(list)) {
     const parts = list.filter(isObject).map((branch) => objectParts(registry, branch));
     const properties: Record<string, JsonSchema> = {};
-    for (const part of parts) Object.assign(properties, part.properties);
+    for (const part of parts) {
+      for (const [name, schema] of Object.entries(part.properties)) {
+        const previous = properties[name];
+        if (previous === undefined) properties[name] = schema;
+        else if (JSON.stringify(previous) !== JSON.stringify(schema)) {
+          properties[name] = { anyOf: [previous, schema] };
+        }
+      }
+    }
     const required = Object.keys(properties).filter((name) =>
       parts.every((part) => part.required.includes(name)),
     );

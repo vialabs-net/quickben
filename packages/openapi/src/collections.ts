@@ -148,11 +148,10 @@ function docSchema(collection: SanitizedCollection, context: CollectionContext):
     createdAt: { type: "string", format: "date-time" },
     updatedAt: { type: "string", format: "date-time" },
   };
-  const required: string[] = [...systemNames];
+  // All collection reads accept select; only id is present in every projection.
+  const required = ["id"];
   for (const field of collection.fieldList) {
     properties[field.name] = fieldSchema(field, "doc", context);
-    // Field read rules may remove the field.
-    if (field.access.read === undefined) required.push(field.name);
   }
   const schema: JsonSchema = { type: "object", properties, required };
   const description = localize(collection.admin.description, "en");
@@ -173,8 +172,8 @@ function inputSchema(
     }
   }
   return required.length > 0
-    ? { type: "object", properties, required }
-    : { type: "object", properties };
+    ? { type: "object", properties, required, additionalProperties: false }
+    : { type: "object", properties, additionalProperties: false };
 }
 
 /** Operand of a filter: the value type only. Write rules (bounds, formats) do not apply. */

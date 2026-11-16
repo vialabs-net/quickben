@@ -28,6 +28,29 @@ describe("betterAuthAdapter with a real Better Auth instance", () => {
     ).toMatchObject({ name: "__Secure-s" });
   });
 
+  it("describes the effective HTTPS and customized cookie names", async () => {
+    const https = await createTestAuth({ baseURL: "https://app.test" });
+    const context = await https.$context;
+    expect(betterAuthAdapter({ auth: https }).securitySchemes?.session).toMatchObject({
+      name: context.authCookies.sessionToken.name,
+    });
+    expect(context.authCookies.sessionToken.name).toBe("__Secure-better-auth.session_token");
+    const custom = await createTestAuth({
+      baseURL: "https://app.test",
+      advanced: {
+        cookiePrefix: "app",
+        useSecureCookies: false,
+        cookies: { session_token: { name: "custom-session" } },
+      },
+    });
+    expect(betterAuthAdapter({ auth: custom }).securitySchemes?.session).toMatchObject({
+      name: (await custom.$context).authCookies.sessionToken.name,
+    });
+    expect(
+      betterAuthAdapter({ auth: https, cookieName: "override" }).securitySchemes?.session,
+    ).toMatchObject({ name: "override" });
+  });
+
   it("maps the session user", async () => {
     const auth = await createTestAuth();
     const headers = await signUp(auth, "ada@example.com");

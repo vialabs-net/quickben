@@ -10,13 +10,13 @@ const doc = generateOpenApi(config, { info: { title: "Shop API", version: "1.0.0
 await writeFile("openapi.json", stringifyOpenApi(doc));
 ```
 
-| Export                                  | What it does                                                                    |
-| --------------------------------------- | ------------------------------------------------------------------------------- |
-| `generateOpenApi(config, options)`      | OpenAPI 3.1 document of the custom endpoints and the collections marked public. |
-| `stringifyOpenApi(doc)`                 | Two-space JSON with a final newline, ready to commit.                           |
-| `diffOpenApi(base, head)`               | Changes between two documents, each breaking or not.                            |
-| `formatDiff(diff)`                      | The diff as text.                                                               |
-| `createOpenApiHandler(config, options)` | Serves `GET <basePath>/openapi.json`. `@quickben/next` uses it.                 |
+| Export                                  | What it does                                                                               |
+| --------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `generateOpenApi(config, options)`      | OpenAPI 3.1 document of the custom endpoints and the collections opted into documentation. |
+| `stringifyOpenApi(doc)`                 | Two-space JSON with a final newline, ready to commit.                                      |
+| `diffOpenApi(base, head)`               | Changes between two documents, each breaking or not.                                       |
+| `formatDiff(diff)`                      | The diff as text.                                                                          |
+| `createOpenApiHandler(config, options)` | Serves `GET <basePath>/openapi.json`. `@quickben/next` uses it.                            |
 
 ## What is documented
 
@@ -31,7 +31,7 @@ await writeFile("openapi.json", stringifyOpenApi(doc));
 | Collections with `api: { openapi: true }`       | `GET/POST /slug`, `GET/PATCH/DELETE /slug/{id}`, file downloads. Schemas from fields.    |
 | `auth.securitySchemes`                          | `components/securitySchemes` and the top-level `security`.                               |
 
-Collection list routes document `where` (JSON), `sort`, `limit`, `page`, `cursor`, `select` and `depth`.
+Collection list routes document `where` (JSON), `sort`, `limit`, `page`, `cursor`, `select` and `depth`. Document schemas require only `id`: `select` can omit every other field, including timestamps.
 
 ## Options
 

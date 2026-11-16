@@ -383,6 +383,68 @@ function valueBranches(schema: JsonSchema): JsonSchema[] {
   return (branches(schema) ?? []).filter((branch) => branch.type !== "null");
 }
 
+/** Compare every accepted variant with its closest compatible variant, regardless of order. */
+function compareUnions(
+  scope: Scope,
+  pair: SchemaPair,
+  b: JsonSchema,
+  h: JsonSchema,
+  seen: Set<string>,
+): boolean {
+  const bBranches = valueBranches(b);
+  const hBranches = valueBranches(h);
+  if (bBranches.length <= 1 && hBranches.length <= 1) return false;
+  const base = bBranches.length > 1 ? bBranches : [b];
+  const head = hBranches.length > 1 ? hBranches : [h];
+  const request = pair.direction === "request";
+  const source = request ? base : head;
+  const target = request ? head : base;
+  for (const [index, variant] of source.entries()) {
+    const candidates = target.map((other) => {
+      const changes: OpenApiChange[] = [];
+      compareSchema(
+        { ...scope, changes },
+        {
+          ...pair,
+          base: request ? variant : other,
+          head: request ? other : variant,
+          at: `${pair.at}<${String(index + 1)}>`,
+        },
+        new Set(seen),
+      );
+      return changes;
+    });
+    const count = (changes: OpenApiChange[]) => changes.filter((change) => change.breaking).length;
+    const best = candidates.toSorted((a, b) => count(a) - count(b))[0] ?? [];
+    scope.changes.push(...best);
+  }
+  return true;
+}
+
+function compareAdditional(
+  scope: Scope,
+  pair: SchemaPair,
+  b: JsonSchema,
+  h: JsonSchema,
+  seen: Set<string>,
+): void {
+  const base = b.additionalProperties ?? true;
+  const head = h.additionalProperties ?? true;
+  if (base === head) return;
+  if (isObject(base) && isObject(head)) {
+    compareSchema(scope, { ...pair, base, head, at: child(pair.at, "*") }, seen);
+    return;
+  }
+  const narrowed = head === false || (base === true && isObject(head));
+  const breaking = pair.direction === "request" ? narrowed : !narrowed;
+  add(
+    scope,
+    narrowed ? "narrowed-constraint" : "widened-constraint",
+    breaking,
+    `${pair.where} ${label(pair.at)} additionalProperties changed`,
+  );
+}
+
 /** Compare the parts inside a schema: properties, values of maps, items and union branches. */
 function compareInner(
   scope: Scope,
@@ -391,26 +453,25 @@ function compareInner(
   h: JsonSchema,
   seen: Set<string>,
 ) {
+  if (compareUnions(scope, pair, b, h, seen)) return;
   compareObjects(scope, pair, b, h, seen);
-  if (isObject(b.additionalProperties) && isObject(h.additionalProperties)) {
-    const at = child(pair.at, "*");
+  compareAdditional(scope, pair, b, h, seen);
+  const baseItems: readonly unknown[] = Array.isArray(b.prefixItems) ? b.prefixItems : [];
+  const headItems: readonly unknown[] = Array.isArray(h.prefixItems) ? h.prefixItems : [];
+  for (let index = 0; index < Math.max(baseItems.length, headItems.length); index += 1) {
     compareSchema(
       scope,
-      { ...pair, base: b.additionalProperties, head: h.additionalProperties, at },
+      {
+        ...pair,
+        base: baseItems[index] ?? b.items,
+        head: headItems[index] ?? h.items,
+        at: `${pair.at}[${String(index)}]`,
+      },
       seen,
     );
   }
   if (isObject(b.items) && isObject(h.items)) {
     compareSchema(scope, { ...pair, base: b.items, head: h.items, at: `${pair.at}[]` }, seen);
-  }
-  // Unions with the same number of branches are compared branch by branch.
-  const bBranches = valueBranches(b);
-  const hBranches = valueBranches(h);
-  if (bBranches.length > 1 && bBranches.length === hBranches.length) {
-    for (const [index, branch] of bBranches.entries()) {
-      const at = `${pair.at}<${String(index + 1)}>`;
-      compareSchema(scope, { ...pair, base: branch, head: hBranches[index], at }, seen);
-    }
   }
 }
 
@@ -570,7 +631,12 @@ function requirementKey(requirement: Record<string, readonly string[]>): string 
 }
 
 function schemeOf(doc: OpenApiDocument, name: string): string {
-  return JSON.stringify(doc.components?.securitySchemes?.[name] ?? null);
+  const scheme = doc.components?.securitySchemes?.[name];
+  if (!scheme) return "null";
+  const entries = Object.entries(scheme)
+    .filter(([key]) => key !== "description" && key !== "bearerFormat")
+    .toSorted(([a], [b]) => compareText(a, b));
+  return JSON.stringify(Object.fromEntries(entries));
 }
 
 /** Credentials that are now required, or no longer accepted. */
@@ -582,18 +648,25 @@ function compareSecurity(scope: Scope, base: OpenApiOperation, head: OpenApiOper
     return;
   }
   if (anonymousAllowed(h)) return;
-  const headKeys = new Set(h.map(requirementKey));
   for (const requirement of b) {
-    const key = requirementKey(requirement);
-    if (!headKeys.has(key)) {
-      add(scope, "removed-security", true, `credentials "${key}" are no longer accepted`);
-      continue;
-    }
-    for (const name of Object.keys(requirement)) {
-      if (schemeOf(scope.base, name) !== schemeOf(scope.head, name)) {
-        add(scope, "removed-security", true, `security scheme "${name}" changed`);
-      }
-    }
+    const accepted = h.some((other) =>
+      Object.keys(other).every(
+        (name) =>
+          Object.hasOwn(requirement, name) &&
+          (other[name] ?? []).every((scope) => requirement[name]?.includes(scope)) &&
+          schemeOf(scope.base, name) === schemeOf(scope.head, name),
+      ),
+    );
+    if (accepted) continue;
+    const changed = Object.keys(requirement).find(
+      (name) =>
+        h.some((other) => Object.hasOwn(other, name)) &&
+        schemeOf(scope.base, name) !== schemeOf(scope.head, name),
+    );
+    const message = changed
+      ? `security scheme "${changed}" changed`
+      : `credentials "${requirementKey(requirement)}" are no longer accepted`;
+    add(scope, "removed-security", true, message);
   }
 }
 
