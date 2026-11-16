@@ -334,8 +334,8 @@ export async function removeMember(
 
 /**
  * Whether the user may change (`update`) or remove a membership: the `members:manage`
- * capability in its organization, then the rank rule or `tenancy({ canManageMember })`.
- * Platform staff, `overrideAccess` and `skipGuards` may. For UIs; the writes check it again.
+ * capability in its organization, then the rank rule and `tenancy({ canManageMember })`.
+ * Platform staff and explicit `overrideAccess` may. For UIs; the writes check it again.
  */
 export async function canManageMember(
   qb: Quickben,
@@ -343,7 +343,7 @@ export async function canManageMember(
   membership: MembershipRecord,
   action: "update" | "remove" = "update",
 ): Promise<boolean> {
-  const check = await memberManager(qb, ctx, membership.organization);
+  const check = await memberManager(qb, ctx, membership.organization, [membership.id]);
   return check(membership, action);
 }
 
@@ -355,6 +355,7 @@ export async function memberManager(
   qb: Quickben,
   ctx: RequestContext,
   organizationId: string,
+  membershipIds: readonly string[],
 ): Promise<(membership: MembershipRecord, action: "update" | "remove") => Promise<boolean>> {
   const tenancy = getTenancy(qb);
   const actor = await actorIn(tenancy, qb, ctx, organizationId);
@@ -365,11 +366,18 @@ export async function memberManager(
   if (!(await hasCapabilityIn(qb, ctx, organizationId, "members:manage"))) {
     return () => Promise.resolve(false);
   }
+  const rows = await rawFind(qb, MEMBERSHIPS, eq("organization", organizationId), {
+    field: "id",
+    op: "in",
+    value: [...membershipIds],
+  });
+  const stored = new Map(rows.map((row) => [row.id as string, row as MembershipRecord]));
   return (membership, action) => {
-    if (membership.organization !== organizationId) return Promise.resolve(false);
-    const next = action === "remove" ? null : membership;
-    const allowedByRank = rankAllows(tenancy, actor, [membership.role]);
-    return mayManage(tenancy, qb, actor, { action, target: membership, next }, allowedByRank);
+    const target = stored.get(membership.id);
+    if (!target) return Promise.resolve(false);
+    const next = action === "remove" ? null : target;
+    const allowedByRank = rankAllows(tenancy, actor, [target.role]);
+    return mayManage(tenancy, qb, actor, { action, target, next }, allowedByRank);
   };
 }
 

@@ -191,10 +191,11 @@ test("a host URL selects the organization, checked against memberships", async (
   // A user who is not a member of the organization in the URL gets no data.
   await actAs(page, "viewer");
   await page.goto(`/orgs/${ids.Globex!}/members`);
-  await expect(
-    page.getByText("You are not a member of that organization.", { exact: false }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Members", exact: true })).toHaveCount(0);
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex");
   await expect(page.getByRole("row", { name: /editor@example\.com/ })).toHaveCount(0);
+  await page.goto("/orgs/invented-organization/members");
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex");
 });
 
 test("a member hook stops an invitation with the host's message", async ({ page }) => {

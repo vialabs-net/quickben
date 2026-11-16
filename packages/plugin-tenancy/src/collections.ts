@@ -383,7 +383,7 @@ export interface Actor {
 
 /**
  * The acting user and their membership in `orgId`. `null` for trusted callers (override,
- * platform staff) and when `ctx.skipGuards` is `true`: the actor rules do not apply to them.
+ * platform staff): the actor rules do not apply to them.
  */
 export async function actorIn(
   tenancy: ResolvedTenancy,
@@ -391,7 +391,7 @@ export async function actorIn(
   ctx: RequestContext,
   orgId: string,
 ): Promise<Actor | null> {
-  if (isTrusted(tenancy, ctx) || ctx.skipGuards === true || !ctx.user) return null;
+  if (isTrusted(tenancy, ctx) || !ctx.user) return null;
   const memberships = await myMemberships(qb, ctx);
   return { user: ctx.user, membership: memberships.find((m) => m.organization === orgId) };
 }
@@ -429,7 +429,7 @@ async function assertMayManage(
   throw new TenancyRuleError("cannot-manage", "You cannot manage this member");
 }
 
-/** `canManageMember`, or the rank rule without one. */
+/** The rank rule, restricted further by `canManageMember` when provided. */
 export async function mayManage(
   tenancy: ResolvedTenancy,
   qb: Quickben,
@@ -437,7 +437,7 @@ export async function mayManage(
   check: Pick<ManageMemberArgs, "action" | "target" | "next">,
   allowedByRank: boolean,
 ): Promise<boolean> {
-  if (!tenancy.canManageMember) return allowedByRank;
+  if (!allowedByRank || !tenancy.canManageMember) return allowedByRank;
   return tenancy.canManageMember({
     ...check,
     actor: actor.user,

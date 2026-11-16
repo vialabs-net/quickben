@@ -168,7 +168,7 @@ A level alone applies to members; platform staff keep `full`. The defaults (`def
 
 New memberships get every module: `[]` with `"all"`, `["*"]` with `"none"`. The helpers take `modules: "all"` and store `["*"]` (`ALL_MODULES`).
 
-To switch an existing app to `"none"`, run `migrateEmptyModules(qb)` once before you deploy the option. It sets `["*"]` on every membership with an empty list, so members keep their modules. It writes through the adapter, without hooks, and returns the number of changed memberships.
+To switch an existing app to `"none"`, run `migrateEmptyModules(qb)` once before you deploy the option. It sets `["*"]` on every membership with an empty list, so members keep their modules. It writes through the adapter, without hooks, and returns the number of changed memberships. Pause membership edits until the migration finishes: the adapter does not lock rows, so concurrent edits could be overwritten.
 
 ```ts
 import { canUseModule, moduleAccess } from "@quickben/plugin-tenancy";
@@ -204,19 +204,19 @@ With `"cascade"`, scoped documents are deleted through the local API in the same
 
 The guard rails (last owner, own role, rank, `canManageMember`) apply to user actions:
 
-| Context                                   | Guard rails                       |
-| ----------------------------------------- | --------------------------------- |
-| A user                                    | applied                           |
-| Platform staff                            | last owner only                   |
-| `overrideAccess: true` (imports, repairs) | skipped                           |
-| `overrideAccess: true, skipGuards: false` | last owner only                   |
-| A user with `skipGuards: true`            | skipped; access rules still apply |
+| Context                                   | Guard rails                                                  |
+| ----------------------------------------- | ------------------------------------------------------------ |
+| A user                                    | applied                                                      |
+| Platform staff                            | last owner only                                              |
+| `overrideAccess: true` (imports, repairs) | skipped                                                      |
+| `overrideAccess: true, skipGuards: false` | last owner only                                              |
+| A user with `skipGuards: true`            | applied; explicit `overrideAccess: true` is required to skip |
 
 `guardsSkipped(ctx)` says whether they are skipped. Before 0.3.2, the last-owner rule also applied with `overrideAccess`. `TenancyRuleError` extends `ForbiddenError`; `rule` says which rule failed.
 
 ### Who may manage which member
 
-`canManageMember` runs after the `members:manage` check, for invites, changes and removals (not for leaving). `allowedByRank` is the default rule.
+`canManageMember` runs after the `members:manage` check, for invites, changes and removals (not for leaving). The rank rule always applies; a host policy can restrict it further.
 
 ```ts
 tenancy({
@@ -267,6 +267,8 @@ tenancy({
 | `onRemove`       | `removeMember`                               |
 
 Each hook gets `{ action, qb, ctx, before, after }`. It runs after the write, in the same transaction: `qb` is bound to it, and a throw undoes the change. Throw `MemberHookError` (400) to show its message on the Members page. Other errors fail the server action. The Members page calls the helpers, so the hooks run there. Direct writes to `memberships` (imports, `qb.update`) do not run them. Send email from a hook only when it cannot throw afterwards, or from an `afterCommit` hook.
+
+`before` is a snapshot read without a row lock. Concurrent edits are not serialized: use `onUpdate` for idempotent synchronization, or serialize host transactions when every role/status transition must be observed.
 
 Invitations by email need a verified address. Set `emailVerified` on the user in your auth adapter: with `emailVerified: false`, `acceptInvitation` throws `ForbiddenError`, and `listMyInvitations` and membership reads ignore the email. Invitations by user id do not check it. When the field is missing, the email is trusted, so return only verified addresses in `email`.
 

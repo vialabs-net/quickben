@@ -29,8 +29,9 @@ declare module "@quickben/core" {
     organizationId?: string;
     /**
      * Skip the tenancy guard rails (last owner, own role, rank, `canManageMember`). Default:
-     * skipped with `overrideAccess: true`, applied otherwise. Set `false` to keep them for a
-     * trusted call, `true` to skip them for trusted server code that acts for a user.
+     * skipped with `overrideAccess: true`, applied otherwise. Set `false` to keep the
+     * last-owner rule for a trusted call. `true` has no effect without explicit
+     * `overrideAccess: true`.
      */
     skipGuards?: boolean;
   }
@@ -38,7 +39,7 @@ declare module "@quickben/core" {
 
 /** Whether the tenancy guard rails are skipped for a context. See `ctx.skipGuards`. */
 export function guardsSkipped(ctx: RequestContext): boolean {
-  return ctx.skipGuards ?? ctx.overrideAccess === true;
+  return ctx.overrideAccess === true && ctx.skipGuards !== false;
 }
 
 /**

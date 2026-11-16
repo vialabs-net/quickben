@@ -1,4 +1,7 @@
 import { createAdminPage } from "@quickben/admin";
+import { getQuickben, UnauthorizedError } from "@quickben/core";
+import { getRequestContext } from "@quickben/next";
+import { OrganizationError, resolveTenant } from "@quickben/plugin-tenancy";
 import { createOrganizationSwitcher, tenancyAdmin } from "@quickben/plugin-tenancy/admin";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
@@ -25,10 +28,13 @@ interface OrganizationViews {
 }
 
 const admins = new Map<string, OrganizationViews>();
+// Bound all three registries: evicting only this map would retain the global admin entries.
+const MAX_ADMINS = 64;
 
 function adminFor(organization: string): OrganizationViews {
   let admin = admins.get(organization);
   if (!admin) {
+    if (admins.size >= MAX_ADMINS) notFound();
     const basePath = `${ORGANIZATION_PAGES}/${encodeURIComponent(organization)}`;
     admin = {
       Page: createAdminPage(config, {
@@ -45,6 +51,13 @@ function adminFor(organization: string): OrganizationViews {
 
 async function OrganizationAdmin({ params, searchParams }: Props) {
   const { organization, segments } = await params;
+  const qb = await getQuickben(config);
+  const ctx = await getRequestContext(config);
+  // Reject arbitrary ids before creating entries in any of the admin registries.
+  await resolveTenant(qb, { ...ctx, organizationId: organization }).catch((error: unknown) => {
+    if (error instanceof OrganizationError || error instanceof UnauthorizedError) notFound();
+    throw error;
+  });
   const { Page, Switcher } = adminFor(organization);
   return (
     <>

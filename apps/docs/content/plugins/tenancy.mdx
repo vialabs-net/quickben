@@ -228,7 +228,7 @@ From `expiresAt` on, the module counts as disabled in scoped access, `canUseModu
 
 New memberships get every module. The helpers take `modules: "all"` and store `["*"]` (`ALL_MODULES`). With `"none"`, the Members page has an **All modules** box.
 
-**Migration to `"none"`:** run `await migrateEmptyModules(qb)` once before you deploy the option. It sets `["*"]` on each membership with an empty list, so nobody loses modules.
+**Migration to `"none"`:** run `await migrateEmptyModules(qb)` once before you deploy the option. It sets `["*"]` on each membership with an empty list, so nobody loses modules. Pause membership edits until it finishes: the adapter does not lock rows, so concurrent edits could be overwritten.
 
 ```ts
 import { defineCollection, fields as f } from "@quickben/core";
@@ -260,13 +260,13 @@ Use `moduleAccess` for collections outside `scope`.
 
 The guard rails apply to user actions:
 
-| Context                                   | Guard rails                       |
-| ----------------------------------------- | --------------------------------- |
-| A user                                    | applied                           |
-| Platform staff                            | last owner only                   |
-| `overrideAccess: true` (imports, repairs) | skipped                           |
-| `overrideAccess: true, skipGuards: false` | last owner only                   |
-| A user with `skipGuards: true`            | skipped; access rules still apply |
+| Context                                   | Guard rails                                                  |
+| ----------------------------------------- | ------------------------------------------------------------ |
+| A user                                    | applied                                                      |
+| Platform staff                            | last owner only                                              |
+| `overrideAccess: true` (imports, repairs) | skipped                                                      |
+| `overrideAccess: true, skipGuards: false` | last owner only                                              |
+| A user with `skipGuards: true`            | applied; explicit `overrideAccess: true` is required to skip |
 
 Before 0.3.2 the last-owner rule also applied with `overrideAccess`. Pass `skipGuards: false` to keep it.
 
@@ -315,6 +315,8 @@ tenancy({
 | `onRemove`       | `removeMember`                               |
 
 A hook gets `{ action, qb, ctx, before, after }`. It runs in the transaction of the change: writes through `qb` commit with it, and a throw undoes it. Throw `MemberHookError` to show its message on the Members page. The admin calls the helpers, so its Members page runs the hooks. Direct writes to `memberships` do not.
+
+`before` is a snapshot read without a row lock. Concurrent edits are not serialized: use `onUpdate` for idempotent synchronization, or serialize host transactions when every role/status transition must be observed.
 
 ## Deleting an organization
 

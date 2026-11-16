@@ -274,20 +274,37 @@ describe("guard rails", () => {
     expect((await qb.delete("memberships", aliceAtAcme.id, system)).id).toBe(aliceAtAcme.id);
   });
 
-  it("skips the guard rails for a user with skipGuards, access still applies", async () => {
-    const { qb, acme, aliceAtAcme, carolAtAcme } = await setup();
+  it("requires explicit overrideAccess to skip guard rails, even with skipGuards", async () => {
+    const { qb, acme, aliceAtAcme, bobAtAcme } = await setup();
     const asBob = { ...inOrg(bob, acme.id), skipGuards: true };
-    // Bob (admin) may not manage the owner by rank, but skipGuards lifts the rank rule.
-    expect((await updateMembership(qb, asBob, aliceAtAcme.id, { role: "admin" })).role).toBe(
-      "admin",
-    );
-    // Access rules still apply: Carol has no members:manage.
+    await expect(
+      updateMembership(qb, asBob, aliceAtAcme.id, { role: "admin" }),
+    ).rejects.toMatchObject({ rule: "higher-role" });
+    await expect(removeMember(qb, asBob, aliceAtAcme.id)).rejects.toMatchObject({
+      rule: "higher-role",
+    });
+    await expect(
+      updateMembership(qb, asBob, bobAtAcme.id, { role: "member" }),
+    ).rejects.toMatchObject({ rule: "own-role" });
+    const asStaff = { ...inOrg(staff, acme.id), skipGuards: true };
+    await expect(
+      updateMembership(qb, asStaff, aliceAtAcme.id, { status: "disabled" }),
+    ).rejects.toMatchObject({ rule: "last-owner" });
+    await expect(removeMember(qb, asStaff, aliceAtAcme.id)).rejects.toMatchObject({
+      rule: "last-owner",
+    });
     await expect(
       updateMembership(qb, { ...inOrg(carol, acme.id), skipGuards: true }, aliceAtAcme.id, {
         role: "member",
       }),
     ).rejects.toBeInstanceOf(ForbiddenError);
-    expect(carolAtAcme.role).toBe("member");
+    expect(
+      (
+        await updateMembership(qb, { ...asBob, overrideAccess: true }, aliceAtAcme.id, {
+          role: "admin",
+        })
+      ).role,
+    ).toBe("admin");
   });
 
   it("grants only modules the organization has", async () => {

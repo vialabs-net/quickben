@@ -365,8 +365,13 @@ export function createMembersPage(config: QuickbenConfig, key: string) {
       { where: { organization: { eq: tenant.organization.id } }, sort: "email", limit: 500 },
       ctx,
     );
-    // What the user may do per row: `members:manage`, then the rank rule or `canManageMember`.
-    const check = await memberManager(qb, ctx, tenant.organization.id);
+    // Policies see stored fields; rendering still uses the access-filtered page.
+    const check = await memberManager(
+      qb,
+      ctx,
+      tenant.organization.id,
+      page.docs.map((doc) => doc.id),
+    );
     const allowed = new Map(
       canManage
         ? await Promise.all(

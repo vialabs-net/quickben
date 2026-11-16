@@ -94,11 +94,14 @@ describe("emptyModules", () => {
 });
 
 describe("guardsSkipped", () => {
-  it("follows overrideAccess unless skipGuards says otherwise", () => {
+  it("requires explicit overrideAccess and lets skipGuards retain the last-owner rule", () => {
     expect(guardsSkipped({ user: null })).toBe(false);
     expect(guardsSkipped(system)).toBe(true);
     expect(guardsSkipped({ ...system, skipGuards: false })).toBe(false);
-    expect(guardsSkipped({ user: alice, skipGuards: true })).toBe(true);
+    expect(guardsSkipped({ ...system, skipGuards: true })).toBe(true);
+    expect(guardsSkipped({ user: alice, skipGuards: true })).toBe(false);
+    expect(guardsSkipped({ user: null, skipGuards: true })).toBe(false);
+    expect(guardsSkipped({ user: alice, overrideAccess: false, skipGuards: true })).toBe(false);
   });
 });
 
@@ -265,6 +268,45 @@ describe("canManageMember", () => {
     expect(await canManageMember(qb, inOrg(bob, acme.id), daveAtAcme)).toBe(true);
     expect(await canManageMember(qb, inOrg(bob, acme.id), aliceAtAcme)).toBe(false);
     expect(await canManageMember(qb, inOrg(dave, acme.id), daveAtAcme)).toBe(false);
+  });
+
+  it("does not let skipGuards bypass the host policy or the UI capability check", async () => {
+    const { qb, acme, daveAtAcme } = await scoped();
+    const ctx = { ...inOrg(bob, acme.id), skipGuards: true };
+    expect(await canManageMember(qb, ctx, daveAtAcme)).toBe(false);
+    expect(
+      await canManageMember(qb, { ...inOrg(carol, acme.id), skipGuards: true }, daveAtAcme),
+    ).toBe(false);
+    await expect(
+      updateMembership(qb, ctx, daveAtAcme.id, { role: "member" }),
+    ).rejects.toMatchObject({ rule: "cannot-manage" });
+    await expect(removeMember(qb, ctx, daveAtAcme.id)).rejects.toMatchObject({
+      rule: "cannot-manage",
+    });
+    expect(await canManageMember(qb, { ...ctx, overrideAccess: true }, daveAtAcme)).toBe(true);
+  });
+
+  it("does not let a permissive host policy bypass the rank guard", async () => {
+    const { qb, acme, aliceAtAcme, carolAtAcme } = await setup({ canManageMember: () => true });
+    const ctx = inOrg(bob, acme.id);
+    expect(await canManageMember(qb, ctx, aliceAtAcme)).toBe(false);
+    expect(await canManageMember(qb, ctx, aliceAtAcme, "remove")).toBe(false);
+    await expect(
+      updateMembership(qb, ctx, carolAtAcme.id, { role: "owner" }),
+    ).rejects.toMatchObject({ rule: "higher-role" });
+    await expect(removeMember(qb, ctx, aliceAtAcme.id)).rejects.toMatchObject({
+      rule: "higher-role",
+    });
+    await expect(
+      inviteMember(qb, ctx, { email: "new@example.com", role: "owner" }),
+    ).rejects.toMatchObject({ rule: "higher-role" });
+    expect(
+      (
+        await updateMembership(qb, { ...ctx, overrideAccess: true }, carolAtAcme.id, {
+          role: "owner",
+        })
+      ).role,
+    ).toBe("owner");
   });
 });
 

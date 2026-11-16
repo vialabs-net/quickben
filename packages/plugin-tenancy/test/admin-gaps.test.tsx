@@ -186,6 +186,26 @@ describe("tenancy admin with emptyModules none", () => {
 });
 
 describe("tenancy admin with canManageMember", () => {
+  it("checks hidden policy fields without exposing them in the page", async () => {
+    const { qb, ids, renderPage } = await build("/hidden-policy", {
+      canManageMember: ({ target }) => target.hostRef === "private-north",
+    });
+    await qb.update("memberships", ids.carol, { hostRef: "private-north" }, system);
+    actAs(bob);
+    await renderPage();
+    expect(screen.getByRole("combobox", { name: "Role of carol@example.com" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Remove carol@example.com" })).toBeTruthy();
+    expect(screen.queryByRole("combobox", { name: "Role of dave@example.com" })).toBeNull();
+    expect(document.body.textContent).not.toContain("private-north");
+    expect(
+      await run(
+        updateMemberAction,
+        "/hidden-policy",
+        form({ membershipId: ids.carol, role: "viewer" }),
+      ),
+    ).toBe("/hidden-policy/members?toast=member-updated");
+  });
+
   it("shows forms only for members the user may manage", async () => {
     const { ids, renderPage } = await build("/scoped", {
       canManageMember: ({ allowedByRank, actor, target }) => {
