@@ -318,7 +318,7 @@ export function createConnectionEdit(config: QuickbenConfig, key: string) {
               { label: chosen.label },
             ]}
           />
-          <div className="qb:grid qb:xl:grid-cols-[minmax(0,60rem)_18rem]">
+          <div>
             <Card>
               <ConnectionForm
                 action={saveConnectionAction.bind(null, key, null, chosen.type)}
@@ -378,61 +378,63 @@ export function createConnectionEdit(config: QuickbenConfig, key: string) {
             </>
           }
         />
-        <div className="qb:grid qb:items-start qb:gap-6 qb:xl:grid-cols-[minmax(0,60rem)_18rem]">
-          <Card>
-            {provider ? (
-              <ConnectionForm
-                action={saveConnectionAction.bind(null, key, doc.id, doc.providerType)}
-                provider={provider}
-                values={{
-                  name: doc.name,
-                  baseUrl: doc.baseUrl,
-                  credential: credentialId,
-                  enabled: doc.enabled,
-                  metadata: doc.metadata,
-                }}
-                credentials={await credentialOptions(qb, ctx, provider)}
-                newCredentialHref={newCredentialHref}
-                submitLabel={t("action.save")}
-                readOnly={readOnly}
-                secondary={
-                  <ButtonLink href={listHref} variant="ghost">
-                    {t("action.cancel")}
-                  </ButtonLink>
-                }
-              />
-            ) : (
-              <CardBody>
-                <p className="qb:text-sm qb:text-fg-muted">
-                  {t("connection.notRegistered", { type: doc.providerType })}
-                </p>
-              </CardBody>
-            )}
-          </Card>
-          <Card>
-            <CardHeader title={t("status.title")} />
-            <CardBody className="qb:space-y-4">
-              <LastTestDetails lastTest={doc.lastTest} i18n={i18n} />
-              <dl className="qb:space-y-3 qb:text-sm">
-                <Detail label={t("detail.id")}>
-                  <span className="qb:font-mono qb:text-xs qb:break-all">{doc.id}</span>
-                </Detail>
-                <Detail label={t("detail.created")}>
-                  <DateTime value={doc.createdAt} i18n={i18n} />
-                </Detail>
-                <Detail label={t("detail.updated")}>
-                  <DateTime value={doc.updatedAt} i18n={i18n} />
-                </Detail>
-              </dl>
-              {collection.access.delete ? (
-                <DeleteButton
-                  action={deleteAction.bind(null, key, CONNECTIONS, doc.id)}
-                  kind="connection"
-                  title={doc.name}
+        <div className="qb:@container">
+          <div className="qb:grid qb:items-start qb:gap-6 qb:@min-[80rem]:grid-cols-[minmax(0,1fr)_16rem]">
+            <Card>
+              {provider ? (
+                <ConnectionForm
+                  action={saveConnectionAction.bind(null, key, doc.id, doc.providerType)}
+                  provider={provider}
+                  values={{
+                    name: doc.name,
+                    baseUrl: doc.baseUrl,
+                    credential: credentialId,
+                    enabled: doc.enabled,
+                    metadata: doc.metadata,
+                  }}
+                  credentials={await credentialOptions(qb, ctx, provider)}
+                  newCredentialHref={newCredentialHref}
+                  submitLabel={t("action.save")}
+                  readOnly={readOnly}
+                  secondary={
+                    <ButtonLink href={listHref} variant="ghost">
+                      {t("action.cancel")}
+                    </ButtonLink>
+                  }
                 />
-              ) : null}
-            </CardBody>
-          </Card>
+              ) : (
+                <CardBody>
+                  <p className="qb:text-sm qb:text-fg-muted">
+                    {t("connection.notRegistered", { type: doc.providerType })}
+                  </p>
+                </CardBody>
+              )}
+            </Card>
+            <Card>
+              <CardHeader title={t("status.title")} />
+              <CardBody className="qb:space-y-4">
+                <LastTestDetails lastTest={doc.lastTest} i18n={i18n} />
+                <dl className="qb:space-y-3 qb:text-sm">
+                  <Detail label={t("detail.id")}>
+                    <span className="qb:font-mono qb:text-xs qb:break-all">{doc.id}</span>
+                  </Detail>
+                  <Detail label={t("detail.created")}>
+                    <DateTime value={doc.createdAt} i18n={i18n} />
+                  </Detail>
+                  <Detail label={t("detail.updated")}>
+                    <DateTime value={doc.updatedAt} i18n={i18n} />
+                  </Detail>
+                </dl>
+                {collection.access.delete ? (
+                  <DeleteButton
+                    action={deleteAction.bind(null, key, CONNECTIONS, doc.id)}
+                    kind="connection"
+                    title={doc.name}
+                  />
+                ) : null}
+              </CardBody>
+            </Card>
+          </div>
         </div>
       </>
     );

@@ -31,7 +31,7 @@ import {
   stateValues,
 } from "./filters";
 import { connectionsMessages } from "./messages";
-import { DateTime, Detail, LastTestDetails, PageHeader, TestBadge } from "./shared";
+import { CredentialMark, DateTime, Detail, LastTestDetails, PageHeader, TestBadge } from "./shared";
 import { maskedSecret } from "./state";
 import { TestCredentialButton } from "./test-button";
 
@@ -204,9 +204,10 @@ export function createCredentialEdit(config: QuickbenConfig, key: string) {
             i18n={i18n}
             title={t("credentials.new")}
             description={t("credential.newDescription")}
+            leading={<CredentialMark />}
             crumbs={[{ label: t("credentials.title"), href: listHref }, { label: t("crumb.new") }]}
           />
-          <div className="qb:grid qb:xl:grid-cols-[minmax(0,60rem)_18rem]">
+          <div>
             <Card>
               <CredentialForm
                 action={saveCredentialAction.bind(null, key, null)}
@@ -247,6 +248,7 @@ export function createCredentialEdit(config: QuickbenConfig, key: string) {
           i18n={i18n}
           title={doc.name}
           description={kindLabel(doc.kind, t)}
+          leading={<CredentialMark />}
           crumbs={[{ label: t("credentials.title"), href: listHref }, { label: doc.name }]}
           actions={
             <>
@@ -261,74 +263,76 @@ export function createCredentialEdit(config: QuickbenConfig, key: string) {
             </>
           }
         />
-        <div className="qb:grid qb:items-start qb:gap-6 qb:xl:grid-cols-[minmax(0,60rem)_18rem]">
-          <div className="qb:grid qb:gap-6">
+        <div className="qb:@container">
+          <div className="qb:grid qb:items-start qb:gap-6 qb:@min-[80rem]:grid-cols-[minmax(0,1fr)_16rem]">
+            <div className="qb:grid qb:gap-6">
+              <Card>
+                <CredentialForm
+                  action={saveCredentialAction.bind(null, key, doc.id)}
+                  kinds={kinds}
+                  values={{ name: doc.name, kind: doc.kind }}
+                  stored={{ hasSecret: doc.hasSecret === true, last4: doc.last4 }}
+                  submitLabel={t("action.save")}
+                  readOnly={readOnly}
+                  secondary={cancel}
+                />
+              </Card>
+              <Card>
+                <CardHeader
+                  title={t("credential.usedBy")}
+                  description={t("credential.usedByDescription")}
+                />
+                <CardBody>
+                  {used.length === 0 ? (
+                    <p className="qb:text-sm qb:text-fg-muted">{t("credential.notUsed")}</p>
+                  ) : (
+                    <ul className="qb:space-y-1 qb:text-sm">
+                      {used.map((connection) => (
+                        <li key={connection.id}>
+                          <Link
+                            href={`${basePath}/${CONNECTIONS}/${encodeURIComponent(connection.id)}`}
+                            className="qb:font-medium qb:text-fg qb:hover:underline"
+                          >
+                            {connection.name}
+                          </Link>{" "}
+                          <span className="qb:text-fg-muted">
+                            {providerLabel(connection.providerType)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </CardBody>
+              </Card>
+            </div>
             <Card>
-              <CredentialForm
-                action={saveCredentialAction.bind(null, key, doc.id)}
-                kinds={kinds}
-                values={{ name: doc.name, kind: doc.kind }}
-                stored={{ hasSecret: doc.hasSecret === true, last4: doc.last4 }}
-                submitLabel={t("action.save")}
-                readOnly={readOnly}
-                secondary={cancel}
-              />
-            </Card>
-            <Card>
-              <CardHeader
-                title={t("credential.usedBy")}
-                description={t("credential.usedByDescription")}
-              />
-              <CardBody>
-                {used.length === 0 ? (
-                  <p className="qb:text-sm qb:text-fg-muted">{t("credential.notUsed")}</p>
-                ) : (
-                  <ul className="qb:space-y-1 qb:text-sm">
-                    {used.map((connection) => (
-                      <li key={connection.id}>
-                        <Link
-                          href={`${basePath}/${CONNECTIONS}/${encodeURIComponent(connection.id)}`}
-                          className="qb:font-medium qb:text-fg qb:hover:underline"
-                        >
-                          {connection.name}
-                        </Link>{" "}
-                        <span className="qb:text-fg-muted">
-                          {providerLabel(connection.providerType)}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+              <CardHeader title={t("status.title")} />
+              <CardBody className="qb:space-y-4">
+                <LastTestDetails lastTest={doc.lastTest} i18n={i18n} />
+                <dl className="qb:space-y-3 qb:text-sm">
+                  <Detail label={t("detail.secret")}>
+                    <span className="qb:font-mono qb:text-xs">{secretText(doc, t)}</span>
+                  </Detail>
+                  <Detail label={t("detail.id")}>
+                    <span className="qb:font-mono qb:text-xs qb:break-all">{doc.id}</span>
+                  </Detail>
+                  <Detail label={t("detail.created")}>
+                    <DateTime value={doc.createdAt} i18n={i18n} />
+                  </Detail>
+                  <Detail label={t("detail.updated")}>
+                    <DateTime value={doc.updatedAt} i18n={i18n} />
+                  </Detail>
+                </dl>
+                {collection.access.delete ? (
+                  <DeleteButton
+                    action={deleteAction.bind(null, key, CREDENTIALS, doc.id)}
+                    kind="credential"
+                    title={doc.name}
+                  />
+                ) : null}
               </CardBody>
             </Card>
           </div>
-          <Card>
-            <CardHeader title={t("status.title")} />
-            <CardBody className="qb:space-y-4">
-              <LastTestDetails lastTest={doc.lastTest} i18n={i18n} />
-              <dl className="qb:space-y-3 qb:text-sm">
-                <Detail label={t("detail.secret")}>
-                  <span className="qb:font-mono qb:text-xs">{secretText(doc, t)}</span>
-                </Detail>
-                <Detail label={t("detail.id")}>
-                  <span className="qb:font-mono qb:text-xs qb:break-all">{doc.id}</span>
-                </Detail>
-                <Detail label={t("detail.created")}>
-                  <DateTime value={doc.createdAt} i18n={i18n} />
-                </Detail>
-                <Detail label={t("detail.updated")}>
-                  <DateTime value={doc.updatedAt} i18n={i18n} />
-                </Detail>
-              </dl>
-              {collection.access.delete ? (
-                <DeleteButton
-                  action={deleteAction.bind(null, key, CREDENTIALS, doc.id)}
-                  kind="credential"
-                  title={doc.name}
-                />
-              ) : null}
-            </CardBody>
-          </Card>
         </div>
       </>
     );

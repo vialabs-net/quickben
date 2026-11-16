@@ -31,7 +31,12 @@ export interface Crumb {
   href?: string;
 }
 
-/** Title row of a page: breadcrumbs, title, description and actions. Same look as the admin. */
+/**
+ * Title row of a page: breadcrumbs, then one row with the leading mark, the title over the
+ * description, and the actions. The mark and the actions are centered on the title block, so
+ * they stay on that row also when the host hides the title (`pageTitle: "none"`). On a narrow
+ * page the actions wrap below.
+ */
 export function PageHeader({
   title,
   description,
@@ -48,36 +53,40 @@ export function PageHeader({
   leading?: ReactNode;
 }>) {
   return (
-    <header className="qb:mb-6 qb:flex qb:flex-wrap qb:items-end qb:justify-between qb:gap-4">
-      <div className="qb:min-w-0">
-        {crumbs.length > 0 ? (
-          <nav aria-label={i18n.t("nav.breadcrumb")} className="qb-page-crumbs qb:mb-1">
-            <ol className="qb:flex qb:flex-wrap qb:items-center qb:gap-1.5 qb:text-sm qb:text-fg-muted">
-              {crumbs.map((crumb, index) => (
-                <li
-                  key={`${crumb.label}-${String(index)}`}
-                  className="qb:flex qb:items-center qb:gap-1.5"
-                >
-                  {index > 0 ? <span aria-hidden="true">/</span> : null}
-                  {crumb.href ? (
-                    <Link href={crumb.href} className="qb:hover:text-fg qb:hover:underline">
-                      {crumb.label}
-                    </Link>
-                  ) : (
-                    <span>{crumb.label}</span>
-                  )}
-                </li>
-              ))}
-            </ol>
-          </nav>
-        ) : null}
-        <div className="qb:flex qb:items-center qb:gap-3">
+    <header className="qb:mb-6">
+      {crumbs.length > 0 ? (
+        <nav aria-label={i18n.t("nav.breadcrumb")} className="qb-page-crumbs qb:mb-1">
+          <ol className="qb:flex qb:flex-wrap qb:items-center qb:gap-1.5 qb:text-sm qb:text-fg-muted">
+            {crumbs.map((crumb, index) => (
+              <li
+                key={`${crumb.label}-${String(index)}`}
+                className="qb:flex qb:items-center qb:gap-1.5"
+              >
+                {index > 0 ? <span aria-hidden="true">/</span> : null}
+                {crumb.href ? (
+                  <Link href={crumb.href} className="qb:hover:text-fg qb:hover:underline">
+                    {crumb.label}
+                  </Link>
+                ) : (
+                  <span>{crumb.label}</span>
+                )}
+              </li>
+            ))}
+          </ol>
+        </nav>
+      ) : null}
+      <div className="qb:flex qb:flex-wrap qb:items-center qb:justify-between qb:gap-4">
+        <div className="qb:flex qb:min-w-0 qb:flex-1 qb:basis-64 qb:items-center qb:gap-3">
           {leading}
-          <h1 className="qb-page-title qb:truncate qb:tracking-tight qb:text-fg">{title}</h1>
+          <div className="qb:flex qb:min-w-0 qb:flex-col qb:gap-1">
+            <h1 className="qb-page-title qb:truncate qb:tracking-tight qb:text-fg">{title}</h1>
+            {description ? <p className="qb:text-sm qb:text-fg-muted">{description}</p> : null}
+          </div>
         </div>
-        {description ? <p className="qb:mt-1 qb:text-sm qb:text-fg-muted">{description}</p> : null}
+        {actions ? (
+          <div className="qb:flex qb:flex-wrap qb:items-center qb:gap-2">{actions}</div>
+        ) : null}
       </div>
-      {actions ? <div className="qb:flex qb:gap-2">{actions}</div> : null}
     </header>
   );
 }
@@ -113,6 +122,31 @@ export function ProviderMark({
           {initials(label)}
         </span>
       )}
+    </span>
+  );
+}
+
+/** A key in the same tile as {@link ProviderMark}, for credential pages. */
+export function CredentialMark() {
+  return (
+    <span
+      className="qb:inline-flex qb:shrink-0 qb:items-center qb:justify-center qb:rounded-md qb:border qb:border-line qb:bg-surface qb:text-fg-muted"
+      style={{ width: 36, height: 36 }}
+    >
+      <svg
+        aria-hidden="true"
+        width={20}
+        height={20}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.75}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <circle cx="7.5" cy="15.5" r="4.5" />
+        <path d="m10.7 12.3 9.8-9.8M17 6l3 3M14.5 8.5l2 2" />
+      </svg>
     </span>
   );
 }

@@ -299,6 +299,26 @@ describe("connection views", () => {
     expect(screen.getAllByRole("button", { name: "Test" })).toHaveLength(1);
   });
 
+  it("puts the mark, the title over the provider and the actions in one header row", async () => {
+    await renderView(
+      "connections",
+      "edit",
+      await viewProps(admin, "connections", { id: ids.check! }),
+    );
+    const header = document.querySelector("header")!;
+    const title = within(header).getByRole("heading", { level: 1 });
+    // Title and description share a column; the mark is beside it, the actions after it.
+    const text = title.parentElement!;
+    expect(text.querySelector("p")?.textContent).toMatch(/·/);
+    const lead = text.parentElement!;
+    expect(lead.firstElementChild?.querySelector("img, span")).toBeTruthy();
+    const row = lead.parentElement!;
+    expect(within(row).getByRole("button", { name: "Test" })).toBeTruthy();
+    // The side card goes next to the form only when the content box is wide enough.
+    const layout = header.nextElementSibling!;
+    expect(layout.className).toContain("qb:@container");
+  });
+
   it("explains an unknown provider", async () => {
     await qb.db.update({
       collection: "connections",
@@ -463,6 +483,9 @@ describe("credential views", () => {
     );
     expect(screen.getByLabelText<HTMLInputElement>(/Replace secret/).value).toBe("");
     expect(screen.getByText("Claude")).toBeTruthy();
+    // Same header as a connection: a mark beside the title.
+    const title = screen.getByRole("heading", { level: 1 });
+    expect(title.parentElement!.parentElement!.querySelector("svg")).toBeTruthy();
     expect(document.body.innerHTML).not.toContain(API_KEY);
     expect(document.body.innerHTML).not.toContain("v1:");
   });
