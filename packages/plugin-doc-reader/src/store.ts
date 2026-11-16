@@ -40,7 +40,9 @@ export async function findAll<T>(
 }
 
 /** The definition stored in a version, with the version's own key, number and state. */
-export function toDefinition(record: DocTypeRecord): DocumentType {
+export function toDefinition(
+  record: Pick<DocTypeRecord, "definition" | "key" | "version" | "state">,
+): DocumentType {
   return parseDocumentType({
     ...(record.definition as object),
     key: record.key,

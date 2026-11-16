@@ -2,9 +2,9 @@ import { extractText, getDocumentProxy } from "unpdf";
 
 import { readText } from "../text-readers";
 
-import { pageTextItems, withBoxes } from "./text-boxes";
+import { findBox, pageTextItems, withBoxes } from "./text-boxes";
 
-import type { Extractor } from "../extractor";
+import type { Extractor, FieldEvidence, FieldValue } from "../extractor";
 import type { TextReaders } from "../text-readers";
 import type { PageText, PdfPageLike } from "./text-boxes";
 
@@ -36,6 +36,66 @@ async function pdfPageItems(pdf: Pdf, pages: readonly number[]): Promise<PageTex
     if (page > pdf.numPages) continue;
     const proxy = (await pdf.getPage(page)) as unknown as PdfPageLike;
     out.push({ page, items: await pageTextItems(proxy) });
+  }
+  return out;
+}
+
+/** A field's evidence, with where its box comes from. */
+export interface LocatedEvidence extends FieldEvidence {
+  readonly source?: "text-layer" | "model";
+}
+
+/**
+ * Boxes for the values read, from the PDF's text layer: each value (else its evidence text) is
+ * looked up in the text runs of its evidence page, then of the other pages. A value not found
+ * keeps the box the vision model drew (`source: "model"`); scans have no text layer, so their
+ * boxes always come from the model.
+ */
+export async function locateEvidence(
+  bytes: Uint8Array,
+  mime: string,
+  pages: readonly number[],
+  fields: Readonly<Record<string, FieldValue>>,
+): Promise<Record<string, FieldValue & { evidence?: LocatedEvidence }>> {
+  const marked = Object.fromEntries(
+    Object.entries(fields).map(([key, field]) => [
+      key,
+      field.evidence?.box
+        ? { ...field, evidence: { ...field.evidence, source: "model" as const } }
+        : field,
+    ]),
+  );
+  if (mime !== PDF || Object.keys(fields).length === 0) return marked;
+  let texts: PageText[];
+  try {
+    texts = await pdfPageItems(await open(bytes), pages);
+  } catch {
+    return marked;
+  }
+  if (texts.every((page) => page.items.length === 0)) return marked;
+  const out: Record<string, FieldValue & { evidence?: LocatedEvidence }> = { ...marked };
+  for (const [key, field] of Object.entries(fields)) {
+    const first = field.evidence?.page;
+    const ordered = [...texts].sort((a, b) => Number(b.page === first) - Number(a.page === first));
+    for (const page of ordered) {
+      const found =
+        findBox(page.items, field.value) ??
+        (field.evidence?.text ? findBox(page.items, field.evidence.text) : null);
+      if (!found) continue;
+      out[key] = {
+        ...field,
+        evidence: {
+          page: page.page,
+          text:
+            field.evidence?.text === undefined || field.evidence.text === ""
+              ? found.text
+              : field.evidence.text,
+          box: found.box,
+          source: "text-layer",
+        },
+      };
+      break;
+    }
   }
   return out;
 }

@@ -333,6 +333,13 @@ describe("test runs", () => {
       accuracy: null,
       costUsd: 0,
       avgLatencyMs: 0,
+      failed: 0,
+      skipped: 0,
+      retries: 0,
+      p50LatencyMs: 0,
+      p95LatencyMs: 0,
+      costPerDocUsd: 0,
+      wallMs: null,
     });
   });
 });

@@ -11,6 +11,7 @@ import { NotFoundError, sniffMime as sniffType, ValidationError } from "@quickbe
 import { classifyType } from "./classify";
 import { DOC_JOBS } from "./collections";
 import { paramsSchema, TYPE_KEY } from "./definition";
+import { loadExamples } from "./examples";
 import { PDF, pdfPagesText } from "./extractors/text-layer";
 import { ACCEPTED_MIMES } from "./files";
 import { getDocReader } from "./options";
@@ -414,6 +415,7 @@ async function read(
     };
   }
   const tenant = tenantOf(job);
+  const examples = await loadExamples(qb, type);
   const skip = await skipHook(qb, tenant, state.log);
   const result = await runPipeline({
     type,
@@ -422,6 +424,7 @@ async function read(
     tenant,
     jobId: job.id,
     extractors: state.extractors,
+    ...(examples.length > 0 ? { examples } : {}),
     ...(skip ? { skip } : {}),
   });
   // The read is paid for already; a lost usage row must not lose the result too.

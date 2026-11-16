@@ -67,6 +67,9 @@ export function connectionModels(options: ConnectionModelsOptions = {}): {
           maxPages,
           inputPerMTokUsd: model.inputPerMTokUsd,
           outputPerMTokUsd: model.outputPerMTokUsd,
+          ...(model.cachedInputPerMTokUsd === undefined
+            ? {}
+            : { cachedInputPerMTokUsd: model.cachedInputPerMTokUsd }),
         },
         languageModel: resolved.languageModel,
       };

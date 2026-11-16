@@ -8,45 +8,39 @@
  * Every function runs with the caller's context, so the access rules of the collections apply
  * (platform staff by default). Test runs execute in the background through the runner.
  */
-import { ConflictError, NotFoundError, QuickbenError, ValidationError } from "@quickben/core";
+import { ConflictError, NotFoundError, ValidationError } from "@quickben/core";
 import { z } from "zod";
 
-import { DOC_SAMPLES, DOC_TEST_RUNS, DOC_TYPES } from "./collections";
+import { startTestRunSchema } from "./bench";
+import { DOC_SAMPLES, DOC_TYPES } from "./collections";
 import { documentTypeSchema, parseDocumentType, TYPE_KEY } from "./definition";
+import { StudioError } from "./errors";
+import { datasetWrite } from "./eval-state";
+import { checkExamples, freezeExamples } from "./examples";
 import { VISION_LLM } from "./extractors/vision-llm";
-import { sameFieldValue } from "./field-values";
 import { getDocReader } from "./options";
-import { attemptsCost, runPipeline } from "./pipeline";
-import { recordUsage, skipHook } from "./quotas";
+import {
+  assertPublishable,
+  checkExamplesForPublish,
+  checkPublish,
+  getEvaluation,
+  initialEvaluation,
+  startHeldOutRuns,
+} from "./publish";
 import { parseParams, readUpload, storageRef } from "./readings";
-import { findAll, newRevision, SYSTEM, toDefinition, versionKey } from "./store";
+import { splitFieldsFor } from "./splits";
+import { findAll, newRevision, toDefinition, versionKey } from "./store";
 
-import type { DocumentType, ExtractionParams, Pipeline } from "./definition";
-import type { ExtractionStatus } from "./extractor";
-import type { PipelineResult } from "./pipeline";
+import type { Split } from "./collections";
+import type { DocumentType, ExtractionParams } from "./definition";
+import type { SampleAttributes } from "./metrics";
+import type { PublishCheck, PublishOptions, VersionEvaluation } from "./publish";
 import type { DocumentFile } from "./readings";
-import type { DocTypeRecord, SampleRecord, TestRunRecord } from "./records";
+import type { DocTypeRecord, SampleRecord } from "./records";
 import type { Quickben, RequestContext } from "@quickben/core";
 
-/** Why a studio action was refused. */
-export type StudioRule =
-  "type-exists" | "draft-exists" | "published" | "not-tested" | "no-samples" | "changed";
-
-/** A studio action conflicts with the current state, e.g. editing a published version. */
-export class StudioError extends QuickbenError {
-  readonly rule: StudioRule;
-
-  constructor(rule: StudioRule, message: string) {
-    super("CONFLICT", message);
-    this.name = "StudioError";
-    this.rule = rule;
-  }
-}
-
-/** Parallel samples per test run. */
-const PARALLEL = 3;
-/** A run still `running` after this long belongs to a process that is gone. */
-const STALE_MS = 30 * 60 * 1000;
+export { StudioError } from "./errors";
+export type { StudioRule } from "./errors";
 
 const actorOf = (ctx: RequestContext) => ctx.user?.email ?? ctx.user?.id ?? null;
 
@@ -85,6 +79,8 @@ export interface TypeVersion extends VersionSummary {
   readonly createdBy: string | null;
   readonly updatedBy: string | null;
   readonly publishedBy: string | null;
+  /** The runs of its publication, once published with a split. */
+  readonly evaluation: VersionEvaluation | null;
 }
 
 const summary = (record: DocTypeRecord): VersionSummary => ({
@@ -105,6 +101,7 @@ const toVersion = (record: DocTypeRecord): TypeVersion => ({
   createdBy: record.createdBy,
   updatedBy: record.updatedBy,
   publishedBy: record.publishedBy,
+  evaluation: record.evaluation ?? null,
 });
 
 async function versionRecords(
@@ -173,7 +170,9 @@ export async function getVersion(
   key: string,
   version: number,
 ): Promise<TypeVersion> {
-  return toVersion(await versionRecord(qb, ctx, key, version));
+  const record = await versionRecord(qb, ctx, key, version);
+  const evaluation = await getEvaluation(qb, ctx, record);
+  return { ...toVersion(record), evaluation };
 }
 
 /** What a new type starts with: one field and a vision-LLM step to configure. */
@@ -299,6 +298,7 @@ export async function saveDraft(
     state: "draft",
   });
   if (!parsed.success) throw new ValidationError(zodIssues(parsed.error));
+  await checkExamples(qb, ctx, key, parsed.data.examples);
   const saved = await qb.transaction(async (tx) => {
     const current = (await tx.findById(DOC_TYPES, record.id, {}, ctx)) as unknown as DocTypeRecord;
     if (current.state !== "draft") {
@@ -332,38 +332,53 @@ export async function deleteDraft(
   await qb.delete(DOC_TYPES, record.id, ctx);
 }
 
-/** Whether a version may be published: a draft with a finished test run of its current revision. */
-export function canPublish(
-  version: Pick<TypeVersion, "state" | "revision" | "updatedAt">,
-  runs: readonly Pick<TestRun, "state" | "variant" | "typeRevision" | "createdAt">[],
-): boolean {
-  return (
-    version.state === "draft" &&
-    runs.some(
-      (run) =>
-        run.state === "done" &&
-        run.variant === null &&
-        run.typeRevision === version.revision &&
-        run.createdAt >= version.updatedAt,
-    )
-  );
+/** Whether a draft may be published now: the run that counts, the comparison, the refusal. */
+export async function publishCheck(
+  qb: Quickben,
+  ctx: RequestContext,
+  key: string,
+  version: number,
+): Promise<PublishCheck> {
+  return checkPublish(qb, ctx, await versionRecord(qb, ctx, key, version));
 }
 
-/** Publish a draft that passed through the test bench. */
+/**
+ * Publish a draft that passed the test bench. Once the type is split it needs a `validation`
+ * run that is not worse than the published version's (see `publishCheck`), and publishing
+ * starts the `test` and `unseen` runs, recorded on the version.
+ */
 export async function publishDraft(
   qb: Quickben,
   ctx: RequestContext,
   key: string,
   version: number,
+  options: PublishOptions = {},
 ): Promise<TypeVersion> {
+  return datasetWrite(qb, key, () => publishDraftUnlocked(qb, ctx, key, version, options));
+}
+
+async function publishDraftUnlocked(
+  qb: Quickben,
+  ctx: RequestContext,
+  key: string,
+  version: number,
+  options: PublishOptions = {},
+): Promise<TypeVersion> {
+  const parsed = startTestRunSchema.safeParse(options);
+  if (!parsed.success) throw new ValidationError(zodIssues(parsed.error));
   const record = await versionRecord(qb, ctx, key, version);
+  if (record.state === "published" && record.evaluation) {
+    const evaluation = await startHeldOutRuns(qb, ctx, record, record.evaluation, options);
+    return { ...toVersion(record), evaluation };
+  }
   if (record.state !== "draft")
     throw new StudioError("published", `v${String(version)} is already published`);
-  const runs = await listTestRuns(qb, ctx, key, version);
-  if (!canPublish(toVersion(record), runs)) {
-    throw new StudioError("not-tested", "Test this version on its samples before publishing it");
-  }
-  const published = await qb.transaction(async (tx) => {
+  const check = await checkPublish(qb, ctx, record);
+  assertPublishable(check);
+  await checkExamplesForPublish(qb, ctx, record, check);
+  const evaluation = check.splitVersion === null ? null : initialEvaluation(check);
+  const exampleSnapshot = await freezeExamples(qb, toDefinition(record));
+  const published = (await qb.transaction(async (tx) => {
     const current = (await tx.findById(DOC_TYPES, record.id, {}, ctx)) as unknown as DocTypeRecord;
     if (current.state !== "draft" || current.revision !== record.revision) {
       throw new StudioError("changed", "The draft changed; test it again");
@@ -373,14 +388,18 @@ export async function publishDraft(
       record.id,
       {
         state: "published",
+        exampleSnapshot,
         draftKey: null,
         publishedAt: new Date().toISOString(),
         publishedBy: actorOf(ctx),
+        ...(evaluation ? { evaluation } : {}),
       },
       ctx,
     );
-  });
-  return toVersion(published as unknown as DocTypeRecord);
+  })) as unknown as DocTypeRecord;
+  if (!evaluation) return toVersion(published);
+  const started = await startHeldOutRuns(qb, ctx, published, evaluation, options);
+  return { ...toVersion(published), evaluation: started };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -397,6 +416,24 @@ export interface Sample {
   readonly note: string | null;
   readonly createdBy: string | null;
   readonly createdAt: string;
+  /** The caller's key of an imported sample. */
+  readonly key: string | null;
+  /** `null` before the type is split. */
+  readonly split: Split | null;
+  readonly splitVersion: number | null;
+  readonly group: string | null;
+  readonly attributes: SampleAttributes;
+  /** Notes for prompt work. */
+  readonly annotations: readonly SampleAnnotation[];
+}
+
+/** A note on a sample for prompt work: what the model should do with a field. */
+export interface SampleAnnotation {
+  /** A field key, or `null` for the whole document. */
+  readonly field: string | null;
+  readonly text: string;
+  readonly by: string | null;
+  readonly at: string;
 }
 
 const toSample = (record: SampleRecord): Sample => ({
@@ -410,6 +447,12 @@ const toSample = (record: SampleRecord): Sample => ({
   note: record.note,
   createdBy: record.createdBy,
   createdAt: record.createdAt,
+  key: record.sampleKey ?? null,
+  split: record.split ?? null,
+  splitVersion: record.splitVersion ?? null,
+  group: record.group ?? null,
+  attributes: record.attributes ?? {},
+  annotations: record.annotations ?? [],
 });
 
 function noteOf(note: string | null | undefined): string | null {
@@ -417,25 +460,34 @@ function noteOf(note: string | null | undefined): string | null {
   return text === "" ? null : text;
 }
 
-const expectedSchema = z.record(z.string().max(64), z.string().max(500));
+export const expectedSchema = z.record(z.string().max(64), z.string().max(500));
 
-function parseExpected(expected: unknown): Record<string, string> {
+export function parseExpected(expected: unknown, keepEmpty = false): Record<string, string> {
   const parsed = expectedSchema.safeParse(expected ?? {});
   if (!parsed.success)
     throw new ValidationError([{ path: "expected", message: "Expected values are text" }]);
   // Blank means "not checked".
-  return Object.fromEntries(Object.entries(parsed.data).filter(([, value]) => value.trim() !== ""));
+  return Object.fromEntries(
+    Object.entries(parsed.data).filter(([, value]) => keepEmpty || value.trim() !== ""),
+  );
 }
 
-/** Samples of a type, oldest first. */
+/** Samples of a type (optionally of some splits), oldest first. */
 export async function listSamples(
   qb: Quickben,
   ctx: RequestContext,
   typeKey: string,
+  split?: Split | readonly Split[],
 ): Promise<Sample[]> {
-  const records = await findAll<SampleRecord>(qb, DOC_SAMPLES, { typeKey: { eq: typeKey } }, ctx, {
-    sort: "createdAt",
-  });
+  let splits: Split[] | undefined;
+  if (split !== undefined) splits = typeof split === "string" ? [split] : [...split];
+  const records = await findAll<SampleRecord>(
+    qb,
+    DOC_SAMPLES,
+    { typeKey: { eq: typeKey }, ...(splits ? { split: { in: splits } } : {}) },
+    ctx,
+    { sort: "createdAt" },
+  );
   return records.map((record) => toSample(record));
 }
 
@@ -444,6 +496,33 @@ export interface SampleInput {
   readonly expected?: Record<string, string>;
   readonly params?: ExtractionParams;
   readonly note?: string;
+  /** Who the document comes from (issuer, tenant). Splits stratify by it. */
+  readonly group?: string | null;
+  /** Properties to stratify and slice by, e.g. `{ hasTextLayer: true }`. */
+  readonly attributes?: Readonly<Record<string, string | number | boolean | null>>;
+  /**
+   * A document uploaded to look at it: it goes to `dev` (once looked at, it is no longer
+   * unseen), whatever its hash says.
+   */
+  readonly inspect?: boolean;
+}
+
+const attributesSchema = z
+  .record(
+    z.string().min(1).max(64),
+    z.union([z.string().max(200), z.number(), z.boolean(), z.null()]),
+  )
+  .refine((value) => Object.keys(value).length <= 30, "At most 30 attributes");
+
+export function parseAttributes(value: unknown): SampleAttributes {
+  const parsed = attributesSchema.safeParse(value ?? {});
+  if (!parsed.success) throw new ValidationError(zodIssues(parsed.error));
+  return parsed.data;
+}
+
+export function groupOf(value: string | null | undefined): string | null {
+  const text = value?.trim().slice(0, 200) ?? "";
+  return text === "" ? null : text;
 }
 
 /** Add a test document to a type. Samples belong to the type, not to one version. */
@@ -453,10 +532,26 @@ export async function addSample(
   typeKey: string,
   input: SampleInput,
 ): Promise<Sample> {
+  return datasetWrite(qb, typeKey, () => addSampleUnlocked(qb, ctx, typeKey, input));
+}
+
+async function addSampleUnlocked(
+  qb: Quickben,
+  ctx: RequestContext,
+  typeKey: string,
+  input: SampleInput,
+): Promise<Sample> {
   const state = getDocReader(qb);
   await listVersions(qb, ctx, typeKey);
   const upload = await readUpload(state, input.file);
   const fileRef = storageRef(`samples/${typeKey}`, upload.mime);
+  const group = groupOf(input.group);
+  const attributes = parseAttributes(input.attributes);
+  const assigned = await splitFieldsFor(qb, typeKey, { key: fileRef, group, attributes });
+  const split =
+    input.inspect === true && assigned.split !== null
+      ? { ...assigned, split: "dev" as const }
+      : assigned;
   await state.files.put(fileRef, upload.bytes, { contentType: upload.mime });
   const record = await qb.create(
     DOC_SAMPLES,
@@ -470,6 +565,9 @@ export async function addSample(
       params: parseParams(input.params),
       note: noteOf(input.note),
       createdBy: actorOf(ctx),
+      group,
+      attributes,
+      ...split,
     },
     ctx,
   );
@@ -481,17 +579,101 @@ export async function updateSample(
   qb: Quickben,
   ctx: RequestContext,
   id: string,
-  input: { expected?: Record<string, string>; params?: ExtractionParams; note?: string | null },
+  input: {
+    expected?: Record<string, string>;
+    params?: ExtractionParams;
+    note?: string | null;
+    group?: string | null;
+    attributes?: SampleAttributes;
+  },
+): Promise<Sample> {
+  const sample = (await qb.findById(DOC_SAMPLES, id, {}, ctx)) as unknown as SampleRecord;
+  return datasetWrite(qb, sample.typeKey, () => updateSampleUnlocked(qb, ctx, id, input));
+}
+
+async function updateSampleUnlocked(
+  qb: Quickben,
+  ctx: RequestContext,
+  id: string,
+  input: {
+    expected?: Record<string, string>;
+    params?: ExtractionParams;
+    note?: string | null;
+    group?: string | null;
+    attributes?: SampleAttributes;
+  },
 ): Promise<Sample> {
   const data: Record<string, unknown> = {};
-  if (input.expected !== undefined) data.expected = parseExpected(input.expected);
+  if (input.group !== undefined) data.group = groupOf(input.group);
+  if (input.attributes !== undefined) data.attributes = parseAttributes(input.attributes);
+  if (input.expected !== undefined) data.expected = parseExpected(input.expected, true);
   if (input.params !== undefined) data.params = parseParams(input.params);
   if (input.note !== undefined) data.note = noteOf(input.note);
   return toSample((await qb.update(DOC_SAMPLES, id, data, ctx)) as unknown as SampleRecord);
 }
 
+/** One sample. */
+export async function getSample(qb: Quickben, ctx: RequestContext, id: string): Promise<Sample> {
+  return toSample((await qb.findById(DOC_SAMPLES, id, {}, ctx)) as unknown as SampleRecord);
+}
+
+/** Add a note for prompt work to a sample. Notes are kept in order, at most 50. */
+export async function annotateSample(
+  qb: Quickben,
+  ctx: RequestContext,
+  id: string,
+  input: { field?: string | null; text: string },
+): Promise<Sample> {
+  const sample = (await qb.findById(DOC_SAMPLES, id, {}, ctx)) as unknown as SampleRecord;
+  return datasetWrite(qb, sample.typeKey, () => annotateSampleUnlocked(qb, ctx, id, input), 100);
+}
+
+async function annotateSampleUnlocked(
+  qb: Quickben,
+  ctx: RequestContext,
+  id: string,
+  input: { field?: string | null; text: string },
+): Promise<Sample> {
+  const text = input.text.trim().slice(0, 1000);
+  if (!text) throw new ValidationError([{ path: "text", message: "Write the note" }]);
+  const record = (await qb.findById(DOC_SAMPLES, id, {}, ctx)) as unknown as SampleRecord;
+  const note: SampleAnnotation = {
+    field: input.field?.trim() ? input.field.trim().slice(0, 64) : null,
+    text,
+    by: actorOf(ctx),
+    at: new Date().toISOString(),
+  };
+  const annotations = [...(record.annotations ?? []), note].slice(-50);
+  return toSample(
+    (await qb.update(DOC_SAMPLES, id, { annotations }, ctx)) as unknown as SampleRecord,
+  );
+}
+
+/** Notes for prompt work on a type's samples, newest first. */
+export async function listAnnotations(
+  qb: Quickben,
+  ctx: RequestContext,
+  typeKey: string,
+): Promise<(SampleAnnotation & { sampleId: string; fileName: string })[]> {
+  const samples = await listSamples(qb, ctx, typeKey);
+  return samples
+    .flatMap((sample) =>
+      sample.annotations.map((note) => ({
+        ...note,
+        sampleId: sample.id,
+        fileName: sample.key ?? sample.fileName,
+      })),
+    )
+    .sort((a, b) => b.at.localeCompare(a.at));
+}
+
 /** Remove a sample and its file. */
 export async function removeSample(qb: Quickben, ctx: RequestContext, id: string): Promise<void> {
+  const sample = (await qb.findById(DOC_SAMPLES, id, {}, ctx)) as unknown as SampleRecord;
+  return datasetWrite(qb, sample.typeKey, () => removeSampleUnlocked(qb, ctx, id));
+}
+
+async function removeSampleUnlocked(qb: Quickben, ctx: RequestContext, id: string): Promise<void> {
   const record = (await qb.delete(DOC_SAMPLES, id, ctx)) as unknown as SampleRecord;
   await getDocReader(qb)
     .files.delete(record.fileRef)
@@ -511,354 +693,20 @@ export async function sampleFile(
 }
 
 // ---------------------------------------------------------------------------------------------
-// Test runs
+// Test runs: see bench.ts
 
-export const variantSchema = z.object({
-  connectionId: z.string().trim().min(1).max(200),
-  model: z.string().trim().min(1).max(200).optional(),
-});
-export type Variant = z.infer<typeof variantSchema>;
-
-export interface FieldCheck {
-  readonly key: string;
-  readonly label: string;
-  readonly expected: string | null;
-  readonly read: string | null;
-  readonly confidence: number | null;
-  /** `null` when the sample has no expected value for the field. */
-  readonly match: boolean | null;
-}
-
-export interface SampleResult {
-  readonly sampleId: string;
-  readonly fileName: string;
-  readonly status: ExtractionStatus;
-  readonly durationMs: number;
-  readonly costUsd: number;
-  readonly fields: FieldCheck[];
-  readonly error?: string;
-}
-
-export interface RunSummary {
-  readonly samples: number;
-  readonly checked: number;
-  readonly matched: number;
-  /** matched / checked, or `null` when nothing had an expected value. */
-  readonly accuracy: number | null;
-  readonly costUsd: number;
-  readonly avgLatencyMs: number;
-}
-
-export interface TestRun {
-  readonly id: string;
-  readonly typeKey: string;
-  readonly typeVersion: number;
-  readonly typeRevision: string;
-  readonly compareGroup: string | null;
-  readonly variant: Variant | null;
-  readonly state: "running" | "done" | "failed";
-  readonly results: SampleResult[];
-  readonly summary: RunSummary | null;
-  readonly error: string | null;
-  readonly costUsd: number;
-  readonly createdBy: string | null;
-  readonly createdAt: string;
-  readonly finishedAt: string | null;
-}
-
-const toRun = (record: TestRunRecord): TestRun => ({
-  id: record.id,
-  typeKey: record.typeKey,
-  typeVersion: record.typeVersion,
-  typeRevision: record.typeRevision,
-  compareGroup: record.compareGroup,
-  variant: record.variant,
-  state: record.state,
-  results: record.results,
-  summary: record.summary,
-  error: record.error,
-  costUsd: record.costUsd,
-  createdBy: record.createdBy,
-  createdAt: record.createdAt,
-  finishedAt: record.finishedAt,
-});
-
-/**
- * A model comparison isolates the model: the pipeline is that model alone, so a free step that
- * reads a document first does not hide the difference.
- */
-export function variantPipeline(pipeline: Pipeline, variant: Variant): Pipeline {
-  const current = pipeline.steps.find((step) => step.extractor === VISION_LLM);
-  const config = Object.fromEntries(
-    Object.entries(current?.config ?? {}).filter(([key]) => key !== "model"),
-  );
-  return {
-    ...pipeline,
-    steps: [
-      {
-        extractor: VISION_LLM,
-        config: {
-          ...config,
-          connectionId: variant.connectionId,
-          ...(variant.model ? { model: variant.model } : {}),
-        },
-      },
-    ],
-  };
-}
-
-/** Each field read compared with the sample's expected value. */
-export function checkFields(
-  type: DocumentType,
-  expected: Readonly<Record<string, string>>,
-  result: Pick<PipelineResult, "fields">,
-): FieldCheck[] {
-  return type.fields.map((field) => {
-    const read = Object.hasOwn(result.fields, field.key) ? result.fields[field.key] : undefined;
-    const want = Object.hasOwn(expected, field.key) ? (expected[field.key] ?? "") : null;
-    return {
-      key: field.key,
-      label: field.label,
-      expected: want,
-      read: read?.value ?? null,
-      confidence: read?.confidence ?? null,
-      match: want === null ? null : sameFieldValue(field, want, read?.value),
-    };
-  });
-}
-
-export function summarize(results: readonly SampleResult[]): RunSummary {
-  const checks = results.flatMap((result) => result.fields).filter((field) => field.match !== null);
-  const matched = checks.filter((field) => field.match).length;
-  const latency = results.reduce((total, result) => total + result.durationMs, 0);
-  return {
-    samples: results.length,
-    checked: checks.length,
-    matched,
-    accuracy: checks.length > 0 ? matched / checks.length : null,
-    costUsd: Math.round(results.reduce((total, result) => total + result.costUsd, 0) * 1e6) / 1e6,
-    avgLatencyMs: results.length > 0 ? Math.round(latency / results.length) : 0,
-  };
-}
-
-async function readSample(
-  qb: Quickben,
-  runId: string,
-  type: DocumentType,
-  sample: SampleRecord,
-): Promise<SampleResult> {
-  const state = getDocReader(qb);
-  const started = Date.now();
-  const base = { sampleId: sample.id, fileName: sample.fileName };
-  const bytes = await state.files.getBytes(sample.fileRef);
-  if (!bytes) {
-    return {
-      ...base,
-      status: "ERROR",
-      durationMs: 0,
-      costUsd: 0,
-      fields: checkFields(type, sample.expected, { fields: {} }),
-      error: "file not found",
-    };
-  }
-  // Test runs count against the platform cap only.
-  const skip = await skipHook(qb, null, state.log);
-  const result = await runPipeline({
-    type,
-    input: { bytes, mime: sample.mime, pages: type.pages },
-    params: sample.params,
-    tenant: null,
-    extractors: state.extractors,
-    ...(skip ? { skip } : {}),
-  });
-  await recordUsage(
-    qb,
-    { tenant: null, testRun: runId, typeKey: type.key, typeVersion: type.version },
-    result.attempts,
-  ).catch((error: unknown) => {
-    state.log("usage-failed", { testRun: runId, error: String(error) });
-  });
-  // Without this a failed step (a provider rejecting the request) shows only "ERROR".
-  const errors = result.attempts
-    .map((attempt) => attempt.problems?.error)
-    .filter((error): error is string => typeof error === "string" && error.length > 0);
-  return {
-    ...base,
-    status: result.status,
-    durationMs: Date.now() - started,
-    costUsd: attemptsCost(result.attempts),
-    fields: checkFields(type, sample.expected, result),
-    ...(errors.length > 0 ? { error: errors.join("; ").slice(0, 500) } : {}),
-  };
-}
-
-async function executeRun(
-  qb: Quickben,
-  runId: string,
-  type: DocumentType,
-  samples: readonly SampleRecord[],
-): Promise<void> {
-  const state = getDocReader(qb);
-  try {
-    const results: SampleResult[] = Array.from({ length: samples.length });
-    const queue = samples.map((sample, index) => ({ sample, index }));
-    const failures = new Set<string>();
-    const worker = async () => {
-      for (let item = queue.shift(); item; item = queue.shift()) {
-        const { sample, index } = item;
-        try {
-          results[index] = await readSample(qb, runId, type, sample);
-        } catch (error) {
-          failures.add(sample.id);
-          state.log("test-run-sample-failed", { runId, sampleId: sample.id, error: String(error) });
-          results[index] = {
-            sampleId: sample.id,
-            fileName: sample.fileName,
-            status: "ERROR",
-            durationMs: 0,
-            costUsd: 0,
-            error: "the sample could not be read",
-            fields: checkFields(type, sample.expected, { fields: {} }),
-          };
-        }
-      }
-    };
-    await Promise.all(Array.from({ length: Math.min(PARALLEL, samples.length) }, worker));
-    const runSummary = summarize(results);
-    const failed = failures.size > 0;
-    await qb.update(
-      DOC_TEST_RUNS,
-      runId,
-      {
-        state: failed ? "failed" : "done",
-        error: failed ? "one or more samples could not be read" : null,
-        results: results,
-        summary: runSummary,
-        costUsd: runSummary.costUsd,
-        finishedAt: new Date().toISOString(),
-      },
-      SYSTEM,
-    );
-  } catch (error) {
-    state.log("test-run-failed", { runId, error: String(error) });
-    await qb
-      .update(
-        DOC_TEST_RUNS,
-        runId,
-        {
-          state: "failed",
-          error: String(error).slice(0, 500),
-          finishedAt: new Date().toISOString(),
-        },
-        SYSTEM,
-      )
-      .catch(() => undefined);
-  }
-}
-
-export interface StartTestRunInput {
-  /** Default: every sample of the type. */
-  readonly sampleIds?: readonly string[];
-  /** Empty: the version as it is. Two: compare these models side by side. */
-  readonly variants?: readonly Variant[];
-}
-
-/**
- * Start test runs of a version over its samples: one run, or one per variant to compare
- * models. Returns at once; runs finish in the background (poll `getTestRun`).
- */
-export async function startTestRun(
-  qb: Quickben,
-  ctx: RequestContext,
-  key: string,
-  version: number,
-  input: StartTestRunInput = {},
-): Promise<TestRun[]> {
-  const state = getDocReader(qb);
-  const variants = z
-    .array(variantSchema)
-    .max(2)
-    .safeParse(input.variants ?? []);
-  if (!variants.success) throw new ValidationError(zodIssues(variants.error));
-  const record = await versionRecord(qb, ctx, key, version);
-  const type = toDefinition(record);
-  const all = await findAll<SampleRecord>(qb, DOC_SAMPLES, { typeKey: { eq: key } }, ctx, {
-    sort: "createdAt",
-  });
-  const samples = input.sampleIds
-    ? all.filter((sample) => input.sampleIds?.includes(sample.id))
-    : all;
-  if (samples.length === 0)
-    throw new StudioError("no-samples", "Add samples before running a test");
-
-  const list: (Variant | null)[] = variants.data.length > 0 ? variants.data : [null];
-  const compareGroup = list.length > 1 ? newRevision() : null;
-  const runs: TestRun[] = [];
-  for (const variant of list) {
-    const pipeline = variant ? variantPipeline(type.pipeline, variant) : type.pipeline;
-    const run = (await qb.create(
-      DOC_TEST_RUNS,
-      {
-        typeKey: key,
-        typeVersion: version,
-        typeRevision: record.revision,
-        compareGroup,
-        variant: variant,
-        pipeline: pipeline,
-        createdBy: actorOf(ctx),
-      },
-      ctx,
-    )) as unknown as TestRunRecord;
-    state.runner.background(() => executeRun(qb, run.id, { ...type, pipeline }, samples));
-    runs.push(toRun(run));
-  }
-  return runs;
-}
-
-/** Runs of a type (optionally of one version), newest first. */
-export async function listTestRuns(
-  qb: Quickben,
-  ctx: RequestContext,
-  key: string,
-  version?: number,
-  limit = 20,
-): Promise<TestRun[]> {
-  await failInterruptedRuns(qb);
-  const page = await qb.find(
-    DOC_TEST_RUNS,
-    {
-      where: {
-        typeKey: { eq: key },
-        ...(version === undefined ? {} : { typeVersion: { eq: version } }),
-      },
-      sort: "-createdAt",
-      limit,
-    },
-    ctx,
-  );
-  return (page.docs as unknown as TestRunRecord[]).map((record) => toRun(record));
-}
-
-export async function getTestRun(qb: Quickben, ctx: RequestContext, id: string): Promise<TestRun> {
-  await failInterruptedRuns(qb);
-  return toRun((await qb.findById(DOC_TEST_RUNS, id, {}, ctx)) as unknown as TestRunRecord);
-}
-
-/** Fail runs left `running` by a process that is gone. */
-export async function failInterruptedRuns(qb: Quickben, staleMs = STALE_MS): Promise<number> {
-  const before = new Date(Date.now() - staleMs).toISOString();
-  const stale = await qb.find(
-    DOC_TEST_RUNS,
-    { where: { state: { eq: "running" }, createdAt: { lt: before } }, limit: 100 },
-    SYSTEM,
-  );
-  for (const run of stale.docs) {
-    await qb.update(
-      DOC_TEST_RUNS,
-      run.id,
-      { state: "failed", error: "interrupted by a restart", finishedAt: new Date().toISOString() },
-      SYSTEM,
-    );
-  }
-  return stale.docs.length;
-}
+export {
+  compareTestRuns,
+  exportTestRun,
+  failInterruptedRuns,
+  getTestRun,
+  listTestRuns,
+  startTestRun,
+  variantPipeline,
+  variantSchema,
+} from "./bench";
+export type { StartTestRunInput, TestRun, Variant } from "./bench";
+export { checkFields, summarize } from "./metrics";
+export type { FieldCheck, RunSummary, SampleResult } from "./metrics";
+export { canPublish } from "./publish";
+export type { VersionEvaluation } from "./publish";

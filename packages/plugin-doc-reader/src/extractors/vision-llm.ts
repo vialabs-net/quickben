@@ -19,11 +19,13 @@ import type {
   ExtractionResult,
   ExtractionUsage,
   Extractor,
+  ExtractorExample,
   FieldBox,
   FieldValue,
 } from "../extractor";
 import type { ResolvedModel } from "../models";
 import type { PageImage, Rasterize } from "./page-images";
+import type { ModelMessage } from "ai";
 
 export const VISION_LLM = "vision-llm";
 
@@ -217,6 +219,63 @@ async function pageImages(
   }
 }
 
+interface TokenUsage {
+  readonly inputTokens: number | undefined;
+  readonly outputTokens: number | undefined;
+  readonly inputTokenDetails?: { readonly cacheReadTokens: number | undefined };
+}
+
+const NO_USAGE: TokenUsage = { inputTokens: undefined, outputTokens: undefined };
+
+/** The answer an example should get, as the model would write it. */
+export function exampleAnswer(type: DocumentType, values: Readonly<Record<string, string>>) {
+  return Object.fromEntries(
+    type.fields.map((field) => {
+      const value = Object.hasOwn(values, field.key) ? (values[field.key] ?? "") : "";
+      return [
+        field.key,
+        { value, confidence: value ? 1 : 0, page: value ? 1 : 0, evidence: "", box: "0,0,0,0" },
+      ];
+    }),
+  );
+}
+
+/**
+ * Few-shot examples as earlier turns: the example's first page, then the answer. An example
+ * whose file cannot be shown is left out.
+ */
+async function exampleMessages(
+  rasterize: Rasterize,
+  type: DocumentType,
+  examples: readonly ExtractorExample[],
+): Promise<ModelMessage[]> {
+  const messages: ModelMessage[] = [];
+  for (const example of examples) {
+    let images: PageImage[];
+    try {
+      images = await rasterize(example.bytes, example.mime, type.pages.slice(0, 1));
+    } catch {
+      continue;
+    }
+    if (images.length === 0) continue;
+    messages.push(
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "Example document. Read the fields from these pages." },
+          ...images.map((image) => ({
+            type: "file" as const,
+            data: image.bytes,
+            mediaType: image.mime,
+          })),
+        ],
+      },
+      { role: "assistant", content: JSON.stringify(exampleAnswer(type, example.values)) },
+    );
+  }
+  return messages;
+}
+
 /** The vision-LLM extractor. Without `resolveModel` every step returns `ERROR`. */
 export function createVisionLlmExtractor(options: VisionLlmOptions = {}): Extractor {
   const rasterize = options.rasterize ?? defaultRasterize;
@@ -240,18 +299,18 @@ export function createVisionLlmExtractor(options: VisionLlmOptions = {}): Extrac
         input.pages.slice(0, limit),
       );
       if (!Array.isArray(images)) return images;
+      const examples = await exampleMessages(rasterize, type, ctx.examples ?? []);
 
-      const usageOf = (tokens: {
-        inputTokens?: number;
-        outputTokens?: number;
-      }): ExtractionUsage => {
+      const usageOf = (tokens: TokenUsage): ExtractionUsage => {
         const inputTokens = tokens.inputTokens ?? 0;
         const outputTokens = tokens.outputTokens ?? 0;
+        const cachedInputTokens = tokens.inputTokenDetails?.cacheReadTokens ?? 0;
         return {
           inputTokens,
           outputTokens,
+          ...(cachedInputTokens > 0 ? { cachedInputTokens } : {}),
           pages: images.length,
-          costUsd: callCost(model, inputTokens, outputTokens),
+          costUsd: callCost(model, inputTokens, outputTokens, cachedInputTokens),
           model: model.id,
           connectionId: connection.id,
           ...(connection.name === undefined ? {} : { connectionName: connection.name }),
@@ -266,6 +325,7 @@ export function createVisionLlmExtractor(options: VisionLlmOptions = {}): Extrac
           ...(model.structuredOutput ? { output: Output.object({ schema }) } : {}),
           instructions: buildPrompt(type, params, images, !model.structuredOutput),
           messages: [
+            ...examples,
             {
               role: "user",
               content: [
@@ -292,9 +352,15 @@ export function createVisionLlmExtractor(options: VisionLlmOptions = {}): Extrac
         return { ...statusOf(type, fields), fields, usage: usageOf(result.usage) };
       } catch (error) {
         if (NoObjectGeneratedError.isInstance(error)) {
-          return { ...failure(NO_FIELDS), usage: usageOf(error.usage ?? {}) };
+          return { ...failure(NO_FIELDS), usage: usageOf(error.usage ?? NO_USAGE) };
         }
-        return failure(timeout.aborted ? "the model did not answer in time" : PROVIDER_ERROR);
+        return {
+          ...failure(timeout.aborted ? "the model did not answer in time" : PROVIDER_ERROR),
+          problems: {
+            error: timeout.aborted ? "the model did not answer in time" : PROVIDER_ERROR,
+            transient: true,
+          },
+        };
       }
     },
   };

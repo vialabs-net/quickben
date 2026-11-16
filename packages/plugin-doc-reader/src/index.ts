@@ -1,35 +1,76 @@
+export {
+  compareTestRuns,
+  DEFAULT_CONCURRENCY,
+  exportTestRun,
+  listSampleRuns,
+  MAX_CONCURRENCY,
+  startTestRunSchema,
+} from "./bench";
 export { classifyType } from "./classify";
 export {
   DOC_JOBS,
   DOC_QUOTAS,
   DOC_SAMPLES,
+  DOC_SPLITS,
+  DOC_TEST_RESULTS,
   DOC_TEST_RUNS,
   DOC_TYPES,
   DOC_USAGE,
+  HELD_OUT_SPLITS,
   JOB_STATES,
+  SPLITS,
 } from "./collections";
 export {
+  DEFAULT_EMPTY_VALUES,
   documentTypeSchema,
   FIELD_TRANSFORMS,
   FIELD_TYPES,
+  isScored,
   listParam,
   parseDocumentType,
   requiredFields,
 } from "./definition";
 export { EXTRACTION_STATUSES } from "./extractor";
 export { rasterize, UnsupportedFileError } from "./extractors/page-images";
-export { createTextLayerExtractor, pdfPagesText, TEXT_LAYER } from "./extractors/text-layer";
+export {
+  createTextLayerExtractor,
+  locateEvidence,
+  pdfPagesText,
+  TEXT_LAYER,
+} from "./extractors/text-layer";
 export {
   answerSchemaFor,
   buildPrompt,
   createVisionLlmExtractor,
+  exampleAnswer,
   VISION_LLM,
 } from "./extractors/vision-llm";
 export { normalizeFieldValue, sameFieldValue } from "./field-values";
+export { checkExamples } from "./examples";
+export { expectedValues, importSamples } from "./import";
+export {
+  compareResults,
+  fieldOutcome,
+  FIELD_OUTCOMES,
+  isEmptyValue,
+  percentile,
+  resultsToCsv,
+  runMetrics,
+} from "./metrics";
+export { gateReasons } from "./publish";
+export {
+  assignSplits,
+  currentSplit,
+  DEFAULT_RATIOS,
+  hashFraction,
+  listSplits,
+  splitForNewSample,
+  splitSamples,
+} from "./splits";
 export { fromFileStore, localFileStore, memoryFileStore } from "./files";
 export { callCost } from "./models";
 export { getDocReader } from "./options";
-export { mergeFields, pendingFields, runPipeline } from "./pipeline";
+export { isTransientFailure, mergeFields, pendingFields, runPipeline } from "./pipeline";
 export { docReader } from "./plugin";
 export { listQuotas, PLATFORM, quotaStatus, removeQuota, setPlatformCap, setQuota } from "./quotas";
 export {
@@ -44,17 +85,21 @@ export {
 export { inProcessRunner } from "./runner";
 export {
   addSample,
+  annotateSample,
   canPublish,
   checkFields,
   createDocType,
   createDraft,
   deleteDraft,
+  getSample,
   getTestRun,
   getVersion,
+  listAnnotations,
   listDocTypes,
   listSamples,
   listTestRuns,
   listVersions,
+  publishCheck,
   publishDraft,
   removeSample,
   sampleFile,
@@ -68,17 +113,21 @@ export { applyTemplate } from "./templates";
 export { readText } from "./text-readers";
 export { usageReport } from "./usage-report";
 
+export type { RunPurpose, Split } from "./collections";
 export type { JobState } from "./collections";
 export type {
   DocumentType,
   DocumentTypeInput,
+  EvaluationSettings,
   ExtractionParams,
+  FewShotExample,
   FieldDefinition,
   FieldTransform,
   FieldType,
   ParamDefinition,
   Pipeline,
   PipelineStep,
+  PublishGate,
 } from "./definition";
 export type {
   ExtractionResult,
@@ -86,14 +135,40 @@ export type {
   ExtractionUsage,
   Extractor,
   ExtractorContext,
+  ExtractorExample,
   ExtractorInput,
   FieldBox,
   FieldEvidence,
   FieldValue,
 } from "./extractor";
 export type { PageImage, Rasterize } from "./extractors/page-images";
+export type { LocatedEvidence } from "./extractors/text-layer";
+export type { TestRunHead } from "./bench";
 export type { VisionLlmOptions } from "./extractors/vision-llm";
 export type { FileStore } from "./files";
+export type {
+  ExpectedMapper,
+  ExpectedValues,
+  ImportItem,
+  ImportOptions,
+  ImportOutcome,
+  ImportReport,
+} from "./import";
+export type {
+  CaseChange,
+  CheckEvidence,
+  FieldDelta,
+  FieldMetrics,
+  FieldOutcome,
+  LatencyMetrics,
+  OutcomeCounts,
+  RunComparison,
+  RunMetrics,
+  SampleAttributes,
+  SliceMetrics,
+} from "./metrics";
+export type { EvaluationRun, PublishCheck, PublishOptions } from "./publish";
+export type { SplitInput, SplitRatios, SplitSettings, SplitSubject, SplitVersion } from "./splits";
 export type { ListModels, ModelChoice, ModelInfo, ResolvedModel, ResolveModel } from "./models";
 export type { DocReaderOptions, DocReaderState } from "./options";
 export type { PipelineAttempt, PipelineOptions, PipelineResult, SkipHook } from "./pipeline";
@@ -105,6 +180,7 @@ export type {
   FieldCheck,
   RunSummary,
   Sample,
+  SampleAnnotation,
   SampleInput,
   SampleResult,
   StartTestRunInput,
@@ -113,6 +189,7 @@ export type {
   TypeSummary,
   TypeVersion,
   Variant,
+  VersionEvaluation,
   VersionSummary,
 } from "./studio";
 export type { ExtractionTemplate, FieldRule } from "./templates";

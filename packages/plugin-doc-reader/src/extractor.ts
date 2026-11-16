@@ -22,6 +22,16 @@ export interface ExtractorContext {
   /** The pipeline step's `config`. */
   readonly config: Readonly<Record<string, unknown>>;
   readonly signal?: AbortSignal;
+  /** The type's few-shot examples, loaded. LLM extractors may show them to the model. */
+  readonly examples?: readonly ExtractorExample[];
+}
+
+/** A few-shot example: a document and the values it reads to. */
+export interface ExtractorExample {
+  readonly bytes: Uint8Array;
+  readonly mime: string;
+  /** Expected values by field key. Fields without a value are absent. */
+  readonly values: Readonly<Record<string, string>>;
 }
 
 /** Where a value is on its page: corners as fractions 0..1, origin top left. */
@@ -49,6 +59,8 @@ export interface FieldValue {
 export interface ExtractionUsage {
   readonly inputTokens: number;
   readonly outputTokens: number;
+  /** Input tokens served from the provider's cache. Part of `inputTokens`. */
+  readonly cachedInputTokens?: number;
   readonly pages: number;
   /** Computed from the connection's prices, never from a library table. */
   readonly costUsd: number;

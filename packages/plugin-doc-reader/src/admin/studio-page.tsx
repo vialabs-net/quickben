@@ -18,16 +18,18 @@ import { getQuickben } from "@quickben/core";
 import { getRequestContext } from "@quickben/next";
 import Link from "next/link";
 
+import { compareTestRuns } from "../bench";
 import { FIELD_TRANSFORMS, FIELD_TYPES } from "../definition";
 import { TEXT_LAYER } from "../extractors/text-layer";
 import { VISION_LLM } from "../extractors/vision-llm";
 import { getDocReader } from "../options";
+import { isSplit, currentSplit } from "../splits";
 import {
-  canPublish,
   getVersion,
   listSamples,
   listTestRuns,
   listVersions,
+  publishCheck,
   sampleFile,
 } from "../studio";
 
@@ -38,10 +40,26 @@ import {
   publishAction,
   removeSampleAction,
   saveDraftAction,
+  splitAction,
   startTestAction,
   updateSampleAction,
 } from "./actions";
 import { AutoRefresh, FilePreview } from "./client";
+import {
+  ComparePicker,
+  ComparisonView,
+  ExamplesPicker,
+  ExportLinks,
+  HistoryCard,
+  MetricsTables,
+  PublishCheckNotice,
+  RunOptions,
+  RunStats,
+  SAMPLES_PER_PAGE,
+  SampleFilter,
+  SplitBadge,
+  SplitCard,
+} from "./evals";
 import { docReaderT, stateLabel } from "./messages";
 import {
   AlignedSubmit,
@@ -62,9 +80,13 @@ import {
   toBase64,
 } from "./shared";
 
+import type { Split } from "../collections";
 import type { DocumentType, FieldDefinition, ParamDefinition, PipelineStep } from "../definition";
+import type { RunComparison } from "../metrics";
 import type { ModelChoice } from "../models";
 import type { DocReaderState } from "../options";
+import type { PublishCheck } from "../publish";
+import type { SplitVersion } from "../splits";
 import type { Sample, TestRun, TypeVersion, VersionSummary } from "../studio";
 import type { DocReaderT } from "./messages";
 import type { SearchParams } from "./shared";
@@ -83,6 +105,7 @@ interface Actions {
   updateSample: Action;
   removeSample: Action;
   startTest: Action;
+  split: Action;
 }
 
 function bind(adminKey: string): Actions {
@@ -95,6 +118,7 @@ function bind(adminKey: string): Actions {
     updateSample: updateSampleAction.bind(null, adminKey),
     removeSample: removeSampleAction.bind(null, adminKey),
     startTest: startTestAction.bind(null, adminKey),
+    split: splitAction.bind(null, adminKey),
   };
 }
 
@@ -182,6 +206,14 @@ function FieldRow({
             aria-label={t("field.requiredAria", { name })}
           />
           {t("field.required")}
+        </label>
+        <label className="qb:flex qb:items-center qb:gap-2">
+          <Checkbox
+            name={`${p}unscored`}
+            defaultChecked={field?.scored === false}
+            aria-label={t("field.unscoredAria", { name })}
+          />
+          {t("field.unscored")}
         </label>
         {field ? (
           <label className="qb:flex qb:items-center qb:gap-2">
@@ -537,15 +569,28 @@ function Editor({
   version,
   state,
   models,
+  samples,
   save,
   t,
 }: Readonly<{
   version: TypeVersion;
   state: DocReaderState;
   models: readonly ModelChoice[];
+  samples: readonly Sample[];
   save: Action;
   t: DocReaderT;
 }>) {
+  const notes = samples
+    .flatMap((sample) =>
+      sample.annotations.map((note) => ({
+        ...note,
+        sampleId: sample.id,
+        fileName: sample.key ?? sample.fileName,
+      })),
+    )
+    .sort((a, b) => b.at.localeCompare(a.at));
+  const gate = version.definition.evaluation.gate;
+  const points = (value: number | null) => (value === null ? "" : String(value * 100));
   const type: DocumentType = version.definition;
   const draft = version.state === "draft";
   const fields: (FieldDefinition | null)[] = [...type.fields, null];
@@ -560,6 +605,7 @@ function Editor({
           fieldCount: fields.length,
           paramCount: params.length,
           stepCount: steps.length,
+          evaluationForm: 1,
         }}
       />
       <fieldset disabled={!draft} className="qb:space-y-4">
@@ -609,6 +655,20 @@ function Editor({
             name="instructions"
             defaultValue={type.instructions}
           />
+          {notes.length > 0 ? (
+            <div className="qb:mt-5 qb:space-y-2 qb:text-sm">
+              <h3 className="qb:font-semibold">{t("editor.notes")}</h3>
+              <p className="qb:text-fg-muted">{t("editor.notesDescription")}</p>
+              <ul className="qb:space-y-1">
+                {notes.slice(0, 30).map((note) => (
+                  <li key={`${note.sampleId}-${note.at}`}>
+                    <span className="qb:font-mono">{note.fileName}</span>
+                    {note.field ? ` · ${note.field}` : ""}: {note.text}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </Section>
         <Section title={t("editor.recognition")} description={t("editor.recognitionDescription")}>
           <div className="qb:grid qb:grid-cols-1 qb:gap-4 qb:sm:grid-cols-2">
@@ -661,6 +721,52 @@ function Editor({
                 <option value="all">{t("editor.stopAll")}</option>
               </Select>
             </Field>
+          </div>
+        </Section>
+        <Section title={t("editor.examples")} description={t("editor.examplesDescription")}>
+          <ExamplesPicker
+            samples={samples}
+            chosen={type.examples.map((example) => example.sampleId)}
+            t={t}
+          />
+        </Section>
+        <Section title={t("editor.evaluation")} description={t("editor.evaluationDescription")}>
+          <div className="qb:grid qb:grid-cols-1 qb:gap-4 qb:sm:grid-cols-2 qb:xl:grid-cols-3">
+            <Field
+              label={t("editor.emptyValues")}
+              htmlFor={id("emptyValues")}
+              hint={t("editor.emptyValuesHint")}
+            >
+              <Input
+                id={id("emptyValues")}
+                name="emptyValues"
+                defaultValue={type.evaluation.emptyValues.join(", ")}
+              />
+            </Field>
+            {(
+              [
+                ["maxAccuracyDrop", gate.maxAccuracyDrop],
+                ["maxFieldDrop", gate.maxFieldDrop],
+                ["maxCostIncrease", gate.maxCostIncrease],
+                ["maxLatencyIncrease", gate.maxLatencyIncrease],
+              ] as const
+            ).map(([name, value]) => (
+              <Field
+                key={name}
+                label={t(`editor.${name}`)}
+                htmlFor={id("gate", name)}
+                hint={name === "maxAccuracyDrop" ? undefined : t("editor.percentHint")}
+              >
+                <Input
+                  id={id("gate", name)}
+                  name={`gate.${name}`}
+                  type="number"
+                  min={0}
+                  step="0.1"
+                  defaultValue={points(value)}
+                />
+              </Field>
+            ))}
           </div>
         </Section>
         {draft ? (
@@ -750,15 +856,32 @@ function SampleEditor({
 }
 
 function variantLabel(t: DocReaderT, run: TestRun, models: readonly ModelChoice[]): string {
-  if (!run.variant) return t("run.thisVersion");
-  const connection = models.find((c) => c.connectionId === run.variant?.connectionId);
+  const purpose = run.purpose === "bench" ? [] : [t("run.version", { version: run.typeVersion })];
+  if (!run.variant) return [...purpose, t("run.thisVersion")].join(" · ");
+  const { connectionId, version, model } = run.variant;
+  const connection = models.find((c) => c.connectionId === connectionId);
   return [
-    connection?.connectionName ?? run.variant.connectionId,
-    run.variant.model ?? t("run.defaultModel"),
+    ...(version === undefined ? [] : [t("run.version", { version })]),
+    ...(connectionId === undefined
+      ? []
+      : [connection?.connectionName ?? connectionId, model ?? t("run.defaultModel")]),
   ].join(" · ");
 }
 
-function RunCard({ run, label, i18n }: Readonly<{ run: TestRun; label: string; i18n: AdminI18n }>) {
+/** Rows of a run's result table. Larger runs: the metrics, the comparison and the export. */
+const RESULT_ROWS = 100;
+
+function RunCard({
+  run,
+  label,
+  i18n,
+  inspectHref,
+}: Readonly<{
+  run: TestRun;
+  label: string;
+  i18n: AdminI18n;
+  inspectHref: (sampleId: string) => string;
+}>) {
   const t = docReaderT(i18n);
   const summary = run.summary;
   const fields = run.results[0]?.fields.map((f) => f.label) ?? [];
@@ -785,8 +908,11 @@ function RunCard({ run, label, i18n }: Readonly<{ run: TestRun; label: string; i
             {summary ? formatMs(i18n, summary.avgLatencyMs) : EMPTY}
           </Stat>
         </div>
+        <RunStats run={run} i18n={i18n} />
         {run.error ? <p className="qb:text-sm qb:text-danger-strong">{run.error}</p> : null}
+        <ExportLinks run={run} t={t} />
       </CardBody>
+      {run.metrics ? <MetricsTables metrics={run.metrics} i18n={i18n} /> : null}
       {run.results.length > 0 ? (
         <Table aria-label={t("run.results", { label })}>
           <thead>
@@ -798,11 +924,19 @@ function RunCard({ run, label, i18n }: Readonly<{ run: TestRun; label: string; i
             </tr>
           </thead>
           <tbody>
-            {run.results.map((result) => (
+            {run.results.slice(0, RESULT_ROWS).map((result) => (
               <Tr key={result.sampleId}>
                 <Td>
-                  <p className="qb:font-medium qb:text-fg">{result.fileName}</p>
+                  <Link href={inspectHref(result.sampleId)} className={linkClass}>
+                    {result.sampleKey ?? result.fileName}
+                  </Link>
                   <StatusBadge status={result.status} i18n={i18n} />
+                  {result.split ? (
+                    <>
+                      {" "}
+                      <SplitBadge split={result.split} t={t} />
+                    </>
+                  ) : null}
                   {result.error ? (
                     <p className="qb:text-xs qb:text-danger-strong">{result.error}</p>
                   ) : null}
@@ -879,6 +1013,12 @@ function Bench({
   preview,
   actions,
   i18n,
+  split,
+  splitFilter,
+  page,
+  comparison,
+  hasPublished,
+  comparable,
 }: Readonly<{
   version: TypeVersion;
   samples: readonly Sample[];
@@ -890,6 +1030,13 @@ function Bench({
   preview: ReactNode;
   actions: Actions;
   i18n: AdminI18n;
+  split: SplitVersion | null;
+  splitFilter: Split | undefined;
+  page: number;
+  comparison: { view: RunComparison; a: TestRun; b: TestRun } | null;
+  hasPublished: boolean;
+  /** Runs to compare: this version's and the published version's baseline. */
+  comparable: readonly TestRun[];
 }>) {
   const t = docReaderT(i18n);
   const href = (query: Record<string, string>) =>
@@ -901,28 +1048,49 @@ function Bench({
   if (group) shown = runs.filter((run) => run.compareGroup === group);
   else if (selected) shown = [selected];
   const keys = { typeKey: version.key, version: version.version };
+  const filtered = splitFilter ? samples.filter((s) => s.split === splitFilter) : samples;
+  const inspectHref = (sampleId: string, runId?: string) =>
+    `${basePath}/document-types/${encodeURIComponent(version.key)}/samples/${encodeURIComponent(sampleId)}?${new URLSearchParams({ v: String(version.version), ...(runId ? { run: runId } : {}) }).toString()}`;
+  const listed = filtered.slice((page - 1) * SAMPLES_PER_PAGE, page * SAMPLES_PER_PAGE);
+  const baseline = hasPublished && version.state === "draft";
   return (
     <div className="qb:space-y-4">
+      <SplitCard
+        version={version}
+        split={split}
+        unsplit={samples.filter((s) => s.split === null).length}
+        action={actions.split}
+        i18n={i18n}
+      />
       <Card>
         <CardHeader title={t("bench.samples")} description={t("bench.samplesDescription")} />
-        {samples.length > 0 ? (
+        <CardBody>
+          <SampleFilter samples={samples} current={splitFilter} page={page} href={href} t={t} />
+        </CardBody>
+        {listed.length > 0 ? (
           <Table>
             <thead>
               <tr>
                 <Th>{t("col.file")}</Th>
+                <Th>{t("col.split")}</Th>
+                <Th>{t("col.group")}</Th>
                 <Th>{t("col.expected")}</Th>
                 <Th>{t("col.note")}</Th>
                 <Th>{t("col.actions")}</Th>
               </tr>
             </thead>
             <tbody>
-              {samples.map((sample) => (
+              {listed.map((sample) => (
                 <Tr key={sample.id}>
                   <Td>
                     <Link href={href({ sample: sample.id })} className={linkClass}>
-                      {sample.fileName}
+                      {sample.key ?? sample.fileName}
                     </Link>
                   </Td>
+                  <Td>
+                    <SplitBadge split={sample.split} t={t} />
+                  </Td>
+                  <Td>{sample.group ?? ""}</Td>
                   <Td>
                     {t("bench.filled", {
                       filled: Object.keys(sample.expected).length,
@@ -931,6 +1099,9 @@ function Bench({
                   </Td>
                   <Td>{sample.note ?? ""}</Td>
                   <Td>
+                    <Link href={inspectHref(sample.id)} className={linkClass}>
+                      {t("bench.inspect")}
+                    </Link>
                     <form action={actions.removeSample}>
                       <Hidden values={{ ...keys, sampleId: sample.id }} />
                       <Button
@@ -987,10 +1158,11 @@ function Bench({
       <Card>
         <CardHeader title={t("bench.test")} description={t("bench.testDescription")} />
         <CardBody className="qb:space-y-4">
-          <form action={actions.startTest}>
+          <form action={actions.startTest} className="qb:space-y-3">
             <Hidden values={{ ...keys, mode: "version" }} />
+            <RunOptions split={split} t={t} baseline={baseline} />
             <Button type="submit" disabled={samples.length === 0}>
-              {t("bench.testRun", { count: samples.length })}
+              {split ? t("bench.runSplits") : t("bench.testRun", { count: samples.length })}
             </Button>
           </form>
           <form
@@ -999,6 +1171,7 @@ function Bench({
           >
             <Hidden values={{ ...keys, mode: "compare" }} />
             <p className="qb:text-sm qb:text-fg-muted">{t("bench.compareText")}</p>
+            <RunOptions split={split} t={t} baseline={false} />
             <div className="qb:flex qb:flex-wrap qb:items-end qb:gap-4">
               <ModelPicker prefix="a" label={t("bench.modelA")} models={models} t={t} />
               <ModelPicker prefix="b" label={t("bench.modelB")} models={models} t={t} />
@@ -1016,9 +1189,40 @@ function Bench({
           style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(24rem, 100%), 1fr))" }}
         >
           {shown.map((run) => (
-            <RunCard key={run.id} run={run} label={variantLabel(t, run, models)} i18n={i18n} />
+            <RunCard
+              key={run.id}
+              run={run}
+              label={variantLabel(t, run, models)}
+              i18n={i18n}
+              inspectHref={(sampleId) => inspectHref(sampleId, run.id)}
+            />
           ))}
         </div>
+      ) : null}
+      {comparison ? (
+        <ComparisonView
+          comparison={comparison.view}
+          labelA={`${formatWhen(i18n, comparison.a.createdAt)} · ${variantLabel(t, comparison.a, models)}`}
+          labelB={`${formatWhen(i18n, comparison.b.createdAt)} · ${variantLabel(t, comparison.b, models)}`}
+          sampleHref={(sampleId) => inspectHref(sampleId, comparison.b.id)}
+          i18n={i18n}
+        />
+      ) : null}
+      {comparable.length > 1 ? (
+        <Card>
+          <CardHeader title={t("compare.title")} />
+          <CardBody>
+            <ComparePicker
+              runs={comparable}
+              label={(run) => variantLabel(t, run, models)}
+              hidden={{ v: String(version.version), tab: "bench" }}
+              reference={comparison?.a.id}
+              candidate={comparison?.b.id}
+              t={t}
+              i18n={i18n}
+            />
+          </CardBody>
+        </Card>
       ) : null}
       {runs.length > 1 ? (
         <Card>
@@ -1091,6 +1295,107 @@ async function modelChoices(state: DocReaderState): Promise<readonly ModelChoice
   }
 }
 
+function VersionActions({
+  version,
+  hasDraft,
+  publishable,
+  actions,
+  t,
+}: Readonly<{
+  version: TypeVersion;
+  hasDraft: boolean;
+  publishable: boolean;
+  actions: Actions;
+  t: DocReaderT;
+}>) {
+  const keys = { typeKey: version.key, version: version.version };
+  return (
+    <>
+      {version.state === "draft" ? (
+        <>
+          <form action={actions.publish}>
+            <Hidden values={keys} />
+            <Button
+              type="submit"
+              disabled={!publishable}
+              title={publishable ? undefined : t("studio.testFirst")}
+            >
+              {t("studio.publish", { version: version.version })}
+            </Button>
+          </form>
+          <form action={actions.deleteDraft}>
+            <Hidden values={keys} />
+            <Button type="submit" variant="danger">
+              {t("studio.deleteDraft")}
+            </Button>
+          </form>
+        </>
+      ) : null}
+      {hasDraft ? null : (
+        <form action={actions.createDraft}>
+          <Hidden values={{ typeKey: version.key, from: version.version }} />
+          <Button type="submit" variant="secondary">
+            {t("studio.newDraft", { version: version.version })}
+          </Button>
+        </form>
+      )}
+    </>
+  );
+}
+
+/** Before a split: a line when the draft needs a test. After: the publish check. */
+function PublishHint({ check, i18n }: Readonly<{ check: PublishCheck | null; i18n: AdminI18n }>) {
+  if (!check) return null;
+  if (check.splitVersion === null) {
+    return check.ok ? null : (
+      <p className="qb:mb-3 qb:text-sm qb:text-fg-muted">{docReaderT(i18n)("studio.needsTest")}</p>
+    );
+  }
+  return (
+    <div className="qb:mb-3">
+      <PublishCheckNotice check={check} i18n={i18n} />
+    </div>
+  );
+}
+
+/** A 1-based page number from the URL. */
+function pageOf(value: string | undefined): number {
+  const n = Math.floor(Number(value ?? "1"));
+  return Number.isFinite(n) && n > 0 ? n : 1;
+}
+
+/** The publish check, the history and the chosen comparison of the studio page. */
+async function benchData(
+  qb: Quickben,
+  ctx: RequestContext,
+  input: {
+    version: TypeVersion;
+    runs: readonly TestRun[];
+    published: readonly VersionSummary[];
+    bench: boolean;
+    ref: string | undefined;
+    cand: string | undefined;
+  },
+) {
+  const { version, runs } = input;
+  const check =
+    version.state === "draft" ? await publishCheck(qb, ctx, version.key, version.version) : null;
+  const history = input.bench
+    ? await Promise.all(input.published.map((v) => getVersion(qb, ctx, version.key, v.version)))
+    : [];
+  // The publish check compares with the published version's runs, so offer those too.
+  const baseline = check?.baseline;
+  const comparable =
+    baseline && !runs.some((run) => run.id === baseline.id) ? [...runs, baseline] : [...runs];
+  const a = comparable.find((run) => run.id === input.ref);
+  const b = comparable.find((run) => run.id === input.cand);
+  const comparison =
+    input.bench && a && b && a.id !== b.id
+      ? { view: await compareTestRuns(qb, ctx, a.id, b.id), a, b }
+      : null;
+  return { check, history, comparable, comparison };
+}
+
 /** One type: its versions, the editor of the chosen one and the test bench. */
 export async function StudioPage({
   config,
@@ -1133,15 +1438,26 @@ export async function StudioPage({
     ? asked
     : (initialVersion(versions) ?? 1);
   const tab = first(searchParams.tab) === "bench" ? "bench" : "definition";
-  const [version, runs, samples, models] = await Promise.all([
+  const [version, runs, samples, models, split] = await Promise.all([
     getVersion(qb, ctx, typeKey, number),
-    listTestRuns(qb, ctx, typeKey, number),
+    listTestRuns(qb, ctx, typeKey, number, 50),
     listSamples(qb, ctx, typeKey),
     modelChoices(state),
+    currentSplit(qb, ctx, typeKey),
   ]);
   const draft = versions.find((v) => v.state === "draft");
-  const publishable = canPublish(version, runs);
-  const keys = { typeKey, version: number };
+  const published = versions.filter((v) => v.state === "published");
+  const { check, history, comparable, comparison } = await benchData(qb, ctx, {
+    version,
+    runs,
+    published,
+    bench: tab === "bench",
+    ref: first(searchParams.ref),
+    cand: first(searchParams.cand),
+  });
+  const publishable = check?.ok === true;
+  const splitParam = first(searchParams.split);
+  const page = pageOf(first(searchParams.page));
   const tabHref = (name: string) =>
     `${basePath}/document-types/${encodeURIComponent(typeKey)}?v=${String(number)}&tab=${name}`;
   const sampleParam = first(searchParams.sample);
@@ -1166,36 +1482,13 @@ export async function StudioPage({
           </>
         }
         actions={
-          <>
-            {version.state === "draft" ? (
-              <>
-                <form action={actions.publish}>
-                  <Hidden values={keys} />
-                  <Button
-                    type="submit"
-                    disabled={!publishable}
-                    title={publishable ? undefined : t("studio.testFirst")}
-                  >
-                    {t("studio.publish", { version: version.version })}
-                  </Button>
-                </form>
-                <form action={actions.deleteDraft}>
-                  <Hidden values={keys} />
-                  <Button type="submit" variant="danger">
-                    {t("studio.deleteDraft")}
-                  </Button>
-                </form>
-              </>
-            ) : null}
-            {draft ? null : (
-              <form action={actions.createDraft}>
-                <Hidden values={{ typeKey, from: number }} />
-                <Button type="submit" variant="secondary">
-                  {t("studio.newDraft", { version: version.version })}
-                </Button>
-              </form>
-            )}
-          </>
+          <VersionActions
+            version={version}
+            hasDraft={draft !== undefined}
+            publishable={publishable}
+            actions={actions}
+            t={t}
+          />
         }
       />
       <nav aria-label={t("studio.versions")} className="qb:mb-3 qb:flex qb:flex-wrap qb:gap-2">
@@ -1232,11 +1525,16 @@ export async function StudioPage({
           {t("studio.bench", { count: samples.length })}
         </ButtonLink>
       </nav>
-      {version.state === "draft" && !publishable ? (
-        <p className="qb:mb-3 qb:text-sm qb:text-fg-muted">{t("studio.needsTest")}</p>
-      ) : null}
+      <PublishHint check={check} i18n={i18n} />
       {tab === "definition" ? (
-        <Editor version={version} state={state} models={models} save={actions.saveDraft} t={t} />
+        <Editor
+          version={version}
+          state={state}
+          models={models}
+          samples={samples}
+          save={actions.saveDraft}
+          t={t}
+        />
       ) : (
         <Bench
           version={version}
@@ -1254,8 +1552,19 @@ export async function StudioPage({
           )}
           actions={actions}
           i18n={i18n}
+          split={split}
+          splitFilter={isSplit(splitParam) ? splitParam : undefined}
+          page={page}
+          comparison={comparison}
+          hasPublished={published.length > 0}
+          comparable={comparable}
         />
       )}
+      {tab === "bench" ? (
+        <div className="qb:mt-5">
+          <HistoryCard versions={history} i18n={i18n} />
+        </div>
+      ) : null}
     </>
   );
 }

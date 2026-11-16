@@ -133,7 +133,11 @@ describe("vision-llm extractor", () => {
   it("calls the provider once and never exposes its error", async () => {
     const { extractor, ctx } = setup(new Error("401 invalid key sk-secret"));
     const result = await extractor.extract(input, invoice, {}, ctx);
-    expect(result).toEqual({ status: "ERROR", fields: {}, problems: { error: PROVIDER_ERROR } });
+    expect(result).toEqual({
+      status: "ERROR",
+      fields: {},
+      problems: { error: PROVIDER_ERROR, transient: true },
+    });
     expect(JSON.stringify(result)).not.toContain("sk-secret");
   });
 
@@ -207,7 +211,7 @@ describe("vision-llm extractor", () => {
       {},
       { ...ctx, signal: new AbortController().signal },
     );
-    expect(result.problems).toEqual({ error: "the model did not answer in time" });
+    expect(result.problems).toEqual({ error: "the model did not answer in time", transient: true });
     expect(generate).toHaveBeenCalledTimes(1);
   });
 });

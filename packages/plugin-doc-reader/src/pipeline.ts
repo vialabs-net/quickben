@@ -14,6 +14,7 @@ import type {
   ExtractionStatus,
   ExtractionUsage,
   Extractor,
+  ExtractorExample,
   ExtractorInput,
   FieldValue,
 } from "./extractor";
@@ -48,6 +49,8 @@ export interface PipelineOptions {
   readonly signal?: AbortSignal;
   readonly extractors: Readonly<Record<string, Extractor>>;
   readonly skip?: SkipHook;
+  /** Few-shot examples passed to every step. */
+  readonly examples?: readonly ExtractorExample[];
   readonly now?: () => number;
 }
 
@@ -93,7 +96,12 @@ const failureRank: Record<ExtractionStatus, number> = {
 
 function errorResult(error: unknown): ExtractionResult {
   const message = error instanceof Error ? error.message : String(error);
-  return { status: "ERROR", fields: {}, problems: { error: message.slice(0, 300) } };
+  // A throw is an outage or a bug, not a reading: a test run may try again.
+  return {
+    status: "ERROR",
+    fields: {},
+    problems: { error: message.slice(0, 300), transient: true },
+  };
 }
 
 /** One step as an attempt. Never throws. */
@@ -121,6 +129,7 @@ async function runStep(
       config: step.config,
       ...(options.jobId === undefined ? {} : { jobId: options.jobId }),
       ...(options.signal === undefined ? {} : { signal: options.signal }),
+      ...(options.examples && options.examples.length > 0 ? { examples: options.examples } : {}),
     });
   } catch (error) {
     result = errorResult(error);
@@ -165,6 +174,17 @@ export async function runPipeline(options: PipelineOptions): Promise<PipelineRes
 
   const missing = pendingFields(type, fields, "required");
   return { status: finalStatus(missing, fields, failure), fields, missing, attempts };
+}
+
+/**
+ * Whether a result failed for a reason outside the document: the provider failed, timed out or
+ * an extractor threw. Test runs try such samples again and count them apart.
+ */
+export function isTransientFailure(result: Pick<PipelineResult, "status" | "attempts">): boolean {
+  return (
+    (result.status === "ERROR" || result.status === "INCOMPLETE") &&
+    result.attempts.some((attempt) => attempt.problems?.transient === true)
+  );
 }
 
 /** Total cost of a run's attempts, rounded to micro-dollars. */

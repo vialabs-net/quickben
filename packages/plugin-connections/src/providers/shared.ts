@@ -45,6 +45,8 @@ export const llmModelSchema = z.object({
   inputPerMTokUsd: price.default(0),
   /** USD per million output tokens. */
   outputPerMTokUsd: price.default(0),
+  /** USD per million cached input tokens. Absent: the input price. */
+  cachedInputPerMTokUsd: price.optional(),
   /** The model used when a caller does not name one. At most one. */
   default: z.boolean().default(false),
 });

@@ -1,9 +1,12 @@
 /** Stored shapes of the plugin's collections, as the plugin reads them. */
-import type { JobState } from "./collections";
+import type { Variant } from "./bench";
+import type { JobState, RunPurpose, Split } from "./collections";
 import type { ExtractionParams } from "./definition";
 import type { ExtractionStatus, FieldValue } from "./extractor";
+import type { RunMetrics, RunSummary, SampleAttributes, SampleResult } from "./metrics";
 import type { PipelineAttempt } from "./pipeline";
-import type { RunSummary, SampleResult, Variant } from "./studio";
+import type { VersionEvaluation } from "./publish";
+import type { SampleAnnotation } from "./studio";
 
 interface System {
   readonly id: string;
@@ -25,6 +28,9 @@ export interface DocTypeRecord extends System {
   readonly updatedBy: string | null;
   readonly publishedBy: string | null;
   readonly publishedAt: string | null;
+  readonly evaluation?: VersionEvaluation | null;
+  readonly exampleSnapshot?:
+    { fileRef: string; mime: string; values: Record<string, string> }[] | null;
 }
 
 export interface SampleRecord extends System {
@@ -37,6 +43,14 @@ export interface SampleRecord extends System {
   readonly params: ExtractionParams;
   readonly note: string | null;
   readonly createdBy: string | null;
+  readonly sampleKey?: string | null;
+  readonly sampleUid?: string | null;
+  readonly fileHash?: string | null;
+  readonly split?: Split | null;
+  readonly splitVersion?: number | null;
+  readonly group?: string | null;
+  readonly attributes?: SampleAttributes | null;
+  readonly annotations?: SampleAnnotation[] | null;
 }
 
 export interface TestRunRecord extends System {
@@ -53,6 +67,18 @@ export interface TestRunRecord extends System {
   readonly costUsd: number;
   readonly createdBy: string | null;
   readonly finishedAt: string | null;
+  readonly definition?: unknown;
+  readonly examplesRevision?: string | null;
+  readonly splits?: Split[] | null;
+  readonly splitVersion?: number | null;
+  readonly heldOut?: boolean | null;
+  readonly purpose?: RunPurpose | null;
+  readonly sampleIds?: string[];
+  readonly total?: number;
+  readonly concurrency?: number;
+  readonly maxCostUsd?: number | null;
+  readonly retries?: number;
+  readonly metrics?: RunMetrics | null;
 }
 
 export interface JobResult {
@@ -101,6 +127,7 @@ export interface UsageRecord extends System {
   readonly model: string;
   readonly inputTokens: number;
   readonly outputTokens: number;
+  readonly cachedInputTokens?: number | null;
   readonly pages: number;
   readonly costUsd: number;
   readonly latencyMs: number | null;

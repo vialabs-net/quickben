@@ -4,7 +4,7 @@ import { getQuickben } from "@quickben/core";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { DOC_USAGE, readDocument } from "../src";
+import { DOC_USAGE, importSamples, listTestRuns, readDocument } from "../src";
 import { docReaderAdmin } from "../src/admin";
 import {
   addSamplesAction,
@@ -19,6 +19,7 @@ import {
   saveDraftAction,
   setBudgetAction,
   setCapAction,
+  splitAction,
   startTestAction,
   tryReadingAction,
   updateSampleAction,
@@ -345,6 +346,107 @@ describe("document types and the studio", () => {
     cleanup();
     await renderPage("document-types", ["missing"]);
     expect(screen.getByRole("heading", { level: 1, name: "Document type not found" })).toBeTruthy();
+  });
+});
+
+describe("datasets on the test bench", () => {
+  it("splits, runs by split, compares runs, checks publishing and keeps a history", async () => {
+    actAs(staff);
+    const qb = await getQuickben(made.config);
+    const admin = { user: staff };
+    await importSamples(
+      qb,
+      admin,
+      "invoice",
+      Array.from({ length: 20 }, (_, index) => ({
+        key: `scan-${String(index)}.png`,
+        file: { bytes: PNG, name: `scan-${String(index)}.png` },
+        expected: { number: "A-1043", total: index % 5 === 0 ? null : "" },
+        group: `g${String(index % 4)}`,
+        attributes: { scanned: index % 2 === 0 },
+      })),
+    );
+    const bench = "/admin/document-types/invoice?v=1&tab=bench";
+    const splitForm = {
+      typeKey: "invoice",
+      version: "1",
+      "ratio.dev": "60",
+      "ratio.validation": "20",
+      "ratio.test": "20",
+      stratifyBy: "group",
+      unseenGroups: "g3",
+      seed: "admin",
+    };
+    expect(await run(splitAction, form(splitForm))).toBe(`${bench}&toast=split-made`);
+    expect(await run(splitAction, form(splitForm))).toBe(`${bench}&error=split-exists`);
+    expect(
+      await run(
+        startTestAction,
+        form({ typeKey: "invoice", version: "1", mode: "version", split: "test" }),
+      ),
+    ).toBe(`${bench}&error=held-out`);
+    await run(
+      startTestAction,
+      form({
+        typeKey: "invoice",
+        version: "1",
+        mode: "version",
+        split: "validation",
+        concurrency: "2",
+        maxCostUsd: "1",
+        retries: "0",
+      }),
+    );
+    await made.runner.idle();
+
+    await run(createDraftAction, form({ typeKey: "invoice", from: "1" }));
+    await renderPage("document-types", ["invoice"], { v: "2" });
+    expect(screen.getByRole("listbox", { name: "Few-shot examples" })).toBeTruthy();
+    const data = formOf(screen.getByRole("button", { name: "Save draft" }));
+    data.set("gate.maxAccuracyDrop", "5");
+    data.set("gate.maxCostIncrease", "20");
+    data.set("fields.2.unscored", "on");
+    await run(saveDraftAction, data);
+    cleanup();
+    await run(
+      startTestAction,
+      form({
+        typeKey: "invoice",
+        version: "2",
+        mode: "version",
+        split: "validation",
+        baseline: "on",
+      }),
+    );
+    await made.runner.idle();
+
+    const runs = await listTestRuns(qb, admin, "invoice", 2);
+    const [baseline] = await listTestRuns(qb, admin, "invoice", 1, 1);
+    await renderPage("document-types", ["invoice"], {
+      v: "2",
+      tab: "bench",
+      ref: baseline!.id,
+      cand: runs[0]!.id,
+      split: "validation",
+    });
+    expect(screen.getByText(/This draft can be published/u)).toBeTruthy();
+    expect(screen.getByRole("table", { name: "Accuracy by field in both runs" })).toBeTruthy();
+    expect(screen.getAllByRole("table", { name: "Accuracy by field" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("table", { name: "Accuracy by Group" }).length).toBeGreaterThan(0);
+    expect(screen.getByRole("navigation", { name: "Filter samples" })).toBeTruthy();
+    expect(screen.getAllByRole("link", { name: "Download CSV" }).length).toBeGreaterThan(0);
+    expect(screen.getByRole("combobox", { name: "Reference" })).toBeTruthy();
+    cleanup();
+
+    expect(await run(publishAction, form({ typeKey: "invoice", version: "2" }))).toBe(
+      "/admin/document-types/invoice?v=2&tab=bench&toast=published",
+    );
+    await made.runner.idle();
+    await renderPage("document-types", ["invoice"], { v: "2", tab: "bench", page: "2" });
+    expect(screen.getByRole("table", { name: "History" })).toBeTruthy();
+    cleanup();
+    await renderPage("document-types", ["invoice"], { v: "2", tab: "bench" }, spanish);
+    expect(screen.getByRole("table", { name: "Histórico" })).toBeTruthy();
   });
 });
 
