@@ -57,7 +57,7 @@ test("edit the models of a connection as rows, in embedded mode", async ({ page 
   await expect(page.getByRole("status").filter({ hasText: "Connection created" })).toBeVisible();
   await expect(page).toHaveURL(/\/embedded\/connections\/[^/?]+/);
   await expect(page.locator(".host-title h1").filter({ visible: true })).toHaveText(connectionName);
-  const editUrl = page.url().replace(/\?.*$/, "");
+  const editUrl = new URL(page.url()).pathname;
 
   // Stored in order, defaults filled.
   const saved = page.getByRole("group", { name: "Models" });
