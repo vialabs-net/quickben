@@ -16,7 +16,7 @@
  * `scored: false` are reported but left out of accuracy. Samples that failed (the provider
  * kept failing) or were skipped (spending limit) are counted apart, never as wrong reads.
  */
-import { isScored } from "./definition";
+import { DEFAULT_EMPTY_VALUES, isScored } from "./definition";
 import { sameFieldValue } from "./field-values";
 
 import type { Split } from "./collections";
@@ -61,6 +61,7 @@ export type SampleAttributes = Readonly<Record<string, string | number | boolean
 
 export interface SampleResult {
   readonly sampleId: string;
+  readonly sampleRevision?: string;
   readonly fileName: string;
   readonly status: ExtractionStatus;
   /** Time of the pipeline run that counted (the last try). */
@@ -272,7 +273,9 @@ function slices(
   for (const result of results) {
     const value = key(result);
     if (value === null) continue;
-    groups.set(value, [...(groups.get(value) ?? []), result]);
+    const group = groups.get(value) ?? [];
+    group.push(result);
+    groups.set(value, group);
   }
   return [...groups.entries()]
     .map(([value, group]) => ({
@@ -431,7 +434,7 @@ const delta = (a: number | null, b: number | null) => (a === null || b === null 
  * published version), `B` the candidate.
  */
 export function compareResults(
-  type: Pick<DocumentType, "fields">,
+  type: Pick<DocumentType, "fields"> & Partial<Pick<DocumentType, "evaluation">>,
   a: readonly SampleResult[],
   b: readonly SampleResult[],
 ): RunComparison {
@@ -440,13 +443,36 @@ export function compareResults(
     const other = isScoredResult(result) ? inB.get(result.sampleId) : undefined;
     return other ? [[result, other] as const] : [];
   });
-  const left = pairs.map(([x]) => x);
-  const right = pairs.map(([, y]) => y);
+  const common = (result: SampleResult, other: SampleResult): SampleResult => ({
+    ...result,
+    fields: type.fields.flatMap((field) => {
+      const check = result.fields.find((c) => c.key === field.key);
+      const peer = other.fields.find((c) => c.key === field.key);
+      if (!check || !peer) return [];
+      const outcome = fieldOutcome(
+        field,
+        check.expected,
+        check.read,
+        type.evaluation?.emptyValues ?? DEFAULT_EMPTY_VALUES,
+      );
+      return [
+        {
+          ...check,
+          scored: isScored(field),
+          outcome,
+          match: outcome === null ? null : isRight(outcome),
+        },
+      ];
+    }),
+  });
+  const scoredPairs = pairs.map(([x, y]) => [common(x, y), common(y, x)] as const);
+  const left = scoredPairs.map(([x]) => x);
+  const right = scoredPairs.map(([, y]) => y);
   const ma = runMetrics(type, left);
   const mb = runMetrics(type, right);
   const worse: CaseChange[] = [];
   const better: CaseChange[] = [];
-  for (const [x, y] of pairs) {
+  for (const [x, y] of scoredPairs) {
     const checksB = new Map(y.fields.map((check) => [check.key, check]));
     for (const checkA of x.fields) {
       const checkB = checksB.get(checkA.key);

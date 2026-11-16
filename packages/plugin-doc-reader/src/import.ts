@@ -6,6 +6,7 @@
 import { ValidationError } from "@quickben/core";
 
 import { DOC_SAMPLES, DOC_TYPES } from "./collections";
+import { datasetWrite } from "./eval-state";
 import { getDocReader } from "./options";
 import { parseParams, readUpload, storageRef } from "./readings";
 import { splitFieldsFor } from "./splits";
@@ -183,7 +184,7 @@ function sampleData(
   };
 }
 
-async function importOne(
+async function importOneUnlocked(
   qb: Quickben,
   ctx: RequestContext,
   type: DocumentType,
@@ -247,4 +248,15 @@ async function importOne(
   await qb.update(DOC_SAMPLES, existing.id, changes, ctx);
   if (newFile) await state.files.delete(existing.fileRef).catch(() => undefined);
   return "updated";
+}
+
+async function importOne(
+  qb: Quickben,
+  ctx: RequestContext,
+  type: DocumentType,
+  item: ImportItem,
+  options: ImportOptions,
+  unknown: Set<string>,
+): Promise<Exclude<ImportOutcome, "failed">> {
+  return datasetWrite(qb, type.key, () => importOneUnlocked(qb, ctx, type, item, options, unknown));
 }

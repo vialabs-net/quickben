@@ -5,7 +5,7 @@
  * await importSamples(qb, ctx, "receipt", loadManifest("data/manifest.jsonl"), { map });
  * ```
  */
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, realpath } from "node:fs/promises";
 import { basename, dirname, extname, join, relative, resolve, sep } from "node:path";
 
 import type { ExtractionParams } from "./definition";
@@ -57,8 +57,11 @@ export async function readManifest(path: string): Promise<ManifestEntry[]> {
 }
 
 /** A path inside `root`, or an error: a manifest cannot reach files outside its folder. */
-function inside(root: string, path: string): string {
-  const full = resolve(root, path);
+async function inside(root: string, path: string): Promise<string> {
+  const lexical = resolve(root, path);
+  if (lexical !== root && !lexical.startsWith(root + sep))
+    throw new Error(`${path} is outside ${root}`);
+  const full = await realpath(lexical);
   if (full !== root && !full.startsWith(root + sep)) {
     throw new Error(`${path} is outside ${root}`);
   }
@@ -67,9 +70,9 @@ function inside(root: string, path: string): string {
 
 /** Import items from a manifest. Files are read one at a time, as the import asks for them. */
 export async function* loadManifest(path: string): AsyncGenerator<ImportItem> {
-  const root = dirname(resolve(path));
+  const root = await realpath(dirname(resolve(path)));
   for (const entry of await readManifest(path)) {
-    const full = inside(root, entry.file);
+    const full = await inside(root, entry.file);
     yield {
       key: entry.key ?? entry.file.split(sep).join("/"),
       file: { bytes: new Uint8Array(await readFile(full)), name: basename(full) },
@@ -94,10 +97,10 @@ async function documentsIn(dir: string): Promise<string[]> {
 }
 
 /** The JSON next to a document, or `undefined` when there is none. */
-async function readSidecar(path: string): Promise<unknown> {
+async function readSidecar(root: string, path: string): Promise<unknown> {
   const sidecar = path.slice(0, -extname(path).length) + ".json";
   try {
-    return JSON.parse(await readFile(sidecar, "utf8")) as unknown;
+    return JSON.parse(await readFile(await inside(root, sidecar), "utf8")) as unknown;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
     throw new Error(`${sidecar}: not JSON`, { cause: error });
@@ -123,12 +126,15 @@ function sidecarFields(meta: unknown): Omit<ImportItem, "key" | "file"> {
  * key is the file's path relative to the folder.
  */
 export async function* loadFolder(dir: string): AsyncGenerator<ImportItem> {
-  const root = resolve(dir);
+  const root = await realpath(dir);
   for (const path of await documentsIn(root)) {
     yield {
       key: relative(root, path).split(sep).join("/"),
-      file: { bytes: new Uint8Array(await readFile(path)), name: basename(path) },
-      ...sidecarFields(await readSidecar(path)),
+      file: {
+        bytes: new Uint8Array(await readFile(await inside(root, path))),
+        name: basename(path),
+      },
+      ...sidecarFields(await readSidecar(root, path)),
     };
   }
 }

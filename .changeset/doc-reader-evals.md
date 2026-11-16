@@ -15,9 +15,11 @@ Doc reader: evaluate document types on datasets of hundreds or thousands of samp
 
 **Migration**
 
-- New collections `doc-splits` and `doc-test-results`, and new fields on `doc-samples`, `doc-test-runs`, `doc-types` and `doc-usage`. With `@quickben/db-drizzle`, regenerate the schema and migrate.
+- New collections `doc-splits`, `doc-test-results` and `doc-eval-claims`, and new fields on `doc-samples`, `doc-test-runs`, `doc-types` and `doc-usage`. With `@quickben/db-drizzle`, regenerate the schema and migrate.
 - Test runs now read their samples through the runner. With `bullmqRunner`, a worker process must be running for test runs to progress, as for readings.
 - `Variant.connectionId` is optional and `Variant.version` is new. Code that reads `run.variant.connectionId` must handle `undefined`.
 - `summarize` returns more keys; `FieldCheck` and `SampleResult` have new optional keys.
 - A vision-LLM provider error or timeout now has `problems.transient: true`.
 - Types that are not split publish as before.
+
+- Evaluations claim each sample before calling providers, so repeated queue delivery cannot bill it twice. Dataset changes and publication share durable locks. If a process crashes while holding a dataset lock, confirm it has stopped before deleting that `dataset:<type>` claim through the trusted local API; item claims must never be cleared to retry uncertain provider calls. Interrupted runs should be replaced with a new run. Published examples use private file copies and their source samples must remain in dev on resplit.

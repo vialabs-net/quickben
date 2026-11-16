@@ -29,6 +29,8 @@ export interface DocTypeRecord extends System {
   readonly publishedBy: string | null;
   readonly publishedAt: string | null;
   readonly evaluation?: VersionEvaluation | null;
+  readonly exampleSnapshot?:
+    { fileRef: string; mime: string; values: Record<string, string> }[] | null;
 }
 
 export interface SampleRecord extends System {
@@ -66,6 +68,7 @@ export interface TestRunRecord extends System {
   readonly createdBy: string | null;
   readonly finishedAt: string | null;
   readonly definition?: unknown;
+  readonly examplesRevision?: string | null;
   readonly splits?: Split[] | null;
   readonly splitVersion?: number | null;
   readonly heldOut?: boolean | null;

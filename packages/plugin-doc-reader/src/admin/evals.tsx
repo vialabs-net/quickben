@@ -743,12 +743,14 @@ export function ExamplesPicker({
       defaultValue={[...chosen]}
       className="qb:w-full"
     >
-      {dev.slice(0, 500).map((sample) => (
-        <option key={sample.id} value={sample.id}>
-          {sample.key ?? sample.fileName}
-          {sample.group ? ` · ${sample.group}` : ""}
-        </option>
-      ))}
+      {dev
+        .filter((sample, index) => index < 500 || chosen.includes(sample.id))
+        .map((sample) => (
+          <option key={sample.id} value={sample.id}>
+            {sample.key ?? sample.fileName}
+            {sample.group ? ` · ${sample.group}` : ""}
+          </option>
+        ))}
     </Select>
   );
 }

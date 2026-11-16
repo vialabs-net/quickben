@@ -4,14 +4,15 @@
  */
 import { ValidationError } from "@quickben/core";
 
-import { DOC_SAMPLES } from "./collections";
+import { DOC_SAMPLES, DOC_TYPES } from "./collections";
+import { sampleRevision } from "./eval-state";
 import { isEmptyValue } from "./metrics";
 import { getDocReader } from "./options";
-import { findAll, SYSTEM } from "./store";
+import { findAll, SYSTEM, versionKey } from "./store";
 
 import type { DocumentType, FewShotExample } from "./definition";
 import type { ExtractorExample } from "./extractor";
-import type { SampleRecord } from "./records";
+import type { DocTypeRecord, SampleRecord } from "./records";
 import type { Quickben, RequestContext } from "@quickben/core";
 
 async function exampleRecords(
@@ -60,6 +61,21 @@ export async function checkExamples(
 export async function loadExamples(qb: Quickben, type: DocumentType): Promise<ExtractorExample[]> {
   if (type.examples.length === 0) return [];
   const state = getDocReader(qb);
+  const page = await qb.find(
+    DOC_TYPES,
+    { where: { versionKey: { eq: versionKey(type.key, type.version) } }, limit: 1 },
+    SYSTEM,
+  );
+  const stored = page.docs[0] as unknown as DocTypeRecord | undefined;
+  if (stored?.exampleSnapshot) {
+    return Promise.all(
+      stored.exampleSnapshot.map(async (example) => {
+        const bytes = await state.files.getBytes(example.fileRef);
+        if (!bytes) throw new Error("Published example file missing");
+        return { bytes, mime: example.mime, values: example.values };
+      }),
+    );
+  }
   const records = new Map(
     (await exampleRecords(qb, SYSTEM, type.examples)).map((record) => [record.id, record]),
   );
@@ -77,4 +93,26 @@ export async function loadExamples(qb: Quickben, type: DocumentType): Promise<Ex
     out.push({ bytes, mime: record.mime, values });
   }
   return out;
+}
+
+/** Exact mutable examples used by a validation run. */
+export async function examplesRevision(qb: Quickben, type: DocumentType): Promise<string> {
+  const records = await exampleRecords(qb, SYSTEM, type.examples);
+  return JSON.stringify(
+    records
+      .map((record) => [record.id, sampleRevision(record)])
+      .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+  );
+}
+
+/** Private file copies survive updates and deletion of the original samples. */
+export async function freezeExamples(qb: Quickben, type: DocumentType) {
+  const state = getDocReader(qb);
+  return Promise.all(
+    (await loadExamples(qb, type)).map(async (example) => {
+      const fileRef = `examples/${type.key}/${globalThis.crypto.randomUUID()}`;
+      await state.files.put(fileRef, example.bytes, { contentType: example.mime });
+      return { fileRef, mime: example.mime, values: example.values };
+    }),
+  );
 }

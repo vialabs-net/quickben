@@ -11,6 +11,20 @@ export const DOC_USAGE = "doc-usage";
 export const DOC_QUOTAS = "doc-quotas";
 export const DOC_SPLITS = "doc-splits";
 export const DOC_TEST_RESULTS = "doc-test-results";
+export const DOC_EVAL_CLAIMS = "doc-eval-claims";
+
+/** Durable unique claims shared by queue workers and dataset writers. */
+export function docEvalClaimsCollection() {
+  return defineCollection({
+    slug: DOC_EVAL_CLAIMS,
+    fields: {
+      key: f.text({ required: true, unique: true, maxLength: 200 }),
+      sampleId: f.text({ maxLength: 64 }),
+    },
+    access: { read: () => false, create: () => false, update: () => false, delete: () => false },
+    admin: { hidden: true },
+  });
+}
 
 /**
  * Sample splits. `dev`: tune prompts and pick few-shot examples. `validation`: decide whether a
@@ -64,6 +78,7 @@ export function docTypesCollection(isStaff: IsStaff) {
       publishedAt: f.datetime(),
       /** Test runs of the publication: validation, test and unseen, with their summaries. */
       evaluation: f.json(),
+      exampleSnapshot: f.json(),
     },
     access: staffOnly(isStaff),
     admin: { useAsTitle: "versionKey", ...hidden },
@@ -178,6 +193,7 @@ export function docTestRunsCollection(isStaff: IsStaff) {
       finishedAt: f.datetime(),
       /** The definition the run reads with, so saving the draft mid-run changes nothing. */
       definition: f.json(),
+      examplesRevision: f.text({ maxLength: 100000 }),
       /** Splits the samples were taken from; `null`: every sample. */
       splits: f.json(),
       splitVersion: f.number({ integer: true, min: 0 }),

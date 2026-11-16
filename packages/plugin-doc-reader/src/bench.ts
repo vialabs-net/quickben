@@ -15,6 +15,7 @@ import { NotFoundError, ValidationError } from "@quickben/core";
 import { z } from "zod";
 
 import {
+  DOC_EVAL_CLAIMS,
   DOC_SAMPLES,
   DOC_TEST_RESULTS,
   DOC_TEST_RUNS,
@@ -23,7 +24,8 @@ import {
   SPLITS,
 } from "./collections";
 import { StudioError } from "./errors";
-import { loadExamples } from "./examples";
+import { claim, sampleRevision } from "./eval-state";
+import { examplesRevision, loadExamples } from "./examples";
 import { locateEvidence } from "./extractors/text-layer";
 import { VISION_LLM } from "./extractors/vision-llm";
 import { checkFields, compareResults, resultsToCsv, runMetrics, summarize } from "./metrics";
@@ -84,6 +86,7 @@ export interface TestRun {
   readonly typeKey: string;
   readonly typeVersion: number;
   readonly typeRevision: string;
+  readonly examplesRevision?: string | null;
   readonly compareGroup: string | null;
   readonly variant: Variant | null;
   readonly state: "running" | "done" | "failed";
@@ -112,6 +115,7 @@ export const toRun = (record: TestRunRecord): TestRun => ({
   typeKey: record.typeKey,
   typeVersion: record.typeVersion,
   typeRevision: record.typeRevision,
+  examplesRevision: record.examplesRevision ?? null,
   compareGroup: record.compareGroup,
   variant: record.variant,
   state: record.state,
@@ -282,29 +286,40 @@ async function launch(
     options.concurrency ?? DEFAULT_CONCURRENCY,
     selection.samples.length,
   );
-  const created = (await qb.create(
-    DOC_TEST_RUNS,
-    {
-      typeKey: run.record.key,
-      typeVersion: run.record.version,
-      typeRevision: run.record.revision,
-      compareGroup: run.compareGroup,
-      variant: run.variant,
-      pipeline,
-      definition: { ...type, pipeline },
-      splits: selection.splits,
-      splitVersion: selection.splitVersion,
-      heldOut: selection.heldOut,
-      purpose: run.purpose,
-      sampleIds: selection.samples.map((sample) => sample.id),
-      total: selection.samples.length,
-      concurrency,
-      maxCostUsd: options.maxCostUsd ?? null,
-      retries: options.retries ?? 1,
-      createdBy: actorOf(ctx),
-    },
-    ctx,
-  )) as unknown as TestRunRecord;
+  const created = await qb.transaction(async (tx) => {
+    const created = (await tx.create(
+      DOC_TEST_RUNS,
+      {
+        typeKey: run.record.key,
+        typeVersion: run.record.version,
+        typeRevision: run.record.revision,
+        examplesRevision: await examplesRevision(qb, type),
+        compareGroup: run.compareGroup,
+        variant: run.variant,
+        pipeline,
+        definition: { ...type, pipeline },
+        splits: selection.splits,
+        splitVersion: selection.splitVersion,
+        heldOut: selection.heldOut,
+        purpose: run.purpose,
+
+        total: selection.samples.length,
+        concurrency,
+        maxCostUsd: options.maxCostUsd ?? null,
+        retries: options.retries ?? 1,
+        createdBy: actorOf(ctx),
+      },
+      ctx,
+    )) as unknown as TestRunRecord;
+    for (const [index, sample] of selection.samples.entries()) {
+      await tx.create(
+        DOC_EVAL_CLAIMS,
+        { key: `sample:${created.id}:${String(index)}`, sampleId: sample.id },
+        SYSTEM,
+      );
+    }
+    return created;
+  });
   if (selection.heldOut) {
     state.log("held-out-run", {
       runId: created.id,
@@ -463,6 +478,7 @@ async function tryPipeline(
 function sampleBase(sample: SampleRecord) {
   return {
     sampleId: sample.id,
+    sampleRevision: sampleRevision(sample),
     fileName: sample.fileName,
     sampleKey: sample.sampleKey ?? null,
     split: sample.split ?? null,
@@ -616,10 +632,16 @@ async function processItem(
   run: TestRunRecord,
   type: DocumentType,
   index: number,
-): Promise<void> {
+): Promise<boolean> {
   const state = getDocReader(qb);
-  const sampleId = run.sampleIds?.[index];
-  if (sampleId === undefined || (await hasResult(qb, run.id, index))) return;
+  const item = await qb.find(
+    DOC_EVAL_CLAIMS,
+    { where: { key: { eq: `sample:${run.id}:${String(index)}` } }, limit: 1 },
+    SYSTEM,
+  );
+  const sampleId = item.docs[0]?.sampleId as string | undefined;
+  if (sampleId === undefined || (await hasResult(qb, run.id, index))) return true;
+  if (!(await claim(qb, `item:${run.id}:${String(index)}`))) return false;
   const sample = (await qb
     .findById(DOC_SAMPLES, sampleId, {}, SYSTEM)
     .catch(() => null)) as unknown as SampleRecord | null;
@@ -634,7 +656,7 @@ async function processItem(
       error: "sample removed",
       failed: true,
     });
-    return;
+    return true;
   }
   const heldOut = isHeldOut(sample) && run.heldOut !== true;
   const limit = run.maxCostUsd ?? null;
@@ -647,7 +669,7 @@ async function processItem(
       fields: checkFields(type, sample.expected, { fields: {} }),
       skipped: heldOut ? "held-out" : "budget",
     });
-    return;
+    return true;
   }
   let result: SampleResult;
   try {
@@ -666,11 +688,31 @@ async function processItem(
     };
   }
   await writeResult(qb, run, index, sampleId, result);
+  return true;
 }
 
 /** Write the summary, metrics and results once every sample has a row. */
 export async function finishRun(qb: Quickben, runId: string): Promise<void> {
-  const run = (await qb.findById(DOC_TEST_RUNS, runId, {}, SYSTEM)) as unknown as TestRunRecord;
+  const run = (await qb.findById(
+    DOC_TEST_RUNS,
+    runId,
+    {
+      select: [
+        "typeKey",
+        "typeVersion",
+        "definition",
+        "pipeline",
+        "state",
+        "total",
+        "concurrency",
+        "maxCostUsd",
+        "retries",
+        "heldOut",
+        "createdAt",
+      ],
+    },
+    SYSTEM,
+  )) as unknown as TestRunRecord;
   const total = run.total ?? 0;
   if (run.state !== "running") return;
   if ((await qb.count(DOC_TEST_RESULTS, { where: { run: { eq: runId } } }, SYSTEM)) < total) {
@@ -710,12 +752,31 @@ export async function processTestRunItem(qb: Quickben, jobId: string, n: number)
   const runId = jobId.slice(TEST_RUN_JOB.length);
   try {
     const run = (await qb
-      .findById(DOC_TEST_RUNS, runId, {}, SYSTEM)
+      .findById(
+        DOC_TEST_RUNS,
+        runId,
+        {
+          select: [
+            "typeKey",
+            "typeVersion",
+            "definition",
+            "pipeline",
+            "state",
+            "total",
+            "concurrency",
+            "maxCostUsd",
+            "retries",
+            "heldOut",
+            "createdAt",
+          ],
+        },
+        SYSTEM,
+      )
       .catch(() => null)) as unknown as TestRunRecord | null;
     if (run?.state !== "running" || !Number.isSafeInteger(n) || n < 1) return;
     const index = n - 1;
     const type = await runType(qb, run);
-    await processItem(qb, run, type, index);
+    if (!(await processItem(qb, run, type, index))) return;
     const next = n + (run.concurrency ?? 1);
     if (next <= (run.total ?? 0)) await state.runner.enqueue(jobId, next);
     await finishRun(qb, runId);

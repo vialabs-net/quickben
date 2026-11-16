@@ -18,6 +18,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { StudioError } from "../src";
 import { docReaderMessages } from "../src/admin";
 import { AutoRefresh } from "../src/admin/client";
+import { ExamplesPicker } from "../src/admin/evals";
 import {
   describeIssue,
   errorCode,
@@ -32,6 +33,7 @@ import {
   paramsFromForm,
   variantFromForm,
 } from "../src/admin/forms";
+import { SampleInspector } from "../src/admin/inspector";
 import { docReaderT, stateLabel, statusLabel } from "../src/admin/messages";
 import {
   formatCount,
@@ -43,6 +45,9 @@ import {
 } from "../src/admin/shared";
 
 import { invoice } from "./helpers";
+
+import type { Sample } from "../src";
+import type { InspectField } from "../src/admin/inspector";
 
 afterEach(() => {
   cleanup();
@@ -309,5 +314,59 @@ describe("styles", () => {
     const escape = (name: string) => name.replaceAll(/[:./[\]()%,]/gu, (ch) => `\\${ch}`);
     const missing = [...used].filter((name) => !css.includes(`.${escape(name)}`));
     expect(missing).toEqual([]);
+  });
+});
+
+describe("evaluation editor regressions", () => {
+  it("retains selected examples beyond the first 500 options", () => {
+    const samples = Array.from(
+      { length: 501 },
+      (_, index) =>
+        ({
+          id: String(index),
+          split: "dev",
+          fileName: String(index),
+          key: null,
+          group: null,
+        }) as Sample,
+    );
+    const view = render(<ExamplesPicker samples={samples} chosen={["500"]} t={t} />);
+    const select = view.container.querySelector<HTMLSelectElement>('select[name="examples"]')!;
+    expect([...select.selectedOptions].map((option) => option.value)).toEqual(["500"]);
+  });
+
+  it("resets a correction when the run changes for the same sample and field", () => {
+    const field: InspectField = {
+      key: "code",
+      label: "Code",
+      scored: true,
+      expected: "expected",
+      read: "A",
+      confidence: 1,
+      status: "wrong",
+      low: false,
+      evidence: null,
+      step: null,
+    };
+    const props = {
+      list: null,
+      pages: [],
+      fallback: null,
+      fields: [field],
+      hidden: { sampleId: "sample", back: "/sample?run=1" },
+      correct: () => Promise.resolve(),
+      annotate: () => Promise.resolve(),
+    };
+    const view = render(<SampleInspector {...props} />);
+    const input = () => view.container.querySelector<HTMLInputElement>('input[name="value"]')!;
+    input().value = "edited in first run";
+    view.rerender(
+      <SampleInspector
+        {...props}
+        hidden={{ ...props.hidden, back: "/sample?run=2" }}
+        fields={[{ ...field, read: "B" }]}
+      />,
+    );
+    expect(input().value).toBe("B");
   });
 });

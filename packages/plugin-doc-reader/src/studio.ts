@@ -15,7 +15,8 @@ import { startTestRunSchema } from "./bench";
 import { DOC_SAMPLES, DOC_TYPES } from "./collections";
 import { documentTypeSchema, parseDocumentType, TYPE_KEY } from "./definition";
 import { StudioError } from "./errors";
-import { checkExamples } from "./examples";
+import { datasetWrite } from "./eval-state";
+import { checkExamples, freezeExamples } from "./examples";
 import { VISION_LLM } from "./extractors/vision-llm";
 import { getDocReader } from "./options";
 import {
@@ -353,6 +354,16 @@ export async function publishDraft(
   version: number,
   options: PublishOptions = {},
 ): Promise<TypeVersion> {
+  return datasetWrite(qb, key, () => publishDraftUnlocked(qb, ctx, key, version, options));
+}
+
+async function publishDraftUnlocked(
+  qb: Quickben,
+  ctx: RequestContext,
+  key: string,
+  version: number,
+  options: PublishOptions = {},
+): Promise<TypeVersion> {
   const parsed = startTestRunSchema.safeParse(options);
   if (!parsed.success) throw new ValidationError(zodIssues(parsed.error));
   const record = await versionRecord(qb, ctx, key, version);
@@ -366,6 +377,7 @@ export async function publishDraft(
   assertPublishable(check);
   await checkExamplesForPublish(qb, ctx, record, check);
   const evaluation = check.splitVersion === null ? null : initialEvaluation(check);
+  const exampleSnapshot = await freezeExamples(qb, toDefinition(record));
   const published = (await qb.transaction(async (tx) => {
     const current = (await tx.findById(DOC_TYPES, record.id, {}, ctx)) as unknown as DocTypeRecord;
     if (current.state !== "draft" || current.revision !== record.revision) {
@@ -376,6 +388,7 @@ export async function publishDraft(
       record.id,
       {
         state: "published",
+        exampleSnapshot,
         draftKey: null,
         publishedAt: new Date().toISOString(),
         publishedBy: actorOf(ctx),
@@ -519,6 +532,15 @@ export async function addSample(
   typeKey: string,
   input: SampleInput,
 ): Promise<Sample> {
+  return datasetWrite(qb, typeKey, () => addSampleUnlocked(qb, ctx, typeKey, input));
+}
+
+async function addSampleUnlocked(
+  qb: Quickben,
+  ctx: RequestContext,
+  typeKey: string,
+  input: SampleInput,
+): Promise<Sample> {
   const state = getDocReader(qb);
   await listVersions(qb, ctx, typeKey);
   const upload = await readUpload(state, input.file);
@@ -565,10 +587,26 @@ export async function updateSample(
     attributes?: SampleAttributes;
   },
 ): Promise<Sample> {
+  const sample = (await qb.findById(DOC_SAMPLES, id, {}, ctx)) as unknown as SampleRecord;
+  return datasetWrite(qb, sample.typeKey, () => updateSampleUnlocked(qb, ctx, id, input));
+}
+
+async function updateSampleUnlocked(
+  qb: Quickben,
+  ctx: RequestContext,
+  id: string,
+  input: {
+    expected?: Record<string, string>;
+    params?: ExtractionParams;
+    note?: string | null;
+    group?: string | null;
+    attributes?: SampleAttributes;
+  },
+): Promise<Sample> {
   const data: Record<string, unknown> = {};
   if (input.group !== undefined) data.group = groupOf(input.group);
   if (input.attributes !== undefined) data.attributes = parseAttributes(input.attributes);
-  if (input.expected !== undefined) data.expected = parseExpected(input.expected);
+  if (input.expected !== undefined) data.expected = parseExpected(input.expected, true);
   if (input.params !== undefined) data.params = parseParams(input.params);
   if (input.note !== undefined) data.note = noteOf(input.note);
   return toSample((await qb.update(DOC_SAMPLES, id, data, ctx)) as unknown as SampleRecord);
@@ -621,6 +659,11 @@ export async function listAnnotations(
 
 /** Remove a sample and its file. */
 export async function removeSample(qb: Quickben, ctx: RequestContext, id: string): Promise<void> {
+  const sample = (await qb.findById(DOC_SAMPLES, id, {}, ctx)) as unknown as SampleRecord;
+  return datasetWrite(qb, sample.typeKey, () => removeSampleUnlocked(qb, ctx, id));
+}
+
+async function removeSampleUnlocked(qb: Quickben, ctx: RequestContext, id: string): Promise<void> {
   const record = (await qb.delete(DOC_SAMPLES, id, ctx)) as unknown as SampleRecord;
   await getDocReader(qb)
     .files.delete(record.fileRef)

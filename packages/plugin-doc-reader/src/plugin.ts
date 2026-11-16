@@ -2,6 +2,7 @@ import { definePlugin } from "@quickben/core";
 
 import { processTestRunItem, TEST_RUN_JOB } from "./bench";
 import {
+  docEvalClaimsCollection,
   docJobsCollection,
   docQuotasCollection,
   docSamplesCollection,
@@ -30,6 +31,7 @@ import type { Plugin } from "@quickben/core";
 
 /** The plugin returned by {@link docReader}. */
 export type DocReaderPlugin = Plugin<
+  | ReturnType<typeof docEvalClaimsCollection>
   | DocTypesCollection
   | DocSamplesCollection
   | DocTestRunsCollection
@@ -53,6 +55,7 @@ export function docReader(options: DocReaderOptions = {}): DocReaderPlugin {
   return definePlugin({
     name: "doc-reader",
     collections: [
+      docEvalClaimsCollection(),
       docTypesCollection(state.isStaff),
       docSamplesCollection(state.isStaff),
       docTestRunsCollection(state.isStaff),

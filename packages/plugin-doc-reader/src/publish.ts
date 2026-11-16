@@ -15,7 +15,8 @@
 import { listTestRuns, startRuns, TEST_RUN_JOB } from "./bench";
 import { DOC_SAMPLES, DOC_TYPES } from "./collections";
 import { StudioError } from "./errors";
-import { checkExamples } from "./examples";
+import { sampleRevision } from "./eval-state";
+import { checkExamples, examplesRevision } from "./examples";
 import { compareResults, runMetrics, summarize } from "./metrics";
 import { getDocReader } from "./options";
 import { currentSplit } from "./splits";
@@ -25,7 +26,7 @@ import type { TestRun } from "./bench";
 import type { PublishGate } from "./definition";
 import type { StudioRule } from "./errors";
 import type { RunComparison, RunSummary, SampleResult } from "./metrics";
-import type { DocTypeRecord } from "./records";
+import type { DocTypeRecord, SampleRecord } from "./records";
 import type { Quickben, RequestContext } from "@quickben/core";
 
 export interface PublishCheck {
@@ -79,19 +80,19 @@ export function canPublish(
 const onValidation = (results: readonly SampleResult[]) =>
   results.filter((result) => result.split === "validation");
 
-const readValidation = (run: TestRun, splitVersion: number, sampleIds: readonly string[]) => {
+const readValidation = (run: TestRun, splitVersion: number, samples: readonly SampleRecord[]) => {
   const readIds = new Set(
     run.results
       .filter((result) => result.split === "validation" && result.skipped === undefined)
-      .map((result) => result.sampleId),
+      .map((result) => `${result.sampleId}:${result.sampleRevision ?? ""}`),
   );
   return (
     run.state === "done" &&
     run.variant === null &&
     run.splitVersion === splitVersion &&
     (run.splits?.includes("validation") ?? false) &&
-    sampleIds.length > 0 &&
-    sampleIds.every((id) => readIds.has(id))
+    samples.length > 0 &&
+    samples.every((sample) => readIds.has(`${sample.id}:${sampleRevision(sample)}`))
   );
 };
 
@@ -176,20 +177,22 @@ export async function checkPublish(
     return run ? { ...refused("not-tested"), ok: true, rule: null, run } : refused("not-tested");
   }
   const splitVersion = split.version;
-  const validation = await findAll<{ id: string }>(
+  const validation = await findAll<SampleRecord>(
     qb,
     DOC_SAMPLES,
     { typeKey: { eq: record.key }, split: { eq: "validation" } },
     ctx,
-    { select: ["id"] },
+    {},
   );
-  const sampleIds = validation.map((sample) => sample.id);
+
   const type = toDefinition(record);
+  const revision = await examplesRevision(qb, type);
   const run =
     runs.find(
       (r) =>
-        readValidation(r, splitVersion, sampleIds) &&
+        readValidation(r, splitVersion, validation) &&
         runMetrics(type, onValidation(r.results)).global.checked > 0 &&
+        r.examplesRevision === revision &&
         r.typeRevision === record.revision &&
         r.createdAt >= record.updatedAt,
     ) ?? null;
@@ -200,7 +203,7 @@ export async function checkPublish(
   const baseline =
     baseRuns.find(
       (r) =>
-        readValidation(r, splitVersion, sampleIds) &&
+        readValidation(r, splitVersion, validation) &&
         runMetrics(type, onValidation(r.results)).global.checked > 0,
     ) ?? null;
   if (!baseline) {
@@ -268,7 +271,7 @@ export function initialEvaluation(check: PublishCheck): VersionEvaluation {
       check.baseline && check.baselineVersion !== null
         ? {
             runId: check.baseline.id,
-            summary: check.baseline.summary,
+            summary: summaryOf(check.baseline)?.summary ?? null,
             version: check.baselineVersion,
           }
         : null,
@@ -292,6 +295,12 @@ async function publicationRun(
   split: "test" | "unseen",
   options: PublishOptions,
 ): Promise<TestRun | undefined> {
+  if ((await currentSplit(qb, ctx, record.key))?.version !== splitVersion) {
+    throw new StudioError(
+      "changed",
+      "The split changed; held-out runs cannot use a different dataset",
+    );
+  }
   const previous = (await listTestRuns(qb, ctx, record.key, record.version, 200)).find(
     (run) =>
       run.purpose === "publish" &&

@@ -182,7 +182,7 @@ export async function runPipeline(options: PipelineOptions): Promise<PipelineRes
  */
 export function isTransientFailure(result: Pick<PipelineResult, "status" | "attempts">): boolean {
   return (
-    result.status === "ERROR" &&
+    (result.status === "ERROR" || result.status === "INCOMPLETE") &&
     result.attempts.some((attempt) => attempt.problems?.transient === true)
   );
 }

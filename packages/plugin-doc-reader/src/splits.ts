@@ -11,12 +11,13 @@
 import { ValidationError } from "@quickben/core";
 import { z } from "zod";
 
-import { DOC_SAMPLES, DOC_SPLITS, SPLITS } from "./collections";
+import { DOC_SAMPLES, DOC_SPLITS, SPLITS, DOC_TYPES } from "./collections";
 import { StudioError } from "./errors";
-import { findAll, SYSTEM } from "./store";
+import { datasetWrite } from "./eval-state";
+import { toDefinition, findAll, SYSTEM } from "./store";
 
 import type { Split } from "./collections";
-import type { SampleRecord } from "./records";
+import type { DocTypeRecord, SampleRecord } from "./records";
 import type { Quickben, RequestContext } from "@quickben/core";
 
 export interface SplitRatios {
@@ -151,7 +152,9 @@ export function assignSplits(
       continue;
     }
     const stratum = stratumOf(subject, settings.stratifyBy);
-    strata.set(stratum, [...(strata.get(stratum) ?? []), subject]);
+    const group = strata.get(stratum) ?? [];
+    group.push(subject);
+    strata.set(stratum, group);
   }
   const ratios = normalized(settings.ratios);
   const counts = { dev: 0, validation: 0, test: 0 };
@@ -265,7 +268,9 @@ export async function splitSamples(
     );
   }
   const options = parsed.data;
-  return qb.transaction((tx) => assignSplitVersion(tx, ctx, typeKey, options));
+  return datasetWrite(qb, typeKey, () =>
+    qb.transaction((tx) => assignSplitVersion(tx, ctx, typeKey, options)),
+  );
 }
 
 async function assignSplitVersion(
@@ -294,6 +299,22 @@ async function assignSplitVersion(
     samples.map((record) => subjectOf(record)),
     settings,
   );
+  const published = await findAll<DocTypeRecord>(
+    qb,
+    DOC_TYPES,
+    { key: { eq: typeKey }, state: { eq: "published" } },
+    ctx,
+  );
+  const pinned = new Set(
+    published.flatMap((record) => toDefinition(record).examples.map((example) => example.sampleId)),
+  );
+  for (const sample of samples) {
+    if (pinned.has(sample.id) && splits.get(subjectOf(sample).key) !== "dev") {
+      throw new ValidationError([
+        { path: "examples", message: "Published examples must remain in dev" },
+      ]);
+    }
+  }
   const counts = emptyCounts();
   for (const record of samples) {
     const split = splits.get(subjectOf(record).key) ?? "dev";

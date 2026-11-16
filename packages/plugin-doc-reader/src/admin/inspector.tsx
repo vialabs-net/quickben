@@ -360,7 +360,7 @@ export function SampleInspector({
           </Table>
           {current ? (
             <Detail
-              key={`${hidden.sampleId ?? ""}:${current.key}`}
+              key={`${hidden.sampleId ?? ""}:${hidden.back ?? ""}:${current.key}:${current.read ?? ""}`}
               field={current}
               hidden={hidden}
               correct={correct}
