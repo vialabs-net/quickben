@@ -9,10 +9,24 @@ export const DOC_TEST_RUNS = "doc-test-runs";
 export const DOC_JOBS = "doc-jobs";
 export const DOC_USAGE = "doc-usage";
 export const DOC_QUOTAS = "doc-quotas";
+export const DOC_SPLITS = "doc-splits";
+export const DOC_TEST_RESULTS = "doc-test-results";
+
+/**
+ * Sample splits. `dev`: tune prompts and pick few-shot examples. `validation`: decide whether a
+ * draft may be published. `test`: measured at publish time. `unseen`: groups no other split
+ * has, measured at publish time.
+ */
+export const SPLITS = ["dev", "validation", "test", "unseen"] as const;
+export type Split = (typeof SPLITS)[number];
+/** Splits that run only when publishing, or with `heldOut: true`. */
+export const HELD_OUT_SPLITS: readonly Split[] = ["test", "unseen"];
 
 export const JOB_STATES = ["queued", "running", "done", "failed", "cancelled"] as const;
 export type JobState = (typeof JOB_STATES)[number];
 export const RUN_STATES = ["running", "done", "failed"] as const;
+export const RUN_PURPOSES = ["bench", "baseline", "publish"] as const;
+export type RunPurpose = (typeof RUN_PURPOSES)[number];
 const STATUSES = ["OK", "INCOMPLETE", "NO_MATCH", "NO_TEXT", "ERROR"] as const;
 
 type IsStaff = (user: QuickbenUser) => boolean;
@@ -48,6 +62,8 @@ export function docTypesCollection(isStaff: IsStaff) {
       updatedBy: text(),
       publishedBy: text(),
       publishedAt: f.datetime(),
+      /** Test runs of the publication: validation, test and unseen, with their summaries. */
+      evaluation: f.json(),
     },
     access: staffOnly(isStaff),
     admin: { useAsTitle: "versionKey", ...hidden },
@@ -69,9 +85,69 @@ export function docSamplesCollection(isStaff: IsStaff) {
       params: f.json({ required: true, default: () => ({}) }),
       note: text(),
       createdBy: text(),
+      /** The caller's key of an imported sample, unique per type. `null` for uploads. */
+      sampleKey: f.text({ maxLength: 200 }),
+      /** `typeKey/sampleKey`, unique: imports update instead of adding twice. */
+      sampleUid: f.text({ unique: true, maxLength: 280 }),
+      /** SHA-256 of the file, so an import skips files that did not change. */
+      fileHash: f.text({ maxLength: 64 }),
+      split: f.select({ options: SPLITS, index: true }),
+      /** The split version that set `split`. */
+      splitVersion: f.number({ integer: true, min: 0 }),
+      /** Who the document comes from (issuer, tenant): splits keep groups apart. */
+      group: f.text({ index: true, maxLength: 200 }),
+      /** Other properties to stratify and slice by, e.g. `{ hasTextLayer: true }`. */
+      attributes: f.json({ required: true, default: () => ({}) }),
     },
     access: staffOnly(isStaff),
     admin: { useAsTitle: "fileName", ...hidden },
+  });
+}
+
+/** One split assignment of a type's samples. A new split is a new version. */
+export function docSplitsCollection(isStaff: IsStaff) {
+  return defineCollection({
+    slug: DOC_SPLITS,
+    labels: { singular: "Document sample split", plural: "Document sample splits" },
+    fields: {
+      typeKey: f.text({ required: true, index: true, maxLength: 64 }),
+      version: f.number({ required: true, integer: true, min: 1 }),
+      /** `typeKey@version`, unique. */
+      versionKey: f.text({ required: true, unique: true, maxLength: 80 }),
+      seed: f.text({ required: true, maxLength: 200 }),
+      ratios: f.json({ required: true }),
+      stratifyBy: f.json({ required: true, default: () => [] }),
+      unseenGroups: f.json({ required: true, default: () => [] }),
+      counts: f.json({ required: true, default: () => ({}) }),
+      note: text(),
+      createdBy: text(),
+    },
+    access: staffOnly(isStaff),
+    admin: { ...hidden },
+  });
+}
+
+/** One sample's result in a test run. Written by the plugin only. */
+export function docTestResultsCollection(isStaff: IsStaff) {
+  return defineCollection({
+    slug: DOC_TEST_RESULTS,
+    labels: { singular: "Document test result", plural: "Document test results" },
+    fields: {
+      run: f.text({ required: true, index: true, maxLength: 64 }),
+      /** Position of the sample in the run. `run:index` is unique. */
+      index: f.number({ required: true, integer: true, min: 0 }),
+      slot: f.text({ required: true, unique: true, maxLength: 80 }),
+      sampleId: f.text({ required: true, maxLength: 64 }),
+      costUsd: f.number({ required: true, default: 0, min: 0 }),
+      result: f.json({ required: true }),
+    },
+    access: {
+      read: ({ user }) => user !== null && isStaff(user),
+      create: () => false,
+      update: () => false,
+      delete: () => false,
+    },
+    admin: { ...hidden },
   });
 }
 
@@ -96,6 +172,21 @@ export function docTestRunsCollection(isStaff: IsStaff) {
       costUsd: f.number({ required: true, default: 0, min: 0 }),
       createdBy: text(),
       finishedAt: f.datetime(),
+      /** The definition the run reads with, so saving the draft mid-run changes nothing. */
+      definition: f.json(),
+      /** Splits the samples were taken from; `null`: every sample. */
+      splits: f.json(),
+      splitVersion: f.number({ integer: true, min: 0 }),
+      /** Read `test` or `unseen` samples. */
+      heldOut: f.boolean({ default: false }),
+      /** `bench`: started by hand. `baseline`: the published version, for the publish check. `publish`: held-out runs of a publication. */
+      purpose: f.select({ options: RUN_PURPOSES, default: "bench" }),
+      sampleIds: f.json({ required: true, default: () => [] }),
+      total: f.number({ required: true, integer: true, default: 0, min: 0 }),
+      concurrency: f.number({ required: true, integer: true, default: 3, min: 1 }),
+      maxCostUsd: f.number({ min: 0 }),
+      retries: f.number({ required: true, integer: true, default: 1, min: 0 }),
+      metrics: f.json(),
     },
     access: staffOnly(isStaff),
     admin: { ...hidden },
@@ -169,6 +260,7 @@ export function docUsageCollection(isStaff: IsStaff) {
       model: f.text({ required: true, maxLength: 200 }),
       inputTokens: f.number({ required: true, integer: true, min: 0 }),
       outputTokens: f.number({ required: true, integer: true, min: 0 }),
+      cachedInputTokens: f.number({ integer: true, min: 0 }),
       pages: f.number({ required: true, integer: true, min: 0 }),
       costUsd: f.number({ required: true, min: 0 }),
       latencyMs: f.number({ integer: true, min: 0 }),
@@ -205,3 +297,5 @@ export type DocTestRunsCollection = ReturnType<typeof docTestRunsCollection>;
 export type DocJobsCollection = ReturnType<typeof docJobsCollection>;
 export type DocUsageCollection = ReturnType<typeof docUsageCollection>;
 export type DocQuotasCollection = ReturnType<typeof docQuotasCollection>;
+export type DocSplitsCollection = ReturnType<typeof docSplitsCollection>;
+export type DocTestResultsCollection = ReturnType<typeof docTestResultsCollection>;

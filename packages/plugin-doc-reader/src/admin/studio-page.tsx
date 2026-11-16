@@ -22,12 +22,14 @@ import { FIELD_TRANSFORMS, FIELD_TYPES } from "../definition";
 import { TEXT_LAYER } from "../extractors/text-layer";
 import { VISION_LLM } from "../extractors/vision-llm";
 import { getDocReader } from "../options";
+import { compareTestRuns } from "../bench";
+import { isSplit, currentSplit } from "../splits";
 import {
-  canPublish,
   getVersion,
   listSamples,
   listTestRuns,
   listVersions,
+  publishCheck,
   sampleFile,
 } from "../studio";
 
@@ -38,10 +40,26 @@ import {
   publishAction,
   removeSampleAction,
   saveDraftAction,
+  splitAction,
   startTestAction,
   updateSampleAction,
 } from "./actions";
 import { AutoRefresh, FilePreview } from "./client";
+import {
+  ComparePicker,
+  ComparisonView,
+  ExamplesPicker,
+  ExportLinks,
+  HistoryCard,
+  MetricsTables,
+  PublishCheckNotice,
+  RunOptions,
+  RunStats,
+  SAMPLES_PER_PAGE,
+  SampleFilter,
+  SplitBadge,
+  SplitCard,
+} from "./evals";
 import { docReaderT, stateLabel } from "./messages";
 import {
   AlignedSubmit,
@@ -62,8 +80,11 @@ import {
   toBase64,
 } from "./shared";
 
+import type { Split } from "../collections";
 import type { DocumentType, FieldDefinition, ParamDefinition, PipelineStep } from "../definition";
+import type { RunComparison } from "../metrics";
 import type { ModelChoice } from "../models";
+import type { SplitVersion } from "../splits";
 import type { DocReaderState } from "../options";
 import type { Sample, TestRun, TypeVersion, VersionSummary } from "../studio";
 import type { DocReaderT } from "./messages";
@@ -83,6 +104,7 @@ interface Actions {
   updateSample: Action;
   removeSample: Action;
   startTest: Action;
+  split: Action;
 }
 
 function bind(adminKey: string): Actions {
@@ -95,6 +117,7 @@ function bind(adminKey: string): Actions {
     updateSample: updateSampleAction.bind(null, adminKey),
     removeSample: removeSampleAction.bind(null, adminKey),
     startTest: startTestAction.bind(null, adminKey),
+    split: splitAction.bind(null, adminKey),
   };
 }
 
@@ -182,6 +205,14 @@ function FieldRow({
             aria-label={t("field.requiredAria", { name })}
           />
           {t("field.required")}
+        </label>
+        <label className="qb:flex qb:items-center qb:gap-2">
+          <Checkbox
+            name={`${p}unscored`}
+            defaultChecked={field?.scored === false}
+            aria-label={t("field.unscoredAria", { name })}
+          />
+          {t("field.unscored")}
         </label>
         {field ? (
           <label className="qb:flex qb:items-center qb:gap-2">
@@ -537,15 +568,19 @@ function Editor({
   version,
   state,
   models,
+  samples,
   save,
   t,
 }: Readonly<{
   version: TypeVersion;
   state: DocReaderState;
   models: readonly ModelChoice[];
+  samples: readonly Sample[];
   save: Action;
   t: DocReaderT;
 }>) {
+  const gate = version.definition.evaluation.gate;
+  const points = (value: number | null) => (value === null ? "" : String(value * 100));
   const type: DocumentType = version.definition;
   const draft = version.state === "draft";
   const fields: (FieldDefinition | null)[] = [...type.fields, null];
@@ -560,6 +595,7 @@ function Editor({
           fieldCount: fields.length,
           paramCount: params.length,
           stepCount: steps.length,
+          evaluationForm: 1,
         }}
       />
       <fieldset disabled={!draft} className="qb:space-y-4">
@@ -663,6 +699,52 @@ function Editor({
             </Field>
           </div>
         </Section>
+        <Section title={t("editor.examples")} description={t("editor.examplesDescription")}>
+          <ExamplesPicker
+            samples={samples}
+            chosen={type.examples.map((example) => example.sampleId)}
+            t={t}
+          />
+        </Section>
+        <Section title={t("editor.evaluation")} description={t("editor.evaluationDescription")}>
+          <div className="qb:grid qb:grid-cols-1 qb:gap-4 qb:sm:grid-cols-2 qb:xl:grid-cols-3">
+            <Field
+              label={t("editor.emptyValues")}
+              htmlFor={id("emptyValues")}
+              hint={t("editor.emptyValuesHint")}
+            >
+              <Input
+                id={id("emptyValues")}
+                name="emptyValues"
+                defaultValue={type.evaluation.emptyValues.join(", ")}
+              />
+            </Field>
+            {(
+              [
+                ["maxAccuracyDrop", gate.maxAccuracyDrop],
+                ["maxFieldDrop", gate.maxFieldDrop],
+                ["maxCostIncrease", gate.maxCostIncrease],
+                ["maxLatencyIncrease", gate.maxLatencyIncrease],
+              ] as const
+            ).map(([name, value]) => (
+              <Field
+                key={name}
+                label={t(`editor.${name}`)}
+                htmlFor={id("gate", name)}
+                hint={name === "maxAccuracyDrop" ? undefined : t("editor.percentHint")}
+              >
+                <Input
+                  id={id("gate", name)}
+                  name={`gate.${name}`}
+                  type="number"
+                  min={0}
+                  step="0.1"
+                  defaultValue={points(value)}
+                />
+              </Field>
+            ))}
+          </div>
+        </Section>
         {draft ? (
           <div className="qb:flex">
             <Button type="submit">{t("editor.save")}</Button>
@@ -750,13 +832,20 @@ function SampleEditor({
 }
 
 function variantLabel(t: DocReaderT, run: TestRun, models: readonly ModelChoice[]): string {
-  if (!run.variant) return t("run.thisVersion");
-  const connection = models.find((c) => c.connectionId === run.variant?.connectionId);
+  const purpose = run.purpose === "bench" ? [] : [t("run.version", { version: run.typeVersion })];
+  if (!run.variant) return [...purpose, t("run.thisVersion")].join(" · ");
+  const { connectionId, version, model } = run.variant;
+  const connection = models.find((c) => c.connectionId === connectionId);
   return [
-    connection?.connectionName ?? run.variant.connectionId,
-    run.variant.model ?? t("run.defaultModel"),
+    ...(version === undefined ? [] : [t("run.version", { version })]),
+    ...(connectionId === undefined
+      ? []
+      : [connection?.connectionName ?? connectionId, model ?? t("run.defaultModel")]),
   ].join(" · ");
 }
+
+/** Rows of a run's result table. Larger runs: the metrics, the comparison and the export. */
+const RESULT_ROWS = 100;
 
 function RunCard({ run, label, i18n }: Readonly<{ run: TestRun; label: string; i18n: AdminI18n }>) {
   const t = docReaderT(i18n);
@@ -785,8 +874,11 @@ function RunCard({ run, label, i18n }: Readonly<{ run: TestRun; label: string; i
             {summary ? formatMs(i18n, summary.avgLatencyMs) : EMPTY}
           </Stat>
         </div>
+        <RunStats run={run} i18n={i18n} />
         {run.error ? <p className="qb:text-sm qb:text-danger-strong">{run.error}</p> : null}
+        <ExportLinks run={run} t={t} />
       </CardBody>
+      {run.metrics ? <MetricsTables metrics={run.metrics} i18n={i18n} /> : null}
       {run.results.length > 0 ? (
         <Table aria-label={t("run.results", { label })}>
           <thead>
@@ -798,11 +890,17 @@ function RunCard({ run, label, i18n }: Readonly<{ run: TestRun; label: string; i
             </tr>
           </thead>
           <tbody>
-            {run.results.map((result) => (
+            {run.results.slice(0, RESULT_ROWS).map((result) => (
               <Tr key={result.sampleId}>
                 <Td>
                   <p className="qb:font-medium qb:text-fg">{result.fileName}</p>
                   <StatusBadge status={result.status} i18n={i18n} />
+                  {result.split ? (
+                    <>
+                      {" "}
+                      <SplitBadge split={result.split} t={t} />
+                    </>
+                  ) : null}
                   {result.error ? (
                     <p className="qb:text-xs qb:text-danger-strong">{result.error}</p>
                   ) : null}
@@ -879,6 +977,11 @@ function Bench({
   preview,
   actions,
   i18n,
+  split,
+  splitFilter,
+  page,
+  comparison,
+  hasPublished,
 }: Readonly<{
   version: TypeVersion;
   samples: readonly Sample[];
@@ -890,6 +993,11 @@ function Bench({
   preview: ReactNode;
   actions: Actions;
   i18n: AdminI18n;
+  split: SplitVersion | null;
+  splitFilter: Split | undefined;
+  page: number;
+  comparison: { view: RunComparison; a: TestRun; b: TestRun } | null;
+  hasPublished: boolean;
 }>) {
   const t = docReaderT(i18n);
   const href = (query: Record<string, string>) =>
@@ -901,28 +1009,47 @@ function Bench({
   if (group) shown = runs.filter((run) => run.compareGroup === group);
   else if (selected) shown = [selected];
   const keys = { typeKey: version.key, version: version.version };
+  const filtered = splitFilter ? samples.filter((s) => s.split === splitFilter) : samples;
+  const listed = filtered.slice((page - 1) * SAMPLES_PER_PAGE, page * SAMPLES_PER_PAGE);
+  const baseline = hasPublished && version.state === "draft";
   return (
     <div className="qb:space-y-4">
+      <SplitCard
+        version={version}
+        split={split}
+        unsplit={samples.filter((s) => s.split === null).length}
+        action={actions.split}
+        i18n={i18n}
+      />
       <Card>
         <CardHeader title={t("bench.samples")} description={t("bench.samplesDescription")} />
-        {samples.length > 0 ? (
+        <CardBody>
+          <SampleFilter samples={samples} current={splitFilter} page={page} href={href} t={t} />
+        </CardBody>
+        {listed.length > 0 ? (
           <Table>
             <thead>
               <tr>
                 <Th>{t("col.file")}</Th>
+                <Th>{t("col.split")}</Th>
+                <Th>{t("col.group")}</Th>
                 <Th>{t("col.expected")}</Th>
                 <Th>{t("col.note")}</Th>
                 <Th>{t("col.actions")}</Th>
               </tr>
             </thead>
             <tbody>
-              {samples.map((sample) => (
+              {listed.map((sample) => (
                 <Tr key={sample.id}>
                   <Td>
                     <Link href={href({ sample: sample.id })} className={linkClass}>
-                      {sample.fileName}
+                      {sample.key ?? sample.fileName}
                     </Link>
                   </Td>
+                  <Td>
+                    <SplitBadge split={sample.split} t={t} />
+                  </Td>
+                  <Td>{sample.group ?? ""}</Td>
                   <Td>
                     {t("bench.filled", {
                       filled: Object.keys(sample.expected).length,
@@ -987,10 +1114,11 @@ function Bench({
       <Card>
         <CardHeader title={t("bench.test")} description={t("bench.testDescription")} />
         <CardBody className="qb:space-y-4">
-          <form action={actions.startTest}>
+          <form action={actions.startTest} className="qb:space-y-3">
             <Hidden values={{ ...keys, mode: "version" }} />
+            <RunOptions split={split} t={t} baseline={baseline} />
             <Button type="submit" disabled={samples.length === 0}>
-              {t("bench.testRun", { count: samples.length })}
+              {split ? t("bench.runSplits") : t("bench.testRun", { count: samples.length })}
             </Button>
           </form>
           <form
@@ -999,6 +1127,7 @@ function Bench({
           >
             <Hidden values={{ ...keys, mode: "compare" }} />
             <p className="qb:text-sm qb:text-fg-muted">{t("bench.compareText")}</p>
+            <RunOptions split={split} t={t} baseline={false} />
             <div className="qb:flex qb:flex-wrap qb:items-end qb:gap-4">
               <ModelPicker prefix="a" label={t("bench.modelA")} models={models} t={t} />
               <ModelPicker prefix="b" label={t("bench.modelB")} models={models} t={t} />
@@ -1020,9 +1149,29 @@ function Bench({
           ))}
         </div>
       ) : null}
+      {comparison ? (
+        <ComparisonView
+          comparison={comparison.view}
+          labelA={`${formatWhen(i18n, comparison.a.createdAt)} · ${variantLabel(t, comparison.a, models)}`}
+          labelB={`${formatWhen(i18n, comparison.b.createdAt)} · ${variantLabel(t, comparison.b, models)}`}
+          sampleHref={(sampleId) => href({ sample: sampleId })}
+          i18n={i18n}
+        />
+      ) : null}
       {runs.length > 1 ? (
         <Card>
           <CardHeader title={t("bench.earlier")} />
+          <CardBody>
+            <ComparePicker
+              runs={runs}
+              label={(run) => variantLabel(t, run, models)}
+              hidden={{ v: String(version.version), tab: "bench" }}
+              reference={comparison?.a.id}
+              candidate={comparison?.b.id}
+              t={t}
+              i18n={i18n}
+            />
+          </CardBody>
           <Table>
             <thead>
               <tr>
@@ -1133,14 +1282,35 @@ export async function StudioPage({
     ? asked
     : (initialVersion(versions) ?? 1);
   const tab = first(searchParams.tab) === "bench" ? "bench" : "definition";
-  const [version, runs, samples, models] = await Promise.all([
+  const [version, runs, samples, models, split] = await Promise.all([
     getVersion(qb, ctx, typeKey, number),
-    listTestRuns(qb, ctx, typeKey, number),
+    listTestRuns(qb, ctx, typeKey, number, 50),
     listSamples(qb, ctx, typeKey),
     modelChoices(state),
+    currentSplit(qb, ctx, typeKey),
   ]);
   const draft = versions.find((v) => v.state === "draft");
-  const publishable = canPublish(version, runs);
+  const check = version.state === "draft" ? await publishCheck(qb, ctx, typeKey, number) : null;
+  const publishable = check?.ok === true;
+  const published = versions.filter((v) => v.state === "published");
+  const history =
+    tab === "bench"
+      ? await Promise.all(published.map((v) => getVersion(qb, ctx, typeKey, v.version)))
+      : [];
+  const ref = first(searchParams.ref);
+  const cand = first(searchParams.cand);
+  // The publish check compares with the published version's runs, so offer those too.
+  const baselineRuns =
+    check?.baseline && !runs.some((run) => run.id === check.baseline?.id) ? [check.baseline] : [];
+  const comparable = [...runs, ...baselineRuns];
+  let comparison: { view: RunComparison; a: TestRun; b: TestRun } | null = null;
+  const a = comparable.find((run) => run.id === ref);
+  const b = comparable.find((run) => run.id === cand);
+  if (tab === "bench" && a && b && a.id !== b.id) {
+    comparison = { view: await compareTestRuns(qb, ctx, a.id, b.id), a, b };
+  }
+  const splitParam = first(searchParams.split);
+  const page = Math.max(1, Math.floor(Number(first(searchParams.page) ?? "1")) || 1);
   const keys = { typeKey, version: number };
   const tabHref = (name: string) =>
     `${basePath}/document-types/${encodeURIComponent(typeKey)}?v=${String(number)}&tab=${name}`;
@@ -1232,11 +1402,23 @@ export async function StudioPage({
           {t("studio.bench", { count: samples.length })}
         </ButtonLink>
       </nav>
-      {version.state === "draft" && !publishable ? (
+      {version.state === "draft" && !publishable && check?.splitVersion === null ? (
         <p className="qb:mb-3 qb:text-sm qb:text-fg-muted">{t("studio.needsTest")}</p>
       ) : null}
+      {check && check.splitVersion !== null ? (
+        <div className="qb:mb-3">
+          <PublishCheckNotice check={check} i18n={i18n} />
+        </div>
+      ) : null}
       {tab === "definition" ? (
-        <Editor version={version} state={state} models={models} save={actions.saveDraft} t={t} />
+        <Editor
+          version={version}
+          state={state}
+          models={models}
+          samples={samples}
+          save={actions.saveDraft}
+          t={t}
+        />
       ) : (
         <Bench
           version={version}
@@ -1254,8 +1436,18 @@ export async function StudioPage({
           )}
           actions={actions}
           i18n={i18n}
+          split={split}
+          splitFilter={isSplit(splitParam) ? splitParam : undefined}
+          page={page}
+          comparison={comparison}
+          hasPublished={published.length > 0}
         />
       )}
+      {tab === "bench" ? (
+        <div className="qb:mt-5">
+          <HistoryCard versions={history} i18n={i18n} />
+        </div>
+      ) : null}
     </>
   );
 }

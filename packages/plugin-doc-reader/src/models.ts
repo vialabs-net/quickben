@@ -18,6 +18,8 @@ export interface ModelInfo {
   readonly maxPages: number;
   readonly inputPerMTokUsd: number;
   readonly outputPerMTokUsd: number;
+  /** USD per million cached input tokens. Absent: cached input costs the input price. */
+  readonly cachedInputPerMTokUsd?: number;
 }
 
 /** A connection's model, ready for a call. */
@@ -48,12 +50,23 @@ export interface ModelChoice {
 /** Lists connections with vision models, for the admin's pickers. */
 export type ListModels = (qb: Quickben) => Promise<readonly ModelChoice[]>;
 
-/** USD for one call, from the model's prices per million tokens, rounded to micro-dollars. */
+/**
+ * USD for one call, from the model's prices per million tokens, rounded to micro-dollars.
+ * `cachedInputTokens` are part of `inputTokens` and billed at the cached price when the model
+ * has one.
+ */
 export function callCost(
-  model: Pick<ModelInfo, "inputPerMTokUsd" | "outputPerMTokUsd">,
+  model: Pick<ModelInfo, "inputPerMTokUsd" | "outputPerMTokUsd" | "cachedInputPerMTokUsd">,
   inputTokens: number,
   outputTokens: number,
+  cachedInputTokens = 0,
 ): number {
-  const usd = (inputTokens * model.inputPerMTokUsd + outputTokens * model.outputPerMTokUsd) / 1e6;
+  const cached = Math.min(Math.max(0, cachedInputTokens), inputTokens);
+  const cachedPrice = model.cachedInputPerMTokUsd ?? model.inputPerMTokUsd;
+  const usd =
+    ((inputTokens - cached) * model.inputPerMTokUsd +
+      cached * cachedPrice +
+      outputTokens * model.outputPerMTokUsd) /
+    1e6;
   return Math.round(usd * 1e6) / 1e6;
 }

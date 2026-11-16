@@ -64,6 +64,8 @@ export interface DocReaderOptions {
   modelTimeoutMs?: number;
   /** Called when a reading ends (done, failed). Errors are logged and ignored. */
   onReadingDone?: (reading: Reading, qb: Quickben) => void | Promise<void>;
+  /** Wait before a test run tries a sample again, times the try number. Default 1000 ms. */
+  testRetryDelayMs?: number;
   /** Structured log of failures that do not fail a reading. Default `console.warn`. */
   log?: (event: string, data: Record<string, unknown>) => void;
 }
@@ -86,6 +88,7 @@ export interface DocReaderState {
   readonly maxWaitMs: number;
   readonly maxFileBytes: number;
   readonly onReadingDone: DocReaderOptions["onReadingDone"];
+  readonly retryDelayMs: number;
   readonly log: (event: string, data: Record<string, unknown>) => void;
   rootQb: Quickben | undefined;
 }
@@ -153,6 +156,7 @@ export function resolveOptions(options: DocReaderOptions): DocReaderState {
     maxWaitMs: options.maxWaitMs ?? 30_000,
     maxFileBytes: options.maxFileBytes ?? 20 * 1024 * 1024,
     onReadingDone: options.onReadingDone,
+    retryDelayMs: options.testRetryDelayMs ?? 1000,
     log:
       options.log ??
       ((event, data) => {

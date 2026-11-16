@@ -19,6 +19,9 @@
   "license": "Apache-2.0",
   "type": "module",
   "sideEffects": false,
+  "bin": {
+    "quickben-doc-reader": "./dist/cli.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -35,6 +38,10 @@
     "./connections": {
       "types": "./dist/connections.d.ts",
       "default": "./dist/connections.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "default": "./dist/node.js"
     },
     "./package.json": "./package.json"
   },

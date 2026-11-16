@@ -3,7 +3,14 @@ import { defineConfig } from "tsdown";
 export default defineConfig({
   // One output file per source file: the admin entry has "use client" and "use server"
   // modules, and all entries must share one copy of the plugin state.
-  entry: ["src/index.ts", "src/admin/index.ts", "src/bullmq.ts", "src/connections.ts"],
+  entry: [
+    "src/index.ts",
+    "src/admin/index.ts",
+    "src/bullmq.ts",
+    "src/connections.ts",
+    "src/node.ts",
+    "src/cli.ts",
+  ],
   unbundle: true,
   format: "esm",
   platform: "neutral",

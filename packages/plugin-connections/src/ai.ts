@@ -110,13 +110,22 @@ export async function resolveLanguageModel<TModel extends LlmModel = LlmModel>(
   return { connection, model, languageModel: factory(resolved, model.id) };
 }
 
-/** USD for one call, from the model's prices per million tokens. */
+/**
+ * USD for one call, from the model's prices per million tokens. `cachedInputTokens` are part of
+ * `inputTokens`, billed at `cachedInputPerMTokUsd` when the model has it.
+ */
 export function callCost(
-  model: Pick<LlmModel, "inputPerMTokUsd" | "outputPerMTokUsd">,
+  model: Pick<LlmModel, "inputPerMTokUsd" | "outputPerMTokUsd" | "cachedInputPerMTokUsd">,
   inputTokens: number,
   outputTokens: number,
+  cachedInputTokens = 0,
 ): number {
+  const cached = Math.min(Math.max(0, cachedInputTokens), inputTokens);
+  const cachedPrice = model.cachedInputPerMTokUsd ?? model.inputPerMTokUsd;
   const usd =
-    (inputTokens * model.inputPerMTokUsd + outputTokens * model.outputPerMTokUsd) / 1_000_000;
+    ((inputTokens - cached) * model.inputPerMTokUsd +
+      cached * cachedPrice +
+      outputTokens * model.outputPerMTokUsd) /
+    1_000_000;
   return Math.round(usd * 1e6) / 1e6;
 }

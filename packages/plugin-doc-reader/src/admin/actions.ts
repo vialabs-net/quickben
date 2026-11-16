@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 
 import { removeQuota, setPlatformCap, setQuota } from "../quotas";
 import { cancelReading, readDocument, retryReading } from "../readings";
+import { splitSamples } from "../splits";
 import {
   addSample,
   createDocType,
@@ -25,6 +26,8 @@ import {
   expectedFromForm,
   filesOf,
   paramsFromForm,
+  runOptionsFromForm,
+  splitFromForm,
   text,
   variantFromForm,
 } from "./forms";
@@ -233,10 +236,22 @@ export async function startTestAction(key: string, formData: FormData): Promise<
           throw new ValidationError([{ path: "variants", message: "Choose two models" }]);
         }
         return startTestRun(scope.qb, scope.ctx, typeKey, number, {
+          ...runOptionsFromForm(formData),
           variants: variants.filter((variant) => variant !== undefined),
         });
       },
       (runs) => withQuery(path, { run: runs[0]?.id ?? "" }),
+    ),
+  );
+}
+
+export async function splitAction(key: string, formData: FormData): Promise<void> {
+  const scope = await scopeFor(key);
+  const typeKey = text(formData, "typeKey") ?? "";
+  const path = typePath(scope.basePath, typeKey, { v: String(version(formData)), tab: "bench" });
+  redirect(
+    await attempt(path, "split-made", () =>
+      splitSamples(scope.qb, scope.ctx, typeKey, splitFromForm(formData)),
     ),
   );
 }

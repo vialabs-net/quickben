@@ -44,6 +44,8 @@ export const fieldSchema = z.object({
   dateOrder: z.enum(["dmy", "mdy"]).optional(),
   /** Decimal separator of `number` fields as printed. Default `.`. */
   decimalSeparator: z.enum([".", ","]).optional(),
+  /** `false`: test runs report the field but leave it out of accuracy. Default `true`. */
+  scored: z.boolean().optional(),
 });
 export type FieldDefinition = z.infer<typeof fieldSchema>;
 
@@ -77,6 +79,46 @@ export const pipelineSchema = z.object({
 });
 export type Pipeline = z.infer<typeof pipelineSchema>;
 
+/** The default values a test run treats as empty, besides `null` and blank. */
+export const DEFAULT_EMPTY_VALUES = ["-", "-1"] as const;
+
+const DEFAULT_GATE = {
+  maxAccuracyDrop: 0,
+  maxFieldDrop: null,
+  maxCostIncrease: null,
+  maxLatencyIncrease: null,
+};
+
+/**
+ * Publication thresholds: how much worse than the published version a draft may be on the
+ * `validation` split. `null` turns a check off.
+ */
+export const gateSchema = z.object({
+  /** Largest drop of global accuracy, as a fraction (0.01 = one point). Default 0. */
+  maxAccuracyDrop: z.number().min(0).max(1).default(0),
+  /** Largest drop of any scored field's accuracy. Default: not checked. */
+  maxFieldDrop: z.number().min(0).max(1).nullable().default(null),
+  /** Largest increase of the cost per document, as a fraction (0.2 = 20 %). Default: not checked. */
+  maxCostIncrease: z.number().min(0).nullable().default(null),
+  /** Largest increase of the p95 latency per document, as a fraction. Default: not checked. */
+  maxLatencyIncrease: z.number().min(0).nullable().default(null),
+});
+export type PublishGate = z.infer<typeof gateSchema>;
+
+export const evaluationSchema = z.object({
+  /** Values that mean "empty" in expected and read values. `null` and blank always do. */
+  emptyValues: z
+    .array(z.string().max(50))
+    .max(20)
+    .default(() => [...DEFAULT_EMPTY_VALUES]),
+  gate: gateSchema.default(() => ({ ...DEFAULT_GATE })),
+});
+export type EvaluationSettings = z.infer<typeof evaluationSchema>;
+
+/** A few-shot example: a sample of the `dev` split, shown to LLM extractors with its values. */
+export const exampleSchema = z.object({ sampleId: z.string().min(1).max(64) });
+export type FewShotExample = z.infer<typeof exampleSchema>;
+
 export const classificationSchema = z.object({
   /** Regular expressions over the first page's text; any match counts. */
   text: z.array(pattern).default([]),
@@ -99,6 +141,13 @@ export const documentTypeSchema = z
     /** Extra prompt text for LLM extractors. */
     instructions: z.string().max(5000).default(""),
     pipeline: pipelineSchema,
+    /** Few-shot examples for LLM extractors. Only samples of the `dev` split. */
+    examples: z.array(exampleSchema).max(5).default([]),
+    /** How test runs score this type and when a draft may be published. */
+    evaluation: evaluationSchema.default(() => ({
+      emptyValues: [...DEFAULT_EMPTY_VALUES],
+      gate: { ...DEFAULT_GATE },
+    })),
   })
   .superRefine((type, ctx) => {
     const seen = new Set<string>();
@@ -142,6 +191,9 @@ export type DocumentTypeInput = z.input<typeof documentTypeSchema>;
 export function parseDocumentType(input: unknown): DocumentType {
   return documentTypeSchema.parse(input);
 }
+
+/** Whether a field counts in accuracy. */
+export const isScored = (field: Pick<FieldDefinition, "scored">) => field.scored !== false;
 
 export function requiredFields(type: DocumentType): string[] {
   return type.fields.filter((field) => field.required).map((field) => field.key);

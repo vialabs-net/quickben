@@ -166,6 +166,8 @@ describe("forms", () => {
         threshold: 0.7,
         stopWhen: "all",
       },
+      examples: [],
+      evaluation: invoice.evaluation,
     });
     const empty = definitionFromForm(form({ pages: "x", threshold: "" }), invoice);
     expect(empty).toMatchObject({

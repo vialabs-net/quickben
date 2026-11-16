@@ -94,6 +94,7 @@ export async function recordUsage(
         model: usage.model,
         inputTokens: usage.inputTokens,
         outputTokens: usage.outputTokens,
+        ...(usage.cachedInputTokens ? { cachedInputTokens: usage.cachedInputTokens } : {}),
         pages: usage.pages,
         costUsd: usage.costUsd,
         latencyMs: Math.max(0, Math.round(attempt.durationMs)),
