@@ -3,11 +3,13 @@ import { parseArgs } from "node:util";
 
 import { createJiti } from "jiti";
 
+import { isIntegerColumns } from "./columns";
 import { generateDrizzleSchema, resolveTarget, schemaOf, writeOut } from "./generate";
 import { generateSql, sqlScript } from "./sql";
 
 import type { DrizzleAdapter } from "./adapter";
-import type { Dialect } from "./columns";
+import type { Dialect, IntegerColumns } from "./columns";
+import type { Target } from "./generate";
 import type { SchemaReport } from "./inspect";
 import type { QuickbenConfig } from "@quickben/core";
 
@@ -22,6 +24,9 @@ Options:
   --config <path>    Quickben config (default: quickben.config.ts)
   --dialect <name>   postgres, pglite or sqlite (default: from the config's drizzleAdapter)
   --schema <name>    Postgres schema of the tables (default: from the config's drizzleAdapter)
+  --integer-columns <type>
+                     bigint or integer: column type of integer fields (default: from the
+                     config's drizzleAdapter, else bigint)
   --out <path>       File to write (generate default: drizzle/schema.ts; sql default: stdout)
   --format <name>    sql: sql (default) or prisma
   --diff             sql: print only the statements the database at --url is missing
@@ -32,7 +37,7 @@ const dialects = new Set(["postgres", "pglite", "sqlite"]);
 const commands = new Set(["generate", "sql", "verify"]);
 
 type Values = Partial<
-  Record<"config" | "out" | "dialect" | "schema" | "format" | "url", string>
+  Record<"config" | "out" | "dialect" | "schema" | "format" | "url" | "integer-columns", string>
 > & {
   diff?: boolean;
 };
@@ -40,10 +45,10 @@ type Values = Partial<
 /** Open the database at `url` with the adapter of the dialect, and compare. */
 async function checkDatabase(
   config: QuickbenConfig,
-  target: { dialect: Dialect; schema: string | undefined },
+  target: Target,
   url: string,
 ): Promise<SchemaReport> {
-  const common = { push: false, verify: false } as const;
+  const common = { push: false, verify: false, integerColumns: target.integerColumns } as const;
   const schema = target.schema === undefined ? {} : { schema: target.schema };
   let adapter: DrizzleAdapter;
   if (target.dialect === "postgres") {
@@ -64,12 +69,23 @@ async function checkDatabase(
   }
 }
 
-async function runSql(config: QuickbenConfig, values: Values, cwd: string): Promise<number> {
-  const out = values.out === undefined ? undefined : resolve(cwd, values.out);
-  const options = {
+/** Target options given on the command line. */
+function targetOptions(values: Values): {
+  dialect?: Dialect;
+  schema?: string;
+  integerColumns?: IntegerColumns;
+} {
+  const integerColumns = values["integer-columns"];
+  return {
     ...(values.dialect ? { dialect: values.dialect as Dialect } : {}),
     ...(values.schema ? { schema: values.schema } : {}),
+    ...(isIntegerColumns(integerColumns) ? { integerColumns } : {}),
   };
+}
+
+async function runSql(config: QuickbenConfig, values: Values, cwd: string): Promise<number> {
+  const out = values.out === undefined ? undefined : resolve(cwd, values.out);
+  const options = targetOptions(values);
   if (!values.diff) {
     const format = values.format === "prisma" ? "prisma" : "sql";
     const source = await generateSql(config, { ...options, format, ...(out ? { out } : {}) });
@@ -82,7 +98,7 @@ async function runSql(config: QuickbenConfig, values: Values, cwd: string): Prom
 
 async function runDiff(
   config: QuickbenConfig,
-  target: { dialect: Dialect; schema: string | undefined },
+  target: Target,
   url: string | undefined,
   out: string | undefined,
 ): Promise<number> {
@@ -111,10 +127,7 @@ async function runVerify(config: QuickbenConfig, values: Values): Promise<number
     console.error("verify needs --url.");
     return 1;
   }
-  const target = resolveTarget("verify", config, {
-    ...(values.dialect ? { dialect: values.dialect as Dialect } : {}),
-    ...(values.schema ? { schema: values.schema } : {}),
-  });
+  const target = resolveTarget("verify", config, targetOptions(values));
   const { issues } = await checkDatabase(config, target, values.url);
   const tables = String(config.collections.length);
   if (issues.length === 0) {
@@ -136,6 +149,10 @@ function badInput(values: Values): string | undefined {
     return `Unknown format "${values.format}". Use sql or prisma.`;
   }
   if (values.diff && values.format === "prisma") return "--diff prints SQL only.";
+  const integerColumns = values["integer-columns"];
+  if (integerColumns !== undefined && !isIntegerColumns(integerColumns)) {
+    return `Unknown integer column type "${integerColumns}". Use bigint or integer.`;
+  }
   return undefined;
 }
 
@@ -149,6 +166,7 @@ export async function main(argv: readonly string[], cwd = process.cwd()): Promis
       out: { type: "string" },
       dialect: { type: "string" },
       schema: { type: "string" },
+      "integer-columns": { type: "string" },
       format: { type: "string" },
       diff: { type: "boolean" },
       url: { type: "string" },
@@ -172,11 +190,7 @@ export async function main(argv: readonly string[], cwd = process.cwd()): Promis
   if (command === "sql") return runSql(config, values, cwd);
   if (command === "verify") return runVerify(config, values);
   const out = resolve(cwd, values.out ?? "drizzle/schema.ts");
-  const source = await generateDrizzleSchema(config, {
-    out,
-    ...(values.dialect ? { dialect: values.dialect as Dialect } : {}),
-    ...(values.schema ? { schema: values.schema } : {}),
-  });
+  const source = await generateDrizzleSchema(config, { out, ...targetOptions(values) });
   const tables = source.match(/^export const \w+Table /gm)?.length ?? 0;
   console.error(`Wrote ${out} (${String(tables)} tables)`);
   return 0;

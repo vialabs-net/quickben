@@ -10,7 +10,14 @@ export type {
   PgGeneratedTable,
   SQLiteGeneratedTable,
 } from "./adapter";
-export type { ColumnKind, ColumnSpec, Dialect, TableSpec } from "./columns";
+export type {
+  ColumnKind,
+  ColumnOptions,
+  ColumnSpec,
+  Dialect,
+  IntegerColumns,
+  TableSpec,
+} from "./columns";
 export type {
   CommonOptions,
   DrizzleAdapterOptions,

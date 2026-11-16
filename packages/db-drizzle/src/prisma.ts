@@ -1,6 +1,6 @@
 import { familyOf, indexName, tableSpecs, uniqueIndexName } from "./columns";
 
-import type { ColumnKind, ColumnSpec, Dialect, Family, TableSpec } from "./columns";
+import type { ColumnKind, ColumnOptions, ColumnSpec, Dialect, Family, TableSpec } from "./columns";
 import type { DatabaseSchema } from "@quickben/core";
 
 /** Prisma scalar type and native type attribute of each column kind. */
@@ -9,6 +9,7 @@ const prismaTypes: Record<Family, Record<ColumnKind, { type: string; attributes:
     id: { type: "String", attributes: ["@id"] },
     text: { type: "String", attributes: [] },
     integer: { type: "BigInt", attributes: [] },
+    integer32: { type: "Int", attributes: [] },
     float: { type: "Float", attributes: [] },
     boolean: { type: "Boolean", attributes: [] },
     date: { type: "DateTime", attributes: ["@db.Date"] },
@@ -21,6 +22,7 @@ const prismaTypes: Record<Family, Record<ColumnKind, { type: string; attributes:
     id: { type: "String", attributes: ["@id"] },
     text: { type: "String", attributes: [] },
     integer: { type: "BigInt", attributes: [] },
+    integer32: { type: "Int", attributes: [] },
     float: { type: "Float", attributes: [] },
     boolean: { type: "Boolean", attributes: [] },
     date: { type: "String", attributes: [] },
@@ -151,7 +153,12 @@ function modelCode(
  * give the exact tables, columns and indexes the adapter expects. Paste them into
  * `schema.prisma` so Prisma Migrate owns the DDL. A plain string: Prisma is not needed.
  */
-export function prismaSource(schema: DatabaseSchema, dialect: Dialect, pgSchema?: string): string {
+export function prismaSource(
+  schema: DatabaseSchema,
+  dialect: Dialect,
+  pgSchema?: string,
+  options: ColumnOptions = {},
+): string {
   const family = familyOf(dialect);
   const named = family === "pg" ? pgSchema : undefined;
   const header = [
@@ -166,7 +173,7 @@ export function prismaSource(schema: DatabaseSchema, dialect: Dialect, pgSchema?
   return [
     ...header,
     "",
-    ...tableSpecs(schema).map((table) => {
+    ...tableSpecs(schema, options).map((table) => {
       const model = unique(prismaModelName(table.slug), used);
       return `${modelCode(table, model, family, named)}\n`;
     }),
