@@ -80,7 +80,7 @@ export interface SampleResult {
   /** The provider kept failing: left out of accuracy. */
   readonly failed?: boolean;
   /** Not read: the run hit its spending limit. */
-  readonly skipped?: "budget";
+  readonly skipped?: "budget" | "held-out";
   /** Pages sent to paid extractors, all tries. */
   readonly pages?: number;
 }

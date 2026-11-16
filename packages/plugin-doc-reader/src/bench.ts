@@ -636,15 +636,16 @@ async function processItem(
     });
     return;
   }
+  const heldOut = isHeldOut(sample) && run.heldOut !== true;
   const limit = run.maxCostUsd ?? null;
-  if (limit !== null && (await spent(qb, run)) >= limit) {
+  if (heldOut || (limit !== null && (await spent(qb, run)) >= limit)) {
     await writeResult(qb, run, index, sampleId, {
       ...sampleBase(sample),
       status: "ERROR",
       durationMs: 0,
       costUsd: 0,
       fields: checkFields(type, sample.expected, { fields: {} }),
-      skipped: "budget",
+      skipped: heldOut ? "held-out" : "budget",
     });
     return;
   }

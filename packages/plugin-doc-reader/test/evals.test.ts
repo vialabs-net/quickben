@@ -265,6 +265,35 @@ describe("splits", () => {
 });
 
 describe("runs at scale", () => {
+  it("does not read queued samples moved into a held-out split", async () => {
+    const tasks: (() => Promise<void>)[] = [];
+    const runner = inProcessRunner({
+      defer: (task) => {
+        tasks.push(task);
+      },
+    });
+    const models = fakeModels();
+    const { qb } = await setup({
+      types: [receiptInput],
+      resolveModel: models.resolveModel,
+      runner,
+    });
+    await importSamples(qb, admin, "receipt", importItems(dataset.slice(0, 5)), {
+      map: mapReceipt,
+    });
+    await splitSamples(qb, admin, "receipt", { ratios: { dev: 1, validation: 0, test: 0 } });
+    const [started] = await startTestRun(qb, admin, "receipt", 1);
+    await splitSamples(qb, admin, "receipt", {
+      resplit: true,
+      ratios: { dev: 0, validation: 0, test: 1 },
+    });
+    while (tasks.length > 0) await tasks.shift()!();
+    const run = await getTestRun(qb, admin, started!.id);
+    expect(run.results.every((result) => result.skipped === "held-out")).toBe(true);
+    expect(run.results).toHaveLength(5);
+    expect(models.calls.size).toBe(0);
+  });
+
   it("fails the run when a result cannot be persisted", async () => {
     const made = await loaded();
     const create = made.qb.create.bind(made.qb);
