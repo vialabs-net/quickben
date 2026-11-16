@@ -604,6 +604,44 @@ interface ReadJob {
   readonly signal: AbortSignal | undefined;
 }
 
+/** The messages of one call: the examples, then the pages (and their text). */
+function callMessages(job: ReadJob, fields: readonly Field[], note: string | undefined) {
+  const user: ModelMessage = {
+    role: "user",
+    content: [
+      { type: "text", text: note ?? "Read the fields from these pages." },
+      ...(job.text === null ? [] : [{ type: "text" as const, text: job.text }]),
+      ...job.images.map(filePart),
+    ],
+  };
+  return [...exampleMessages(job.type, job.examples, fields), user];
+}
+
+/** What a failed call still gives: the valid fields of a reply off the schema, or the error. */
+function failedCall(
+  error: unknown,
+  fields: readonly Field[],
+  timedOut: boolean,
+  strict: boolean,
+): CallOutcome {
+  if (NoObjectGeneratedError.isInstance(error)) {
+    // The reply did not match the schema as a whole; keep the fields that are valid.
+    const usage = error.usage ?? NO_USAGE;
+    const salvaged =
+      error.text === undefined ? null : checkAnswers(parseAnswer(error.text), fields);
+    if (salvaged) return { ...salvaged, usage };
+    return { answers: {}, invalid: allInvalid(fields, NO_FIELDS), usage };
+  }
+  const described = describeProviderError(error, timedOut);
+  return {
+    answers: {},
+    invalid: allInvalid(fields, described.message),
+    usage: null,
+    error: { message: described.message, transient: described.transient },
+    ...(strict && isSchemaTooLarge(described) ? { tooLarge: true } : {}),
+  };
+}
+
 /** One model call for some fields. Never throws. */
 async function callModel(
   job: ReadJob,
@@ -621,17 +659,7 @@ async function callModel(
         fields,
         withText: job.text !== null,
       }),
-      messages: [
-        ...exampleMessages(job.type, job.examples, fields),
-        {
-          role: "user",
-          content: [
-            { type: "text", text: note ?? "Read the fields from these pages." },
-            ...(job.text === null ? [] : [{ type: "text" as const, text: job.text }]),
-            ...job.images.map(filePart),
-          ],
-        },
-      ],
+      messages: callMessages(job, fields, note),
       ...callSettings(job.config),
       // A retry would bill the call twice; repairs and job retries are counted instead.
       maxRetries: 0,
@@ -644,21 +672,7 @@ async function callModel(
     }
     return { ...checked, usage: result.usage };
   } catch (error) {
-    if (NoObjectGeneratedError.isInstance(error)) {
-      return {
-        answers: {},
-        invalid: allInvalid(fields, NO_FIELDS),
-        usage: error.usage ?? NO_USAGE,
-      };
-    }
-    const described = describeProviderError(error, timeout.aborted);
-    return {
-      answers: {},
-      invalid: allInvalid(fields, described.message),
-      usage: null,
-      error: { message: described.message, transient: described.transient },
-      ...(strict && isSchemaTooLarge(described) ? { tooLarge: true } : {}),
-    };
+    return failedCall(error, fields, timeout.aborted, strict);
   }
 }
 
