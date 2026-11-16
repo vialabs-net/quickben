@@ -297,6 +297,16 @@ describe("connection views", () => {
     expect(screen.getByText("Never tested.")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Delete connection" })).toBeTruthy();
     expect(screen.getAllByRole("button", { name: "Test" })).toHaveLength(1);
+    // One header: the mark, the title with the provider under it, and the actions.
+    const title = screen.getByRole("heading", { level: 1 });
+    const header = title.closest("header")!;
+    expect(title.nextElementSibling?.textContent).toBe("Identity check · Identity");
+    expect(title.parentElement?.previousElementSibling?.tagName).toBe("SPAN");
+    expect(within(header).getByRole("button", { name: "Test" })).toBeTruthy();
+    // The form and the status card share the detail columns.
+    const columns = document.querySelector(".qb-detail > .qb-detail-columns")!;
+    expect(columns.children).toHaveLength(2);
+    expect(within(columns as HTMLElement).getByText("Never tested.")).toBeTruthy();
   });
 
   it("explains an unknown provider", async () => {
@@ -463,6 +473,11 @@ describe("credential views", () => {
     );
     expect(screen.getByLabelText<HTMLInputElement>(/Replace secret/).value).toBe("");
     expect(screen.getByText("Claude")).toBeTruthy();
+    // Same header as a connection: a key mark before the title, the kind under it.
+    const title = screen.getByRole("heading", { level: 1 });
+    expect(title.nextElementSibling?.textContent).toBe("API key");
+    expect(title.parentElement?.previousElementSibling?.querySelector("svg")).toBeTruthy();
+    expect(document.querySelector(".qb-detail > .qb-detail-columns")?.children).toHaveLength(2);
     expect(document.body.innerHTML).not.toContain(API_KEY);
     expect(document.body.innerHTML).not.toContain("v1:");
   });
@@ -766,5 +781,8 @@ describe("styles", () => {
       }
     }
     expect(missing).toEqual([]);
+    for (const component of [".qb-detail", ".qb-detail-columns"]) {
+      expect(css).toContain(component);
+    }
   });
 });

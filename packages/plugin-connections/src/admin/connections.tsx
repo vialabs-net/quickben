@@ -34,6 +34,7 @@ import {
 import { connectionsMessages } from "./messages";
 import {
   DateTime,
+  DetailColumns,
   Detail,
   LastTestDetails,
   PageHeader,
@@ -318,7 +319,7 @@ export function createConnectionEdit(config: QuickbenConfig, key: string) {
               { label: chosen.label },
             ]}
           />
-          <div className="qb:grid qb:xl:grid-cols-[minmax(0,60rem)_18rem]">
+          <DetailColumns>
             <Card>
               <ConnectionForm
                 action={saveConnectionAction.bind(null, key, null, chosen.type)}
@@ -341,7 +342,7 @@ export function createConnectionEdit(config: QuickbenConfig, key: string) {
                 }
               />
             </Card>
-          </div>
+          </DetailColumns>
         </>
       );
     }
@@ -378,7 +379,7 @@ export function createConnectionEdit(config: QuickbenConfig, key: string) {
             </>
           }
         />
-        <div className="qb:grid qb:items-start qb:gap-6 qb:xl:grid-cols-[minmax(0,60rem)_18rem]">
+        <DetailColumns>
           <Card>
             {provider ? (
               <ConnectionForm
@@ -433,7 +434,7 @@ export function createConnectionEdit(config: QuickbenConfig, key: string) {
               ) : null}
             </CardBody>
           </Card>
-        </div>
+        </DetailColumns>
       </>
     );
   };
