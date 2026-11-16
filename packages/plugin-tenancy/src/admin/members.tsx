@@ -395,7 +395,10 @@ export function createMembersPage(config: QuickbenConfig, key: string) {
       <>
         <Heading
           title={t("members.title")}
-          description={t("members.descriptionOf", { organization: tenant.organization.name })}
+          description={t(
+            tenancy.emptyModules === "none" ? "members.descriptionNone" : "members.descriptionOf",
+            { organization: tenant.organization.name },
+          )}
         />
         <Card>
           <Table>

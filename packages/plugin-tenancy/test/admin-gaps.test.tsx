@@ -152,6 +152,7 @@ describe("tenancy admin with emptyModules none", () => {
     actAs(alice);
     incoming.set("x-quickben-organization", ids.acme);
     await renderPage();
+    expect(screen.getByText(/Tick "All modules" to grant every module/)).toBeTruthy();
     const boxes = screen.getAllByRole<HTMLInputElement>("checkbox", { name: "All modules" });
     expect(boxes.map((box) => box.checked)).toEqual([true, true, true, true]);
     await run(

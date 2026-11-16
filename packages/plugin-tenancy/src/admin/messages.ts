@@ -40,6 +40,8 @@ export const tenancyMessages = defineMessages("tenancy", {
     "members.description": "People in the active organization.",
     "members.descriptionOf":
       "People in {organization}. No module ticked means every module of the organization.",
+    "members.descriptionNone":
+      'People in {organization}. Tick "All modules" to grant every module of the organization.',
     "members.you": "(you)",
     "members.column.member": "Member",
     "members.column.role": "Role",
@@ -151,6 +153,8 @@ export const tenancyMessages = defineMessages("tenancy", {
     "members.description": "Personas de la organización activa.",
     "members.descriptionOf":
       "Personas de {organization}. Sin módulos marcados, tiene acceso a todos los módulos de la organización.",
+    "members.descriptionNone":
+      "Personas de {organization}. Marca «Todos los módulos» para dar todos los módulos de la organización.",
     "members.you": "(tú)",
     "members.column.member": "Miembro",
     "members.column.role": "Rol",
