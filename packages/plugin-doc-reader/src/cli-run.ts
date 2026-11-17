@@ -15,6 +15,7 @@ import { SPLITS } from "./collections";
 import { importSamples } from "./import";
 import { loadFolder, loadManifest } from "./node";
 import { getDocReader } from "./options";
+import { rescoreTestRun } from "./rescore";
 import { splitSamples } from "./splits";
 
 import type { Split } from "./collections";
@@ -43,6 +44,8 @@ Commands:
   run      Test a version --version <n> [--split dev,validation] [--held-out]
            [--concurrency <n>] [--max-cost <usd>] [--retries <n>] [--wait]
   export   Write a run --run <id> [--format csv|json] [--out <file>]
+  rescore  Score a run again with today's expected values and rules, without reading
+           --run <id> [--version <n>] (default: the run's version)
 
 The command runs as trusted server code against the config's database.`;
 
@@ -278,6 +281,24 @@ async function runExport(qb: Quickben, values: Values, io: CliIo): Promise<numbe
   return 0;
 }
 
+async function runRescore(qb: Quickben, values: Values, io: CliIo): Promise<number> {
+  if (values.run === undefined) throw new UsageError("rescore needs --run <id>");
+  const version = values.version === undefined ? undefined : Number(values.version);
+  if (version !== undefined && !Number.isInteger(version)) {
+    throw new UsageError("--version is a number");
+  }
+  const run = await rescoreTestRun(
+    qb,
+    CLI_CONTEXT,
+    values.run,
+    version === undefined ? {} : { version },
+  );
+  io.stdout(
+    `${JSON.stringify({ id: run.id, rescoredFrom: run.rescoredFrom, version: run.typeVersion, summary: run.summary }, null, 2)}\n`,
+  );
+  return 0;
+}
+
 async function dispatch(command: string, values: Values, io: CliIo): Promise<number> {
   if (values.config === undefined) throw new UsageError("--config <file> is required");
   const file = resolve(io.cwd, values.config);
@@ -285,6 +306,7 @@ async function dispatch(command: string, values: Values, io: CliIo): Promise<num
   const qb = await getQuickben(config);
   try {
     if (command === "export") return await runExport(qb, values, io);
+    if (command === "rescore") return await runRescore(qb, values, io);
     if (values.type === undefined) throw new UsageError("--type <key> is required");
     if (command === "import") return await runImport(qb, values.type, values, io);
     if (command === "split") return await runSplit(qb, values.type, values, io);
@@ -304,7 +326,7 @@ export async function runCli(args: readonly string[], io: CliIo): Promise<number
       io.stdout(`${usage}\n`);
       return command === undefined && !values.help ? 1 : 0;
     }
-    if (!["import", "split", "run", "export"].includes(command)) {
+    if (!["import", "split", "run", "export", "rescore"].includes(command)) {
       throw new UsageError(`Unknown command ${command}`);
     }
     return await dispatch(command, values, io);

@@ -36,7 +36,8 @@ const list = (value: string) =>
     .map((item) => item.trim())
     .filter(Boolean);
 
-function fieldsOf(formData: FormData) {
+/** Fields from the editor. `origin` and `compare` have no inputs yet: they carry over by key. */
+function fieldsOf(formData: FormData, current?: DocumentType) {
   const fields: Record<string, unknown>[] = [];
   for (let i = 0; i < count(formData, "fieldCount"); i += 1) {
     const p = `fields.${String(i)}.`;
@@ -58,6 +59,9 @@ function fieldsOf(formData: FormData) {
       decimalSeparator: text(formData, `${p}decimalSeparator`),
     };
     for (const [name, value] of Object.entries(extra)) if (value !== undefined) field[name] = value;
+    const before = current?.fields.find((candidate) => candidate.key === field.key);
+    if (before?.origin !== undefined) field.origin = before.origin;
+    if (before?.compare !== undefined) field.compare = before.compare;
     fields.push(field);
   }
   return fields;
@@ -189,7 +193,7 @@ export function definitionFromForm(
       text: lines(raw(formData, "classText")),
       fileName: lines(raw(formData, "classFileName")),
     },
-    fields: fieldsOf(formData),
+    fields: fieldsOf(formData, current),
     params: paramsOf(formData),
     pipeline: {
       steps: stepsOf(formData),

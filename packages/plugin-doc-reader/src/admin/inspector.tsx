@@ -10,7 +10,7 @@ import type { DocReaderT } from "./messages";
 import type { ReactNode } from "react";
 
 /** How a field came out, for the sample view. */
-export type InspectStatus = "correct" | "wrong" | "missed" | "hallucinated" | "unchecked";
+export type InspectStatus = "correct" | "near" | "wrong" | "missed" | "hallucinated" | "unchecked";
 
 export interface InspectField {
   readonly key: string;
@@ -51,20 +51,21 @@ const isError = (field: InspectField) =>
 export function matchesFilter(field: InspectField, filter: Filter): boolean {
   if (filter === "errors") return isError(field);
   if (filter === "low") return field.low;
-  if (filter === "correct") return field.status === "correct";
+  if (filter === "correct") return field.status === "correct" || field.status === "near";
   return true;
 }
 
 const pct = (n: number) => `${String(Math.round(n * 10_000) / 100)}%`;
 
 function color(field: InspectField): string {
-  if (field.status === "correct") return "var(--qb-success)";
+  if (field.status === "correct" || field.status === "near") return "var(--qb-success)";
   if (isError(field)) return "var(--qb-danger)";
   return "var(--qb-info)";
 }
 
 const tones: Record<InspectStatus, "green" | "red" | "amber" | "neutral"> = {
   correct: "green",
+  near: "green",
   wrong: "red",
   missed: "amber",
   hallucinated: "red",

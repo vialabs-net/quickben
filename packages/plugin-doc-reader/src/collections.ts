@@ -12,6 +12,7 @@ export const DOC_QUOTAS = "doc-quotas";
 export const DOC_SPLITS = "doc-splits";
 export const DOC_TEST_RESULTS = "doc-test-results";
 export const DOC_EVAL_CLAIMS = "doc-eval-claims";
+export const DOC_CORRECTIONS = "doc-corrections";
 
 /** Durable unique claims shared by queue workers and dataset writers. */
 export function docEvalClaimsCollection() {
@@ -39,7 +40,7 @@ export const HELD_OUT_SPLITS: readonly Split[] = ["test", "unseen"];
 export const JOB_STATES = ["queued", "running", "done", "failed", "cancelled"] as const;
 export type JobState = (typeof JOB_STATES)[number];
 export const RUN_STATES = ["running", "done", "failed"] as const;
-export const RUN_PURPOSES = ["bench", "baseline", "publish"] as const;
+export const RUN_PURPOSES = ["bench", "baseline", "publish", "rescore"] as const;
 export type RunPurpose = (typeof RUN_PURPOSES)[number];
 const STATUSES = ["OK", "INCOMPLETE", "NO_MATCH", "NO_TEXT", "ERROR"] as const;
 
@@ -121,6 +122,36 @@ export function docSamplesCollection(isStaff: IsStaff) {
   });
 }
 
+/** The log of expected-value corrections: one row per reviewer decision. */
+export function docCorrectionsCollection(isStaff: IsStaff) {
+  return defineCollection({
+    slug: DOC_CORRECTIONS,
+    labels: { singular: "Expected value correction", plural: "Expected value corrections" },
+    fields: {
+      typeKey: f.text({ required: true, index: true, maxLength: 64 }),
+      sampleId: f.text({ index: true, maxLength: 64 }),
+      sampleKey: f.text({ maxLength: 200 }),
+      field: f.text({ required: true, maxLength: 200 }),
+      before: f.text({ maxLength: 10_000 }),
+      after: f.text({ maxLength: 10_000 }),
+      reason: f.text({ maxLength: 1000 }),
+      action: f.select({
+        options: ["use-read", "edit", "keep", "mark-system", "bulk"],
+        required: true,
+      }),
+      runId: f.text({ maxLength: 64 }),
+      by: text(),
+    },
+    access: {
+      read: ({ user }) => user !== null && isStaff(user),
+      create: ({ user }) => user !== null && isStaff(user),
+      update: () => false,
+      delete: () => false,
+    },
+    admin: { ...hidden },
+  });
+}
+
 /** One split assignment of a type's samples. A new split is a new version. */
 export function docSplitsCollection(isStaff: IsStaff) {
   return defineCollection({
@@ -199,8 +230,10 @@ export function docTestRunsCollection(isStaff: IsStaff) {
       splitVersion: f.number({ integer: true, min: 0 }),
       /** Read `test` or `unseen` samples. */
       heldOut: f.boolean({ default: false }),
-      /** `bench`: started by hand. `baseline`: the published version, for the publish check. `publish`: held-out runs of a publication. */
+      /** `bench`: started by hand. `baseline`: the published version, for the publish check. `publish`: held-out runs of a publication. `rescore`: an earlier run's reads scored again, without reading. */
       purpose: f.select({ options: RUN_PURPOSES, default: "bench" }),
+      /** A `rescore` run: the run whose reads it scored again. */
+      rescoredFrom: f.text({ maxLength: 64 }),
       sampleIds: f.json({ required: true, default: () => [] }),
       total: f.number({ required: true, integer: true, default: 0, min: 0 }),
       concurrency: f.number({ required: true, integer: true, default: 3, min: 1 }),
@@ -320,3 +353,4 @@ export type DocUsageCollection = ReturnType<typeof docUsageCollection>;
 export type DocQuotasCollection = ReturnType<typeof docQuotasCollection>;
 export type DocSplitsCollection = ReturnType<typeof docSplitsCollection>;
 export type DocTestResultsCollection = ReturnType<typeof docTestResultsCollection>;
+export type DocCorrectionsCollection = ReturnType<typeof docCorrectionsCollection>;

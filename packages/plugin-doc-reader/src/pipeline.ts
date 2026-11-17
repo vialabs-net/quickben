@@ -6,7 +6,7 @@
  * suggestion. The run stops as soon as the type's stop rule is met, so a free extractor that
  * reads everything spares the paid ones.
  */
-import { requiredFields } from "./definition";
+import { readableType, requiredFields } from "./definition";
 
 import type { DocumentType, ExtractionParams, PipelineStep } from "./definition";
 import type {
@@ -165,7 +165,9 @@ function finalStatus(
 }
 
 /** Run the pipeline of `options.type`. Never throws for a document it cannot read. */
-export async function runPipeline(options: PipelineOptions): Promise<PipelineResult> {
+export async function runPipeline(input: PipelineOptions): Promise<PipelineResult> {
+  // Fields of `system` origin are filled by the caller, never read.
+  const options = { ...input, type: readableType(input.type) };
   const { type } = options;
   const now = options.now ?? Date.now;
   const attempts: PipelineAttempt[] = [];

@@ -12,7 +12,7 @@
  */
 import { listParam } from "./definition";
 
-import type { DocumentType, ExtractionParams, FieldDefinition } from "./definition";
+import type { CompareRules, DocumentType, ExtractionParams, FieldDefinition } from "./definition";
 
 type FieldRules = Pick<
   FieldDefinition,
@@ -117,6 +117,79 @@ export function sameFieldValue(
   const b = normalizeFieldValue(field, read) ?? (read ?? "").trim();
   if (field.type === "text") return a.toUpperCase() === b.toUpperCase();
   return a === b;
+}
+
+/** Uppercase, accents and punctuation dropped as the rules say, whitespace collapsed. */
+export function looseText(value: string, rules: CompareRules = {}): string {
+  let text = value.toUpperCase();
+  if (rules.ignoreAccents) text = text.normalize("NFD").replaceAll(/\p{M}/gu, "");
+  if (rules.ignorePunctuation) text = text.replaceAll(/[\p{P}\p{S}]/gu, " ");
+  return text.replaceAll(/\s+/gu, " ").trim();
+}
+
+const escapeRegExp = (text: string) => text.replaceAll(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+
+/** Every equivalent written as the first of its pair, as whole words. */
+function applyEquivalents(text: string, rules: CompareRules): string {
+  let out = text;
+  for (const [canonical, other] of rules.equivalents ?? []) {
+    const a = looseText(canonical, rules);
+    const b = looseText(other, rules);
+    if (!a || !b || a === b) continue;
+    // Spaces inside a phrase are optional: `S A` also matches `SA` once dots are gone.
+    const phrase = b
+      .split(" ")
+      .map((word) => escapeRegExp(word))
+      .join(" ?");
+    out = out.replaceAll(new RegExp(`(?<![\\p{L}\\p{N}])${phrase}(?![\\p{L}\\p{N}])`, "gu"), a);
+  }
+  return out.replaceAll(/\s+/gu, " ").trim();
+}
+
+/** 1 − Levenshtein distance / the longer length; 1 for two empty strings. */
+export function similarity(a: string, b: string): number {
+  if (a === b) return 1;
+  const longer = Math.max(a.length, b.length);
+  if (longer === 0) return 1;
+  let previous = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i += 1) {
+    const current = [i];
+    for (let j = 1; j <= b.length; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      current[j] = Math.min(
+        (previous[j] ?? 0) + 1,
+        (current[j - 1] ?? 0) + 1,
+        (previous[j - 1] ?? 0) + cost,
+      );
+    }
+    previous = current;
+  }
+  return 1 - (previous[b.length] ?? longer) / longer;
+}
+
+/**
+ * How a read value compares with an expected one: `same` under the type rules (see
+ * {@link sameFieldValue}), `near` only under the field's `compare` rules, else `different`.
+ */
+export function compareFieldValue(
+  field: FieldRules & { readonly compare?: CompareRules },
+  expected: string | null | undefined,
+  read: string | null | undefined,
+): "same" | "near" | "different" {
+  if (sameFieldValue(field, expected, read)) return "same";
+  const rules = field.compare;
+  if (!rules) return "different";
+  const a = normalizeFieldValue(field, expected) ?? (expected ?? "").trim();
+  const b = normalizeFieldValue(field, read) ?? (read ?? "").trim();
+  const left = applyEquivalents(looseText(a, rules), rules);
+  const right = applyEquivalents(looseText(b, rules), rules);
+  // Without punctuation, `S.A.` and `SA` differ only by spaces.
+  const squeeze = (text: string) => (rules.ignorePunctuation ? text.replaceAll(" ", "") : text);
+  if (squeeze(left) === squeeze(right)) return "near";
+  if (rules.minSimilarity !== undefined && similarity(left, right) >= rules.minSimilarity) {
+    return "near";
+  }
+  return "different";
 }
 
 /**

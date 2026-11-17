@@ -23,10 +23,13 @@ export {
 export {
   DEFAULT_EMPTY_VALUES,
   documentTypeSchema,
+  FIELD_ORIGINS,
   FIELD_TRANSFORMS,
   FIELD_TYPES,
+  isReadable,
   isScored,
   listParam,
+  readableType,
   parseDocumentType,
   requiredFields,
 } from "./definition";
@@ -53,7 +56,13 @@ export {
   visionConfigSchema,
 } from "./extractors/vision-llm";
 export { FIELD_KEY, flattenValues, nestValues } from "./field-keys";
-export { normalizeFieldValue, sameFieldValue } from "./field-values";
+export {
+  compareFieldValue,
+  looseText,
+  normalizeFieldValue,
+  sameFieldValue,
+  similarity,
+} from "./field-values";
 export { checkExamples } from "./examples";
 export { expectedValues, importSamples } from "./import";
 export {
@@ -101,6 +110,30 @@ export {
   sampleFieldViews,
 } from "./review";
 export type { FieldStatus, RunProblem, SampleFieldView } from "./review";
+export {
+  applyCorrections,
+  CORRECTION_ACTIONS,
+  correctExpected,
+  correctExpectedBulk,
+  correctionOverrides,
+  exportCorrections,
+  listCorrections,
+  markSystemField,
+  parseCorrections,
+} from "./corrections";
+export type {
+  ApplyReport,
+  BulkCorrectInput,
+  Correction,
+  CorrectionAction,
+  CorrectionFilters,
+  CorrectionInput,
+  CorrectInput,
+} from "./corrections";
+export { rescoreResult, rescoreTestRun } from "./rescore";
+export type { RescoreOptions } from "./rescore";
+export { findSuspects, inText, printedForms, searchable, SUSPECT_DETECTORS } from "./suspects";
+export type { Suspect, SuspectDetector, SuspectOptions } from "./suspects";
 export { inProcessRunner } from "./runner";
 export {
   addSample,
@@ -141,7 +174,9 @@ export type {
   EvaluationSettings,
   ExtractionParams,
   FewShotExample,
+  CompareRules,
   FieldDefinition,
+  FieldOrigin,
   FieldTransform,
   FieldType,
   ParamDefinition,

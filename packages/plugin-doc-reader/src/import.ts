@@ -6,6 +6,7 @@
 import { ValidationError } from "@quickben/core";
 
 import { DOC_SAMPLES, DOC_TYPES } from "./collections";
+import { correctionOverrides } from "./corrections";
 import { datasetWrite } from "./eval-state";
 import { flattenValues } from "./field-keys";
 import { getDocReader } from "./options";
@@ -59,7 +60,18 @@ export interface ImportOptions {
   readonly onProgress?: (progress: { done: number; key: string; outcome: ImportOutcome }) => void;
   /** Check every item and report, without writing. */
   readonly dryRun?: boolean;
+  /**
+   * Keep logged corrections (see `correctExpected`): an incoming expected value equal to the
+   * one a correction replaced takes the corrected value. Default `true`.
+   */
+  readonly corrections?: boolean;
 }
+
+/** Options inside an import: the corrections of the current item. */
+type InternalOptions = ImportOptions & {
+  readonly corrected?: ReadonlyMap<string, { before: string | null; after: string | null }>;
+  readonly kept?: { count: number };
+};
 
 export type ImportOutcome = "created" | "updated" | "unchanged" | "failed";
 
@@ -70,6 +82,8 @@ export interface ImportReport {
   readonly failed: readonly { readonly key: string; readonly error: string }[];
   /** Keys of the mapped values that are not fields of the type. They are left out. */
   readonly unknownFields: readonly string[];
+  /** Expected values kept as a logged correction left them. */
+  readonly corrected: number;
 }
 
 const SAMPLE_KEY = /^[\w./:@+-]{1,200}$/u;
@@ -143,11 +157,18 @@ export async function importSamples(
   const counts = { created: 0, updated: 0, unchanged: 0 };
   const failed: { key: string; error: string }[] = [];
   const unknown = new Set<string>();
+  type Overrides = Awaited<ReturnType<typeof correctionOverrides>>;
+  const overrides: Overrides =
+    options.corrections === false
+      ? (new Map() as Overrides)
+      : await correctionOverrides(qb, ctx, typeKey);
+  const kept = { count: 0 };
   let done = 0;
   for await (const item of items) {
     let outcome: ImportOutcome;
     try {
-      outcome = await importOne(qb, ctx, type, item, options, unknown);
+      const corrected = overrides.get(item.key);
+      outcome = await importOne(qb, ctx, type, item, { ...options, corrected, kept }, unknown);
       counts[outcome] += 1;
     } catch (error) {
       outcome = "failed";
@@ -158,14 +179,19 @@ export async function importSamples(
     done += 1;
     options.onProgress?.({ done, key: item.key, outcome });
   }
-  return { ...counts, failed, unknownFields: [...unknown].sort((a, b) => a.localeCompare(b)) };
+  return {
+    ...counts,
+    failed,
+    unknownFields: [...unknown].sort((a, b) => a.localeCompare(b)),
+    corrected: kept.count,
+  };
 }
 
 /** What an item stores besides its file, checked. */
 function sampleData(
   type: DocumentType,
   item: ImportItem,
-  options: ImportOptions,
+  options: InternalOptions,
   unknown: Set<string>,
 ) {
   if (typeof item.key !== "string" || !SAMPLE_KEY.test(item.key)) {
@@ -179,8 +205,16 @@ function sampleData(
     ? options.map(item.expected, { key: item.key, group, attributes })
     : (flattenValues(item.expected ?? {}) as ExpectedValues);
   const note = item.note?.trim().slice(0, 500) ?? "";
+  const expected = expectedValues(type, mapped, unknown);
+  for (const [field, change] of options.corrected ?? []) {
+    const incoming = Object.hasOwn(expected, field) ? (expected[field] ?? null) : null;
+    if (incoming !== change.before || incoming === change.after) continue;
+    if (change.after === null) Reflect.deleteProperty(expected, field);
+    else expected[field] = change.after;
+    if (options.kept) options.kept.count += 1;
+  }
   return {
-    expected: parseExpected(expectedValues(type, mapped, unknown), true),
+    expected: parseExpected(expected, true),
     params: parseParams(item.params),
     note: note === "" ? null : note,
     group,
@@ -193,7 +227,7 @@ async function importOneUnlocked(
   ctx: RequestContext,
   type: DocumentType,
   item: ImportItem,
-  options: ImportOptions,
+  options: InternalOptions,
   unknown: Set<string>,
 ): Promise<Exclude<ImportOutcome, "failed">> {
   const state = getDocReader(qb);
@@ -259,7 +293,7 @@ async function importOne(
   ctx: RequestContext,
   type: DocumentType,
   item: ImportItem,
-  options: ImportOptions,
+  options: InternalOptions,
   unknown: Set<string>,
 ): Promise<Exclude<ImportOutcome, "failed">> {
   return datasetWrite(qb, type.key, () => importOneUnlocked(qb, ctx, type, item, options, unknown));

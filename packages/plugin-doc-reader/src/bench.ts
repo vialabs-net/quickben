@@ -134,6 +134,8 @@ export interface TestRun {
   readonly splitVersion: number | null;
   readonly heldOut: boolean;
   readonly purpose: RunPurpose;
+  /** A `rescore` run: the run whose reads it scored again. */
+  readonly rescoredFrom: string | null;
   /** Samples in the run. */
   readonly total: number;
   readonly concurrency: number;
@@ -162,6 +164,7 @@ export const toRun = (record: TestRunRecord): TestRun => ({
   splitVersion: record.splitVersion ?? null,
   heldOut: record.heldOut === true,
   purpose: record.purpose ?? "bench",
+  rescoredFrom: record.rescoredFrom ?? null,
   total: record.total ?? record.results.length,
   concurrency: record.concurrency ?? DEFAULT_CONCURRENCY,
   maxCostUsd: record.maxCostUsd ?? null,
@@ -979,6 +982,7 @@ const HEAD_COLUMNS = [
   "splitVersion",
   "heldOut",
   "purpose",
+  "rescoredFrom",
   "total",
   "concurrency",
   "maxCostUsd",

@@ -2,6 +2,7 @@ import { definePlugin } from "@quickben/core";
 
 import { processTestRunItem, TEST_RUN_JOB } from "./bench";
 import {
+  docCorrectionsCollection,
   docEvalClaimsCollection,
   docJobsCollection,
   docQuotasCollection,
@@ -17,6 +18,7 @@ import { failInterruptedJobs, processJob, requeueJobs } from "./readings";
 import { seedTypes } from "./store";
 
 import type {
+  DocCorrectionsCollection,
   DocJobsCollection,
   DocQuotasCollection,
   DocSamplesCollection,
@@ -40,11 +42,12 @@ export type DocReaderPlugin = Plugin<
   | DocQuotasCollection
   | DocSplitsCollection
   | DocTestResultsCollection
+  | DocCorrectionsCollection
 >;
 
 /**
  * Document reading. Adds `doc-types`, `doc-samples`, `doc-test-runs`, `doc-jobs`, `doc-usage`,
- * `doc-quotas`, `doc-splits` and `doc-test-results`. Read documents with
+ * `doc-quotas`, `doc-splits`, `doc-test-results` and `doc-corrections`. Read documents with
  * `readDocument(qb, input, ctx)`.
  *
  * With `@quickben/plugin-tenancy`, list `doc-jobs` in its `scope` (and list `tenancy()` after
@@ -64,6 +67,7 @@ export function docReader(options: DocReaderOptions = {}): DocReaderPlugin {
       docQuotasCollection(state.isStaff),
       docSplitsCollection(state.isStaff),
       docTestResultsCollection(state.isStaff),
+      docCorrectionsCollection(state.isStaff),
     ],
     onInit: async (qb) => {
       state.rootQb = qb;

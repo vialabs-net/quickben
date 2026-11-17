@@ -13,7 +13,7 @@ import type { DocumentType } from "./definition";
 import type { CheckEvidence, FieldCheck, SampleResult } from "./metrics";
 
 /** How a field came out. `unchecked`: no expected value, or not read. */
-export type FieldStatus = "correct" | "wrong" | "missed" | "hallucinated" | "unchecked";
+export type FieldStatus = "correct" | "near" | "wrong" | "missed" | "hallucinated" | "unchecked";
 
 /** The status of a field check. */
 export function fieldStatus(check: FieldCheck): FieldStatus {
@@ -21,6 +21,8 @@ export function fieldStatus(check: FieldCheck): FieldStatus {
     case "correct":
     case "correct-empty":
       return "correct";
+    case "near":
+      return "near";
     case "wrong":
       return "wrong";
     case "missed":

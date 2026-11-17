@@ -73,6 +73,7 @@ export interface TestRunRecord extends System {
   readonly splitVersion?: number | null;
   readonly heldOut?: boolean | null;
   readonly purpose?: RunPurpose | null;
+  readonly rescoredFrom?: string | null;
   readonly sampleIds?: string[];
   readonly total?: number;
   readonly concurrency?: number;

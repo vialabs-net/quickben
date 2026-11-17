@@ -409,6 +409,7 @@ export const docReaderMessages = defineMessages("doc-reader", {
     "export.json": "Download JSON",
     "outcome.correct": "right",
     "outcome.correct-empty": "right (empty)",
+    "outcome.near": "near",
     "outcome.wrong": "wrong",
     "outcome.missed": "missed",
     "outcome.hallucinated": "hallucinated",
@@ -463,6 +464,7 @@ export const docReaderMessages = defineMessages("doc-reader", {
 
     "toast.note-saved": "Note saved",
     "inspect.status.correct": "right",
+    "inspect.status.near": "near",
     "inspect.status.wrong": "wrong",
     "inspect.status.missed": "missed",
     "inspect.status.hallucinated": "hallucinated",
@@ -953,6 +955,7 @@ export const docReaderMessages = defineMessages("doc-reader", {
     "export.json": "Descargar JSON",
     "outcome.correct": "bien",
     "outcome.correct-empty": "bien (vacío)",
+    "outcome.near": "casi",
     "outcome.wrong": "mal",
     "outcome.missed": "omitido",
     "outcome.hallucinated": "alucinado",
@@ -1008,6 +1011,7 @@ export const docReaderMessages = defineMessages("doc-reader", {
 
     "toast.note-saved": "Nota guardada",
     "inspect.status.correct": "bien",
+    "inspect.status.near": "casi",
     "inspect.status.wrong": "mal",
     "inspect.status.missed": "omitido",
     "inspect.status.hallucinated": "alucinado",
