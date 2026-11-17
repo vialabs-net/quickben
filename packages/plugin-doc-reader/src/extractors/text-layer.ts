@@ -59,6 +59,30 @@ export interface LocatedEvidence extends FieldEvidence {
  * keeps the box the vision model drew (`source: "model"`); scans have no text layer, so their
  * boxes always come from the model.
  */
+/**
+ * What to look for on the page, best first: the value, the part of the model's evidence after
+ * its last `:` (the printed value of `Tipo de Combustible : Gasolina`, often a text run apart
+ * from its label), then the whole evidence.
+ */
+function searchTexts(field: FieldValue): string[] {
+  const evidence = field.evidence?.text ?? "";
+  const afterLabel = evidence.includes(":")
+    ? evidence.slice(evidence.lastIndexOf(":") + 1).trim()
+    : "";
+  return [field.value, afterLabel, evidence].filter(
+    (text, index, all) => text.length >= 2 && all.indexOf(text) === index,
+  );
+}
+
+/** The first candidate found on a page. */
+function firstBox(items: PageText["items"], candidates: readonly string[]) {
+  for (const text of candidates) {
+    const found = findBox(items, text);
+    if (found) return found;
+  }
+  return null;
+}
+
 export async function locateEvidence(
   bytes: Uint8Array,
   mime: string,
@@ -85,10 +109,9 @@ export async function locateEvidence(
   for (const [key, field] of Object.entries(fields)) {
     const first = field.evidence?.page;
     const ordered = [...texts].sort((a, b) => Number(b.page === first) - Number(a.page === first));
+    const candidates = searchTexts(field);
     for (const page of ordered) {
-      const found =
-        findBox(page.items, field.value) ??
-        (field.evidence?.text ? findBox(page.items, field.evidence.text) : null);
+      const found = firstBox(page.items, candidates);
       if (!found) continue;
       out[key] = {
         ...field,

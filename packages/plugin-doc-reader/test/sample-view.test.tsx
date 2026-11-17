@@ -2,6 +2,7 @@
 import { englishI18n } from "@quickben/admin/i18n";
 import { getQuickben } from "@quickben/core";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { PDFDocument, StandardFonts } from "pdf-lib";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createDraft, deleteDraft, addSample, getSample, listSamples, startTestRun } from "../src";
@@ -255,6 +256,33 @@ describe("evidence boxes", () => {
     expect(image.number?.evidence?.source).toBe("model");
     const broken = await locateEvidence(new Uint8Array([1, 2]), "application/pdf", [1], fields);
     expect(broken.total?.evidence?.source).toBe("model");
+  });
+
+  it("finds the value after the label when they are separate text runs", async () => {
+    const doc = await PDFDocument.create();
+    const font = await doc.embedFont(StandardFonts.Helvetica);
+    const page = doc.addPage([600, 400]);
+    page.drawText("Fuel type", { x: 20, y: 360, size: 8, font });
+    page.drawText(":", { x: 120, y: 360, size: 8, font });
+    page.drawText("Petrol", { x: 300, y: 360, size: 8, font });
+    const pdf = new Uint8Array(await doc.save());
+    const located = await locateEvidence(pdf, "application/pdf", [1], {
+      fuel: {
+        value: "PETROL (HYBRID)",
+        confidence: 0.6,
+        evidence: {
+          page: 1,
+          text: "Fuel type : Petrol",
+          box: { x0: 0.4, y0: 0.9, x1: 0.5, y1: 0.95 },
+        },
+      },
+    });
+    expect(located.fuel?.evidence).toMatchObject({
+      source: "text-layer",
+      text: "Fuel type : Petrol",
+    });
+    expect(located.fuel?.evidence?.box?.x0).toBeGreaterThan(0.45);
+    expect(located.fuel?.evidence?.box?.y0).toBeLessThan(0.2);
   });
 
   it("labels each field for the view", () => {
