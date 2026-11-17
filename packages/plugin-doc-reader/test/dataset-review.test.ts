@@ -377,6 +377,18 @@ describe("suspects", () => {
       detectors: ["expected-not-in-text"],
     });
     expect(after).toHaveLength(2);
+    await correctExpected(made.qb, admin, {
+      sampleId: first?.id ?? "",
+      field: "number",
+      value: "A-1043",
+      action: "use-read",
+    });
+    const fixed = await findSuspects(made.qb, admin, "invoice", {
+      runId: run?.id ?? "",
+      text,
+      detectors: ["read-in-text", "repeated-difference"],
+    });
+    expect(fixed.filter((item) => item.sampleId === first?.id)).toEqual([]);
     const noText = await findSuspects(made.qb, admin, "invoice", {
       text: () => Promise.resolve(null),
     });

@@ -10,7 +10,9 @@
  * | `repeated-difference`  | The same expected → read difference on several samples         |
  *
  * Text detectors skip samples without a text layer and values shorter than 3 characters.
- * Fields that are not scored (`scored: false`, `system` origin) and decisions logged as `keep`
+ * A run's reads are scored again with today's expected values and the version's rules, so a
+ * corrected value stops being a suspect. Fields that are not scored (`scored: false`, `system`
+ * origin) and decisions logged as `keep`
  * for the same value are left out. `test` and `unseen` samples are left out unless asked.
  */
 import { getTestRun } from "./bench";
@@ -21,6 +23,7 @@ import { pdfPagesText } from "./extractors/text-layer";
 import { looseText, normalizeFieldValue } from "./field-values";
 import { isEmptyValue } from "./metrics";
 import { getDocReader } from "./options";
+import { rescoreResult } from "./rescore";
 import { fieldStatus } from "./review";
 import { findAll } from "./store";
 import { getVersion, listVersions } from "./studio";
@@ -347,6 +350,7 @@ export async function findSuspects(
       (options.heldOut === true || !HELD_OUT_SPLITS.includes(sample.split ?? "dev")) &&
       (!inRun || inRun.has(sample.id)),
   );
+  const expectedById = new Map(all.map((sample) => [sample.id, sample.expected]));
   const kept = new Set(
     (await listCorrections(qb, ctx, typeKey, { action: "keep" })).map((item) =>
       keptKey(item.sampleId ?? "", item.field, item.after),
@@ -355,7 +359,13 @@ export async function findSuspects(
   const context: Context = {
     type,
     samples,
-    results: new Map((run?.results ?? []).map((result) => [result.sampleId, result])),
+    // The run's reads, scored with today's expected values and rules.
+    results: new Map(
+      (run?.results ?? []).map((result) => [
+        result.sampleId,
+        rescoreResult(type, expectedById.get(result.sampleId) ?? {}, result),
+      ]),
+    ),
     kept,
     options,
   };
