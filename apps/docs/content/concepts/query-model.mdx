@@ -32,6 +32,8 @@ const result = await qb.find(
 | `contains`, `startsWith` | text-like fields, case-insensitive       | no                   |
 | `exists`                 | all fields                               | `exists: false` does |
 
+SQLite ignores case for ASCII letters only: `{ title: { contains: "émile" } }` does not find `Émile` there. See the [Drizzle adapter](/docs/database-adapters/drizzle#queries).
+
 On `many` fields the operators mean:
 
 | Operator   | Matches when the array                   |

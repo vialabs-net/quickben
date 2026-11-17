@@ -12,10 +12,14 @@ afterEach(async () => {
   current = undefined;
 });
 
-runAdapterContractTests(() => {
-  current = drizzleAdapter({ dialect: "sqlite" });
-  return current;
-});
+// SQLite `LIKE` ignores case for ASCII letters only.
+runAdapterContractTests(
+  () => {
+    current = drizzleAdapter({ dialect: "sqlite" });
+    return current;
+  },
+  { asciiCaseOnly: true },
+);
 
 it("is a sqlite Drizzle adapter", () => {
   const db = drizzleAdapter({ dialect: "sqlite" });
