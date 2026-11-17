@@ -90,6 +90,17 @@ export {
   readingFile,
   retryReading,
 } from "./readings";
+export {
+  errorsBySample,
+  fieldStatus,
+  isHeldOutSplit,
+  isWrongStatus,
+  pickSampleRun,
+  runProblems,
+  sampleErrors,
+  sampleFieldViews,
+} from "./review";
+export type { FieldStatus, RunProblem, SampleFieldView } from "./review";
 export { inProcessRunner } from "./runner";
 export {
   addSample,
@@ -105,6 +116,7 @@ export {
   listAnnotations,
   listDocTypes,
   listSamples,
+  listTestRunHeads,
   listTestRuns,
   listVersions,
   publishCheck,

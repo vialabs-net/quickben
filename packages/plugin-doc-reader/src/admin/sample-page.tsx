@@ -20,6 +20,7 @@ import { getTestRun, listSampleRuns, testRunDefinition } from "../bench";
 import { HELD_OUT_SPLITS } from "../collections";
 import { isEmptyValue } from "../metrics";
 import { getDocReader } from "../options";
+import { fieldStatus, sampleErrors } from "../review";
 import { getSample, getVersion, listSamples, listVersions, sampleFile } from "../studio";
 
 import {
@@ -67,21 +68,7 @@ import type { ReactNode } from "react";
 /** Most pages rendered in the sample view. */
 const MAX_PAGES = 5;
 
-function statusOf(check: FieldCheck): InspectStatus {
-  switch (check.outcome ?? null) {
-    case "correct":
-    case "correct-empty":
-      return "correct";
-    case "wrong":
-      return "wrong";
-    case "missed":
-      return "missed";
-    case "hallucinated":
-      return "hallucinated";
-    default:
-      return check.match === false ? "wrong" : "unchecked";
-  }
-}
+const statusOf = (check: FieldCheck): InspectStatus => fieldStatus(check);
 
 /** The fields of a result as the inspector shows them. */
 export function inspectFields(type: DocumentType, result: SampleResult): InspectField[] {
@@ -104,12 +91,7 @@ export function inspectFields(type: DocumentType, result: SampleResult): Inspect
 }
 
 /** Wrong reads among the scored fields of a result. */
-export function errorCount(result: SampleResult): number {
-  return result.fields.filter((check) => {
-    const status = statusOf(check);
-    return check.scored !== false && status !== "correct" && status !== "unchecked";
-  }).length;
-}
+export const errorCount = (result: SampleResult): number => sampleErrors(result);
 
 async function renderPages(
   state: DocReaderState,

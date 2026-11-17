@@ -396,6 +396,23 @@ quickben-doc-reader export --config quickben.config.ts --run <id> --format csv -
 
 The CLI runs as trusted server code against the config's database. `--out` must stay inside the working directory, including through symbolic links. `--map` names a module whose default export maps expected JSON to fields. TypeScript configs load through `tsx` when the app has it.
 
+**Your own review UI**
+
+Headless functions for an app that builds its own bench or review screen:
+
+| Function                                     | Gives                                                                                       |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `listTestRunHeads(qb, ctx, type, limit?)`    | Runs of a type without results and metrics, newest first.                                   |
+| `listSampleRuns(qb, ctx, sampleId)`          | One sample's result in each run that read it.                                               |
+| `pickSampleRun(history, prefer, version?)`   | The entry to show: the first preferred run, else the newest of `version`, else the newest.  |
+| `sampleFieldViews(type, expected, result)`   | Fields in definition order: expected now, expected at run time, read, status, evidence box. |
+| `fieldStatus(check)`, `isWrongStatus(s)`     | `correct`, `wrong`, `missed`, `hallucinated` or `unchecked`.                                |
+| `sampleErrors(result)`, `errorsBySample(rs)` | Wrong scored fields of a result; per sample of a run (`null` when skipped or failed).       |
+| `runProblems(results, { heldOut? })`         | Every wrong scored field of a run. `heldOut: false` leaves out `test` and `unseen`.         |
+| `isHeldOutSplit(split)`                      | `test` and `unseen`.                                                                        |
+
+Evidence boxes are page fractions (`x0`, `y0`, `x1`, `y1`), so they map onto a page rendered at any size.
+
 ## Budgets
 
 | Function                               | Does                                                   |

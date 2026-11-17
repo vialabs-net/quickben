@@ -959,6 +959,61 @@ export async function exportTestRun(
 /** A run without its results: what a list of runs needs. */
 export type TestRunHead = Omit<TestRun, "results" | "metrics">;
 
+/** Columns of a run that a {@link TestRunHead} needs: everything but results and metrics. */
+const HEAD_COLUMNS = [
+  "id",
+  "typeKey",
+  "typeVersion",
+  "typeRevision",
+  "examplesRevision",
+  "compareGroup",
+  "variant",
+  "state",
+  "summary",
+  "error",
+  "costUsd",
+  "createdBy",
+  "createdAt",
+  "finishedAt",
+  "splits",
+  "splitVersion",
+  "heldOut",
+  "purpose",
+  "total",
+  "concurrency",
+  "maxCostUsd",
+  "retries",
+];
+
+function headOf(record: TestRunRecord): TestRunHead {
+  const full: { -readonly [K in keyof TestRun]?: TestRun[K] } = {
+    // Selected columns leave `results` out.
+    ...toRun({ ...record, results: Array.isArray(record.results) ? record.results : [] }),
+  };
+  delete full.results;
+  delete full.metrics;
+  return full as TestRunHead;
+}
+
+/**
+ * Runs of a type without their results, newest first. Cheaper than {@link listTestRuns} for
+ * long lists: results are not loaded.
+ */
+export async function listTestRunHeads(
+  qb: Quickben,
+  ctx: RequestContext,
+  key: string,
+  limit = 50,
+): Promise<TestRunHead[]> {
+  await failInterruptedRuns(qb);
+  const page = await qb.find(
+    DOC_TEST_RUNS,
+    { where: { typeKey: { eq: key } }, sort: "-createdAt", limit, select: HEAD_COLUMNS },
+    ctx,
+  );
+  return (page.docs as unknown as TestRunRecord[]).map((record) => headOf(record));
+}
+
 /** A sample's result in each run that read it, newest first. */
 export async function listSampleRuns(
   qb: Quickben,
@@ -983,9 +1038,6 @@ export async function listSampleRuns(
   return rows.flatMap((row) => {
     const record = byId.get(row.run);
     if (!record) return [];
-    const full: { -readonly [K in keyof TestRun]?: TestRun[K] } = { ...toRun(record) };
-    delete full.results;
-    delete full.metrics;
-    return [{ run: full as TestRunHead, result: row.result }];
+    return [{ run: headOf(record), result: row.result }];
   });
 }
