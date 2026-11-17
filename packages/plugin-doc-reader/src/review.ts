@@ -158,7 +158,7 @@ export function sampleFieldViews(
       confidence: check?.confidence ?? null,
       low:
         read !== null &&
-        !isEmptyValue(read, type.evaluation.emptyValues) &&
+        !isEmptyValue(read, [...type.evaluation.emptyValues, ...(field?.emptyValues ?? [])]) &&
         (check?.confidence ?? 0) < type.pipeline.threshold,
       scored: field ? isScored(field) : check?.scored !== false,
       evidence: check?.evidence ?? null,

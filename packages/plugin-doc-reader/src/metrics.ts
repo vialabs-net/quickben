@@ -191,12 +191,16 @@ export function fieldOutcome(
   field: Pick<
     FieldDefinition,
     "type" | "transform" | "pattern" | "dateOrder" | "decimalSeparator" | "compare"
-  >,
+  > &
+    Partial<Pick<FieldDefinition, "phoneCountry" | "emptyValues">>,
   expected: string | null,
   read: string | null,
-  emptyValues: readonly string[],
+  typeEmptyValues: readonly string[],
 ): FieldOutcome | null {
   if (expected === null) return null;
+  const emptyValues = field.emptyValues
+    ? [...typeEmptyValues, ...field.emptyValues]
+    : typeEmptyValues;
   const wantEmpty = isEmptyValue(expected, emptyValues);
   const gotEmpty = isEmptyValue(read, emptyValues);
   if (wantEmpty) return gotEmpty ? "correct-empty" : "hallucinated";

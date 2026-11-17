@@ -7,6 +7,7 @@
 import { z } from "zod";
 
 import { FIELD_KEY, FIELD_KEY_MAX } from "./field-keys";
+import { PHONE_COUNTRIES } from "./phone";
 
 /** Value types of a field. They decide how a read value is normalized and compared. */
 export const FIELD_TYPES = ["text", "date", "number", "email", "phone"] as const;
@@ -70,6 +71,13 @@ export const fieldSchema = z.object({
   dateOrder: z.enum(["dmy", "mdy"]).optional(),
   /** Decimal separator of `number` fields as printed. Default `.`. */
   decimalSeparator: z.enum([".", ","]).optional(),
+  /**
+   * Default country of `phone` fields (ISO 3166-1 alpha-2): values become E.164
+   * (`+56912345678`). A number that does not fit the country's plan stays as digits.
+   */
+  phoneCountry: z.enum(PHONE_COUNTRIES).optional(),
+  /** Values that mean "empty" for this field, besides the type's `evaluation.emptyValues`. */
+  emptyValues: z.array(z.string().max(50)).max(20).optional(),
   /** `false`: test runs report the field but leave it out of accuracy. Default `true`. */
   scored: z.boolean().optional(),
   /**

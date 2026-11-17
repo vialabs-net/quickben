@@ -134,6 +134,8 @@ export { rescoreResult, rescoreTestRun } from "./rescore";
 export type { RescoreOptions } from "./rescore";
 export { findSuspects, inText, printedForms, searchable, SUSPECT_DETECTORS } from "./suspects";
 export type { Suspect, SuspectDetector, SuspectOptions } from "./suspects";
+export { nationalNumber, PHONE_COUNTRIES, PHONE_PLANS, toE164 } from "./phone";
+export type { PhoneCountry } from "./phone";
 export { inProcessRunner } from "./runner";
 export {
   addSample,

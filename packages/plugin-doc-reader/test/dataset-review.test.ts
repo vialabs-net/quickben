@@ -18,6 +18,9 @@ import {
   listSamples,
   listVersions,
   looseText,
+  nationalNumber,
+  normalizeFieldValue,
+  toE164,
   markSystemField,
   parseCorrections,
   parseDocumentType,
@@ -112,6 +115,55 @@ describe("comparison rules", () => {
         ...invoiceInput,
         params: [],
         fields: [{ key: "a", label: "A", type: "text", compare: { minSimilarity: 2 } }],
+      }),
+    ).toThrow();
+  });
+});
+
+describe("phones", () => {
+  const phone = { type: "phone" as const, phoneCountry: "CL" as const };
+
+  it("writes numbers of the field's country in E.164", () => {
+    for (const raw of [
+      "+56 9 1111 2222",
+      "56911112222",
+      "911112222",
+      "0911112222",
+      "0056911112222",
+    ]) {
+      expect(normalizeFieldValue(phone, raw)).toBe("+56911112222");
+    }
+    expect(normalizeFieldValue(phone, "(2) 2333 4444")).toBe("+56223334444");
+    expect(normalizeFieldValue(phone, "223334444")).toBe("+56223334444");
+    // Does not fit the plan: kept as digits, never guessed.
+    expect(normalizeFieldValue(phone, "23334444")).toBe("23334444");
+    expect(normalizeFieldValue(phone, "+54 11 2222 3333")).toBe("+541122223333");
+    expect(normalizeFieldValue(phone, "1")).toBeNull();
+    expect(normalizeFieldValue({ type: "phone" }, "911112222")).toBe("911112222");
+    expect(toE164("+1 202 555 0100", "US")).toBe("+12025550100");
+    expect(nationalNumber("+56911112222", "CL")).toBe("911112222");
+    expect(nationalNumber("+12025550100", "CL")).toBeNull();
+    expect(fieldOutcome(phone, "56911112222", "9 1111 2222", ["-"])).toBe("correct");
+  });
+
+  it("takes a field's own placeholders as empty", () => {
+    const field = { ...phone, emptyValues: ["1", "0"] };
+    expect(fieldOutcome(field, "1", null, ["-"])).toBe("correct-empty");
+    expect(fieldOutcome(field, "0", "911112222", ["-"])).toBe("hallucinated");
+    expect(fieldOutcome(phone, "1", null, ["-"])).toBe("missed");
+    const type = parseDocumentType({
+      ...invoiceInput,
+      params: [],
+      fields: [
+        { key: "phone", label: "Phone", type: "phone", phoneCountry: "CL", emptyValues: ["1"] },
+      ],
+    });
+    expect(type.fields[0]?.phoneCountry).toBe("CL");
+    expect(() =>
+      parseDocumentType({
+        ...invoiceInput,
+        params: [],
+        fields: [{ key: "phone", label: "Phone", type: "phone", phoneCountry: "XX" }],
       }),
     ).toThrow();
   });
@@ -248,9 +300,31 @@ describe("corrections", () => {
       }),
     ).rejects.toThrow();
 
+    const [, , c] = await listSamples(made.qb, admin, "invoice");
+    await correctExpected(made.qb, admin, { sampleId: c?.id ?? "", field: "total", value: "7" });
+    const own = await correctExpectedBulk(made.qb, admin, {
+      typeKey: "invoice",
+      field: "total",
+      from: "12",
+      values: { [a?.id ?? ""]: "13", [c?.id ?? ""]: "99" },
+    });
+    // Only samples still at "12" and listed change, each to its own value.
+    expect(own.map((item) => item.after)).toEqual(["13"]);
+    await expect(
+      correctExpectedBulk(made.qb, admin, { typeKey: "invoice", field: "total", from: "12" }),
+    ).rejects.toThrow();
+
     const log = await listCorrections(made.qb, admin, "invoice");
-    expect(log.map((item) => item.action)).toEqual(["use-read", "keep", "edit", "bulk", "bulk"]);
-    expect(await listCorrections(made.qb, admin, "invoice", { action: "bulk" })).toHaveLength(2);
+    expect(log.map((item) => item.action)).toEqual([
+      "use-read",
+      "keep",
+      "edit",
+      "bulk",
+      "bulk",
+      "edit",
+      "bulk",
+    ]);
+    expect(await listCorrections(made.qb, admin, "invoice", { action: "bulk" })).toHaveLength(3);
     const csv = exportCorrections(log, "csv");
     expect(csv.split("\n")[0]).toBe(
       "at,typeKey,sampleKey,sampleId,field,action,before,after,reason,by,runId",

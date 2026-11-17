@@ -194,20 +194,38 @@ export interface BulkCorrectInput {
   readonly field: string;
   /** Samples whose expected value is exactly this one change. */
   readonly from: string;
-  /** The new value; `null` removes it. */
-  readonly value: string | null;
+  /** One new value for all of them; `null` removes it. */
+  readonly value?: string | null;
+  /**
+   * A value of its own per sample id, e.g. each sample's own read. Only these samples change
+   * (and only while their expected value is still `from`). Takes the place of `value`.
+   */
+  readonly values?: Readonly<Record<string, string | null>>;
   readonly reason?: string | null;
   /** Only these splits. Default: every sample of the type. */
   readonly splits?: readonly Split[];
   readonly runId?: string | null;
 }
 
-/** Change one expected value on every sample that has it, one log row each (`bulk`). */
+/** The new value of one sample in a bulk change; `undefined`: the sample is left alone. */
+function bulkValue(input: BulkCorrectInput, sampleId: string): string | null | undefined {
+  if (!input.values) return cleanValue(input.value, null);
+  if (!Object.hasOwn(input.values, sampleId)) return undefined;
+  return cleanValue(input.values[sampleId], null);
+}
+
+/**
+ * Change one expected value on every sample that has it, to one value or to a value per
+ * sample, one log row each (`bulk`).
+ */
 export async function correctExpectedBulk(
   qb: Quickben,
   ctx: RequestContext,
   input: BulkCorrectInput,
 ): Promise<Correction[]> {
+  if (input.value === undefined && input.values === undefined) {
+    throw new ValidationError([{ path: "value", message: "Give value or values" }]);
+  }
   const versions = await listVersions(qb, ctx, input.typeKey);
   const newest = versions[0];
   if (!newest) throw new NotFoundError(`Unknown document type ${input.typeKey}`);
@@ -221,10 +239,11 @@ export async function correctExpectedBulk(
     },
     ctx,
   );
-  const value = cleanValue(input.value, null);
   const out: Correction[] = [];
   for (const sample of samples) {
-    if (expectedOf(sample.expected, input.field) !== input.from || value === input.from) continue;
+    if (expectedOf(sample.expected, input.field) !== input.from) continue;
+    const value = bulkValue(input, sample.id);
+    if (value === undefined || value === input.from) continue;
     await setExpected(qb, ctx, sample.id, sample.expected, input.field, value);
     out.push(
       await log(qb, ctx, {

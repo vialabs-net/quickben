@@ -8,16 +8,18 @@
  * | `date`   | `YYYY-MM-DD`. Input: ISO, or day/month/year by `dateOrder`. |
  * | `number` | A plain decimal: `1234.5`. Thousands separators dropped. |
  * | `email`  | Lowercase, must look like an address.                  |
- * | `phone`  | Digits, with a leading `+` when printed. 6 digits or more. |
+ * | `phone`  | E.164 with `phoneCountry`; else digits, `+` when printed. 6 digits or more. |
  */
 import { listParam } from "./definition";
+import { toE164 } from "./phone";
 
 import type { CompareRules, DocumentType, ExtractionParams, FieldDefinition } from "./definition";
 
 type FieldRules = Pick<
   FieldDefinition,
   "type" | "transform" | "pattern" | "dateOrder" | "decimalSeparator"
->;
+> &
+  Partial<Pick<FieldDefinition, "phoneCountry">>;
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -80,6 +82,8 @@ function byType(field: FieldRules, value: string): string | null {
     case "phone": {
       const digits = value.replaceAll(/\D/gu, "");
       if (digits.length < 6) return null;
+      const e164 = field.phoneCountry ? toE164(value, field.phoneCountry) : null;
+      if (e164) return e164;
       return value.startsWith("+") ? `+${digits}` : digits;
     }
     case "text":

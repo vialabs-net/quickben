@@ -23,6 +23,7 @@ import { pdfPagesText } from "./extractors/text-layer";
 import { looseText, normalizeFieldValue } from "./field-values";
 import { isEmptyValue } from "./metrics";
 import { getDocReader } from "./options";
+import { nationalNumber } from "./phone";
 import { rescoreResult } from "./rescore";
 import { fieldStatus } from "./review";
 import { findAll } from "./store";
@@ -118,7 +119,11 @@ const pad = (n: string) => n.padStart(2, "0");
 
 /** The ways a value may be printed, as {@link searchable} text. */
 export function printedForms(
-  field: Pick<FieldDefinition, "type" | "transform" | "pattern" | "dateOrder" | "decimalSeparator">,
+  field: Pick<
+    FieldDefinition,
+    "type" | "transform" | "pattern" | "dateOrder" | "decimalSeparator"
+  > &
+    Partial<Pick<FieldDefinition, "phoneCountry">>,
   value: string,
 ): string[] {
   const forms = new Set([searchable(value)]);
@@ -137,6 +142,10 @@ export function printedForms(
       forms.add(form);
     }
   }
+  if (field.type === "phone" && field.phoneCountry && canonical) {
+    const national = nationalNumber(canonical, field.phoneCountry);
+    if (national) forms.add(national);
+  }
   if (field.type === "number" && canonical) {
     const [whole = "", decimals = ""] = canonical.replace("-", "").split(".");
     forms.add(whole + decimals);
@@ -147,7 +156,11 @@ export function printedForms(
 
 /** Whether a value is printed in a text (as {@link searchable} text); `null` when too short. */
 export function inText(
-  field: Pick<FieldDefinition, "type" | "transform" | "pattern" | "dateOrder" | "decimalSeparator">,
+  field: Pick<
+    FieldDefinition,
+    "type" | "transform" | "pattern" | "dateOrder" | "decimalSeparator"
+  > &
+    Partial<Pick<FieldDefinition, "phoneCountry">>,
   value: string,
   text: string,
 ): boolean | null {
@@ -191,8 +204,12 @@ function row(
   };
 }
 
-const hasValue = (type: DocumentType, value: string | null | undefined): value is string =>
-  !isEmptyValue(value, type.evaluation.emptyValues);
+const hasValue = (
+  type: DocumentType,
+  value: string | null | undefined,
+  field?: Pick<FieldDefinition, "emptyValues">,
+): value is string =>
+  !isEmptyValue(value, [...type.evaluation.emptyValues, ...(field?.emptyValues ?? [])]);
 
 const expectedIn = (sample: SampleRecord, key: string) =>
   Object.hasOwn(sample.expected, key) ? sample.expected[key] : undefined;
@@ -208,7 +225,14 @@ function groupsOf(samples: readonly SampleRecord[], min: number): [string, Sampl
 /** The value every member has, or `undefined`. */
 function sharedValue(ctx: Context, members: readonly SampleRecord[], key: string) {
   const first = members[0] ? expectedIn(members[0], key) : undefined;
-  if (!hasValue(ctx.type, first)) return undefined;
+  if (
+    !hasValue(
+      ctx.type,
+      first,
+      ctx.type.fields.find((f) => f.key === key),
+    )
+  )
+    return undefined;
   return members.every((sample) => expectedIn(sample, key) === first) ? first : undefined;
 }
 
@@ -241,11 +265,11 @@ function textSignal(
   text: string,
 ): { detector: SuspectDetector; read: string | null } | null {
   const expected = expectedIn(sample, field.key);
-  if (!hasValue(ctx.type, expected) || inText(field, expected, text) !== false) return null;
+  if (!hasValue(ctx.type, expected, field) || inText(field, expected, text) !== false) return null;
   const check = checkOf(ctx.results.get(sample.id), field.key);
   const read = check?.read ?? null;
   const wrong = check !== undefined && fieldStatus(check) === "wrong";
-  const readFound = wrong && hasValue(ctx.type, read) && inText(field, read, text) === true;
+  const readFound = wrong && hasValue(ctx.type, read, field) && inText(field, read, text) === true;
   return { detector: readFound ? "read-in-text" : "expected-not-in-text", read };
 }
 

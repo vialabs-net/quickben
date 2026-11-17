@@ -420,7 +420,10 @@ fields: [
 | `compare`        | A read equal only under these rules scores `near`: right, counted apart (`metrics.global.near`). |
 | `origin: system` | Filled by your systems, not printed: never sent to extractors, never scored.                     |
 
-Without `compare` and `origin` a field scores as before.
+| `phoneCountry` | `phone` fields: values (read and expected) become E.164 for that country (`+56912345678`). Numbers that do not fit its plan stay as digits. |
+| `emptyValues` | Values that mean empty for this field only, e.g. a system's placeholder `1`. |
+
+Without these options a field scores as before. `toE164(raw, "CL")` and `nationalNumber(e164, "CL")` are exported for adapters that need another format.
 
 **Reviewing the dataset**
 
