@@ -1,0 +1,35 @@
+name: Changesets
+
+# A separate workflow so that adding or removing a label re-runs only this check.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: changesets-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bumps:
+    name: Changeset bumps (patch while 0.x)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The base commit of the pull request is needed for git diff.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: Script tests
+        run: node --test scripts/*.test.mjs
+
+      # Fails on a minor or major changeset unless the pull request has the label
+      # release:minor or release:major. Labels and base SHA come from the event payload.
+      - name: Only patch changesets while 0.x
+        run: node scripts/check-changeset-bumps.mjs
