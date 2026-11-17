@@ -47,6 +47,22 @@ describe("parseChangeset", () => {
     assert.throws(() => parseChangeset('---\n"@quickben/core": patch\n'), /not closed/);
     assert.throws(() => parseChangeset('---\n"@quickben/core": huge\n---\n'), /cannot read/);
   });
+
+  test("accepts trailing YAML comments on quoted and unquoted bumps", () => {
+    assert.deepEqual(
+      parseChangeset(
+        '---\n"@quickben/core": patch # corrección compatible\n\'@quickben/admin\': "minor" # owner approval\n---\n',
+      ),
+      [
+        { name: "@quickben/core", bump: "patch" },
+        { name: "@quickben/admin", bump: "minor" },
+      ],
+    );
+    assert.throws(
+      () => parseChangeset('---\n"@quickben/core": patch#invalid\n---\n'),
+      /cannot read/,
+    );
+  });
 });
 
 test("majorOf", () => {
@@ -187,14 +203,19 @@ describe("in a git repository", () => {
     write(".changeset/README.md", "# Changesets\n\nEdited.\n");
     write(".changeset/config.json", "{}\n");
     write(".changeset/new.md", '---\n"@quickben/core": minor\n---\n\nNew.\n');
+    write(".changeset/revisión.md", '---\n"@quickben/core": minor\n---\n\nUnicode.\n');
     git("rm", "-q", ".changeset/old.md");
     git("add", "-A");
     git("commit", "-qm", "change");
-    assert.deepEqual(changedChangesets(root, base), [".changeset/new.md"]);
+    assert.deepEqual(changedChangesets(root, base), [
+      ".changeset/new.md",
+      ".changeset/revisión.md",
+    ]);
 
     const failed = run(["--base", base]);
     assert.equal(failed.code, 1);
     assert.match(failed.out, /new\.md: "@quickben\/core": minor/);
+    assert.match(failed.out, /revisión\.md: "@quickben\/core": minor/);
 
     const event = path.join(root, "event.json");
     writeFileSync(
@@ -205,6 +226,17 @@ describe("in a git repository", () => {
     );
     assert.equal(run([], { GITHUB_EVENT_PATH: event }).code, 0);
     assert.equal(run(["--base", base, "--label", "release:minor"]).code, 0);
+  });
+
+  test("patch changesets with trailing comments pass without labels", () => {
+    for (const file of ["new.md", "revisión.md"]) {
+      write(`.changeset/${file}`, '---\n"@quickben/core": patch # compatible\n---\n\nPatch.\n');
+    }
+    git("add", "-A");
+    git("commit", "-qm", "patch");
+    const result = run(["--base", base]);
+    assert.equal(result.code, 0);
+    assert.match(result.out, /Changeset bumps are fine/);
   });
 
   test("a malformed changeset fails", () => {

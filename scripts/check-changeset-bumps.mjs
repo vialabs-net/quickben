@@ -30,7 +30,7 @@ export function parseChangeset(text) {
   for (const raw of lines.slice(1, end)) {
     const line = raw.trim();
     if (line === "" || line.startsWith("#")) continue;
-    const match = /^(["']?)([^"'\s]+?)\1\s*:\s*(["']?)(\w+)\3$/.exec(line);
+    const match = /^(["']?)([^"'\s]+?)\1\s*:\s*(["']?)(\w+)\3(?:\s+#.*)?$/.exec(line);
     if (!match || !BUMPS.has(match[4])) throw new Error(`cannot read bump line: ${line}`);
     releases.push({ name: match[2], bump: match[4] });
   }
@@ -85,12 +85,11 @@ export function formatViolations(violations) {
 export function changedChangesets(root, base) {
   const out = execFileSync(
     "git",
-    ["diff", "--name-only", "--diff-filter=ACMR", `${base}...HEAD`, "--", ".changeset/*.md"],
+    ["diff", "--name-only", "-z", "--diff-filter=ACMR", `${base}...HEAD`, "--", ".changeset/*.md"],
     { cwd: root, encoding: "utf8" },
   );
   return out
-    .split("\n")
-    .map((f) => f.trim())
+    .split("\0")
     .filter((f) => f !== "" && path.posix.dirname(f) === ".changeset")
     .filter((f) => path.posix.basename(f).toLowerCase() !== "readme.md");
 }
