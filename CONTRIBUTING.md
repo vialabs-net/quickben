@@ -28,8 +28,23 @@ Turborepo caches results. Run one package with `pnpm --filter @quickben/core tes
 
 - Branch from `trunk`. Keep pull requests small.
 - Use [Conventional Commits](https://www.conventionalcommits.org/): `feat(core): add json field`, `fix(db-memory): …`, `docs: …`, `chore: …`.
-- Add a changeset (`pnpm changeset`) when a published package changes.
+- Add a changeset (`pnpm changeset`) when a published package changes. See [Changesets](#changesets).
 - CI must pass: lint, typecheck, tests with coverage, build and the SonarCloud quality gate.
+
+## Changesets
+
+While the packages are 0.x, every changeset is `patch`. All packages are in one `fixed` group, so one
+`minor` changeset moves every package to the next minor version.
+
+| Bump    | Allowed when                              |
+| ------- | ----------------------------------------- |
+| `patch` | Always.                                   |
+| `minor` | The owner adds the label `release:minor`. |
+| `major` | The owner adds the label `release:major`. |
+
+The CI job `Changeset bumps` checks the changesets a pull request adds or changes
+(`scripts/check-changeset-bumps.mjs`). Run it locally with `node scripts/check-changeset-bumps.mjs`
+(compares with `origin/trunk`).
 
 ## Database adapters
 
