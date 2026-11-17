@@ -104,12 +104,13 @@ export {
   fieldStatus,
   isHeldOutSplit,
   isWrongStatus,
+  liveResults,
   pickSampleRun,
   runProblems,
   sampleErrors,
   sampleFieldViews,
 } from "./review";
-export type { FieldStatus, RunProblem, SampleFieldView } from "./review";
+export type { CurrentScoring, FieldStatus, RunProblem, SampleFieldView } from "./review";
 export {
   applyCorrections,
   CORRECTION_ACTIONS,

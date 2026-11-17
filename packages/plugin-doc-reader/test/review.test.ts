@@ -7,6 +7,7 @@ import {
   isHeldOutSplit,
   listSampleRuns,
   listTestRunHeads,
+  liveResults,
   pickSampleRun,
   runProblems,
   sampleErrors,
@@ -107,6 +108,27 @@ describe("review helpers", () => {
       result({ fields: [check({ key: "vehicle.make", read: "X", confidence: 0.99 })] }),
     );
     expect(extra.at(-1)).toMatchObject({ key: "vehicle.make", group: "vehicle", low: false });
+  });
+
+  it("scores reads live with today's expected values and rules", () => {
+    // The run read 13 against 12; the expected value is now 13.
+    const views = sampleFieldViews(invoice, { number: "A1", total: "13" }, result());
+    expect(views.find((v) => v.key === "total")).toMatchObject({
+      expected: "13",
+      runExpected: "12",
+      status: "correct",
+    });
+    // No expected value any more: not checked.
+    expect(views.find((v) => v.key === "issuedOn")?.status).toBe("unchecked");
+    const current = {
+      type: invoice,
+      expected: new Map([["s1", { number: "A1", total: "13", issuedOn: "01/02/2026" }]]),
+    };
+    expect([...errorsBySample([result()], current)]).toEqual([["s1", 1]]);
+    expect(runProblems([result()], { current }).map((p) => p.field)).toEqual(["issuedOn"]);
+    expect(liveResults([result()])).toHaveLength(1);
+    // Samples missing from `current` keep their stored outcomes.
+    expect([...errorsBySample([result({ sampleId: "s9" })], current)]).toEqual([["s9", 2]]);
   });
 
   it("picks the run to show for a sample", () => {

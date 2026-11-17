@@ -2,10 +2,15 @@
  * Headless helpers for apps that build their own review UI on test runs: how each field came
  * out, the errors of a run per sample and as a list, and the fields of one sample with the
  * expected value saved now next to what a run read.
+ *
+ * Pass `current` (a definition and today's expected values) to score a run's reads live: a
+ * corrected expected value, or a rule changed in a draft, shows at once, without re-scoring
+ * the run. Without it the outcomes stored in the run are used.
  */
 import { HELD_OUT_SPLITS } from "./collections";
 import { isScored } from "./definition";
-import { isEmptyValue } from "./metrics";
+import { fieldOutcome, isEmptyValue } from "./metrics";
+import { rescoreResult } from "./rescore";
 
 import type { TestRunHead } from "./bench";
 import type { Split } from "./collections";
@@ -50,9 +55,31 @@ export function sampleErrors(result: SampleResult): number {
 }
 
 /** Errors per sample of a run's results; `null` for samples it skipped or that failed. */
-export function errorsBySample(results: readonly SampleResult[]): Map<string, number | null> {
+/** Today's definition and expected values, to score a run's reads live. */
+export interface CurrentScoring {
+  readonly type: DocumentType;
+  /** Expected values by sample id. Samples missing here keep their stored outcomes. */
+  readonly expected: ReadonlyMap<string, Readonly<Record<string, string>>>;
+}
+
+/** A run's results scored with `current`, or as stored without it. */
+export function liveResults(
+  results: readonly SampleResult[],
+  current?: CurrentScoring,
+): readonly SampleResult[] {
+  if (!current) return results;
+  return results.map((result) => {
+    const expected = current.expected.get(result.sampleId);
+    return expected ? rescoreResult(current.type, expected, result) : result;
+  });
+}
+
+export function errorsBySample(
+  results: readonly SampleResult[],
+  current?: CurrentScoring,
+): Map<string, number | null> {
   return new Map(
-    results.map((result) => [
+    liveResults(results, current).map((result) => [
       result.sampleId,
       result.skipped || result.failed ? null : sampleErrors(result),
     ]),
@@ -79,9 +106,9 @@ export interface RunProblem {
  */
 export function runProblems(
   results: readonly SampleResult[],
-  options: { heldOut?: boolean } = {},
+  options: { heldOut?: boolean; current?: CurrentScoring } = {},
 ): RunProblem[] {
-  return results.flatMap((result) => {
+  return liveResults(results, options.current).flatMap((result) => {
     if (result.skipped || result.failed) return [];
     if (options.heldOut === false && isHeldOutSplit(result.split)) return [];
     return result.fields.flatMap((check): RunProblem[] => {
@@ -130,10 +157,23 @@ const groupOf = (key: string) => {
   return at < 0 ? "" : key.slice(0, at);
 };
 
+/** A check's status with today's expected value and the field's current rules. */
+function liveStatus(
+  type: DocumentType,
+  field: DocumentType["fields"][number] | undefined,
+  check: FieldCheck | undefined,
+  expected: string | null,
+): FieldStatus {
+  if (!check) return "unchecked";
+  if (!field) return fieldStatus(check);
+  const outcome = fieldOutcome(field, expected, check.read, type.evaluation.emptyValues);
+  return fieldStatus({ ...check, outcome, match: null });
+}
+
 /**
  * The fields of a sample in definition order, with a result's reads and statuses. Fields the
  * result has but the definition no longer has come last. Without a result every field is
- * `unchecked`.
+ * `unchecked`. Statuses are live: the read against today's expected value, with `type`'s rules.
  */
 export function sampleFieldViews(
   type: DocumentType,
@@ -154,7 +194,7 @@ export function sampleFieldViews(
       expected: expected[key] ?? null,
       runExpected: check ? check.expected : null,
       read,
-      status: check ? fieldStatus(check) : "unchecked",
+      status: liveStatus(type, field, check, expected[key] ?? null),
       confidence: check?.confidence ?? null,
       low:
         read !== null &&
