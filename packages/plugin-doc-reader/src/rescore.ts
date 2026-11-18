@@ -101,7 +101,8 @@ export async function rescoreTestRun(
       splitVersion: source.splitVersion,
       heldOut: source.heldOut,
       purpose: "rescore",
-      rescoredFrom: source.id,
+      // A re-score of a re-score points at the run that read.
+      rescoredFrom: source.rescoredFrom ?? source.id,
       sampleIds: ids,
       total: source.total,
       concurrency: 1,

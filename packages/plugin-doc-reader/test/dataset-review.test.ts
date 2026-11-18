@@ -237,6 +237,8 @@ describe("re-scoring", () => {
     expect(after).toMatchObject({ purpose: "rescore", rescoredFrom: before.id, typeVersion: 2 });
     expect(after.metrics?.global).toMatchObject({ correct: 1, near: 2, wrong: 0 });
     expect(after.costUsd).toBe(before.costUsd);
+    const again = await rescoreTestRun(made.qb, admin, after.id);
+    expect(again.rescoredFrom).toBe(before.id);
     // Never a reason to publish.
     const version = await getVersion(made.qb, admin, "invoice", draft.version);
     expect(canPublish(version, [after])).toBe(false);
