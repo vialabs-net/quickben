@@ -99,10 +99,10 @@
     }
   },
   "devDependencies": {
-    "@ai-sdk/anthropic": "4.0.102",
-    "@ai-sdk/google": "4.0.118",
-    "@ai-sdk/google-vertex": "5.0.138",
-    "@ai-sdk/openai": "4.0.115",
+    "@ai-sdk/anthropic": "4.0.105",
+    "@ai-sdk/google": "4.0.121",
+    "@ai-sdk/google-vertex": "5.0.141",
+    "@ai-sdk/openai": "4.0.118",
     "@quickben/admin": "workspace:^",
     "@quickben/core": "workspace:^",
     "@quickben/db-memory": "workspace:^",
@@ -115,7 +115,7 @@
     "@types/react-dom": "19.3.0",
     "@vitest/coverage-v8": "5.1.0",
     "ai": "7.0.170",
-    "eslint": "10.14.0",
+    "eslint": "10.15.0",
     "happy-dom": "21.0.4",
     "next": "16.4.6",
     "publint": "0.3.25",
