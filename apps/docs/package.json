@@ -39,6 +39,8 @@
     "@quickben/plugin-doc-reader": "workspace:^",
     "@quickben/plugin-templates": "workspace:^",
     "@quickben/plugin-tenancy": "workspace:^",
+    "@quickben/email-resend": "workspace:^",
+    "@quickben/email-sendgrid": "workspace:^",
     "@quickben/storage-gcs": "workspace:^",
     "@quickben/storage-local": "workspace:^",
     "@quickben/storage-s3": "workspace:^",

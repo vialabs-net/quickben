@@ -1,5 +1,6 @@
 import type { DatabaseAdapter } from "./adapter";
 import type { AuthAdapter, QuickbenUser } from "./auth";
+import type { EmailAdapter } from "./email";
 import type { AnyEndpoint } from "./endpoints";
 import type { AnyField, Fields, FieldTypes, FileRef, RelationField, TextField } from "./fields";
 import type { LocalizedText } from "./localize";
@@ -518,6 +519,8 @@ export interface PluginConfig {
   db: DatabaseAdapter;
   /** Default storage of `file` fields. */
   storage: StorageAdapter | undefined;
+  /** App email sender. Missing in configs built before email existed. */
+  email?: EmailAdapter;
   collections: readonly AnyCollection[];
   auth: AuthAdapter | undefined;
   admin: AdminConfig;
@@ -605,6 +608,8 @@ export interface ConfigInput<
   db: DatabaseAdapter;
   /** Default storage of `file` fields. A field's own `storage` wins. */
   storage?: StorageAdapter;
+  /** App email sender, read back as `qb.config.email`. */
+  email?: EmailAdapter;
   collections: C;
   plugins?: P;
   auth?: AuthAdapter;
@@ -624,6 +629,8 @@ export interface QuickbenConfig<R extends Registry = Registry> {
   readonly db: DatabaseAdapter;
   /** Default storage of `file` fields. */
   readonly storage: StorageAdapter | undefined;
+  /** App email sender. `undefined` when the config has none. */
+  readonly email?: EmailAdapter;
   readonly collections: readonly SanitizedCollection[];
   readonly auth: AuthAdapter | undefined;
   readonly admin: AdminConfig & { readonly title: LocalizedText; readonly meta: AdminMeta };
