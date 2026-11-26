@@ -12,7 +12,7 @@ description: "@quickben/api-access: API keys, scopes, quota windows and a read-t
 - Quotas: count requests per key in fixed and calendar-month windows.
 - Cache: a read-through cache with tags and hit/miss counters.
 
-It has no runtime dependencies and does not use `@quickben/core`. Stores come in memory and Redis versions. The Redis stores take any client with the commands in `RedisLike`, such as ioredis.
+It has no runtime dependencies and does not use `@quickben/core`. Stores come in memory and Redis versions. The Redis stores take any client with the commands in `RedisLike`, such as ioredis. They use `EVAL` for atomic updates.
 
 ```sh
 pnpm add @quickben/api-access
@@ -105,7 +105,7 @@ await cache.invalidateTag(`vehicle:${plate}`);
 | `limits`         | Per window name. `null` or missing means no limit. The window still counts.                                                                                           |
 | Refused request  | `allowed: false`. It is not counted.                                                                                                                                  |
 | `enforce: false` | Counts and never refuses. `exceeded` lists the windows over their limit.                                                                                              |
-| `cost`           | Default 1.                                                                                                                                                            |
+| `cost`           | Integer, 0 or more. Default 1.                                                                                                                                        |
 | `calendar-month` | Resets at 00:00 on day 1 in `timeZone` (default `"UTC"`).                                                                                                             |
 | `peek`           | Reads without counting. `allowed` is false when a window is at its limit.                                                                                             |
 | `quotaHeaders`   | `X-RateLimit-Limit-<Window>`, `X-RateLimit-Remaining-<Window>`, `X-RateLimit-Reset-<Window>` (unix seconds) for windows with a limit, and `Retry-After` when refused. |
@@ -117,9 +117,11 @@ A window named `per_minute` gives headers ending in `-Per-Minute`.
 | Behavior     | Details                                                                                  |
 | ------------ | ---------------------------------------------------------------------------------------- |
 | Values       | Stored as JSON. A `Date` comes back as a string on a hit. `undefined` is not cached.     |
-| Keys         | Prefixed with `namespace`.                                                               |
+| Keys         | `JSON.stringify([namespace, key])`.                                                      |
 | Tags         | `invalidateTag(tag)` deletes every key loaded with that tag and returns the count.       |
 | Concurrency  | Concurrent calls for one key in one process share one loader call.                       |
+| Invalidation | A value from a load that `invalidateTag` or `delete` hit while it ran is removed.        |
+| Tag failure  | When `addToTag` fails, the value is removed.                                             |
 | `enabled`    | `false` or a function returning `false`: every call runs the loader, nothing is counted. |
 | `stats()`    | `hits`, `misses`, `invalidations` in this process since start.                           |
 | Store errors | Passed to `onError`. The loader result is returned.                                      |

@@ -28,6 +28,7 @@ const limiter = createQuotaLimiter({
 });
 const quota = await limiter.consume(parsed.keyId, { limits: { minute: 60, month: 10_000 } });
 reply.headers(quotaHeaders(quota));
+if (!quota.allowed) return reply.code(429).send({ error: "quota_exceeded" });
 ```
 
 | Export                                 | Purpose                                                                     |
