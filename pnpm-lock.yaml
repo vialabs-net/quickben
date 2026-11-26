@@ -211,6 +211,9 @@ importers:
       '@quickben/admin':
         specifier: workspace:^
         version: link:../../packages/admin
+      '@quickben/api-access':
+        specifier: workspace:^
+        version: link:../../packages/api-access
       '@quickben/auth-better-auth':
         specifier: workspace:^
         version: link:../../packages/auth-better-auth
@@ -226,6 +229,12 @@ importers:
       '@quickben/db-memory':
         specifier: workspace:^
         version: link:../../packages/db-memory
+      '@quickben/email-resend':
+        specifier: workspace:^
+        version: link:../../packages/email-resend
+      '@quickben/email-sendgrid':
+        specifier: workspace:^
+        version: link:../../packages/email-sendgrid
       '@quickben/eslint-config':
         specifier: workspace:*
         version: link:../../tooling/eslint-config
@@ -501,6 +510,39 @@ importers:
         specifier: ^4.6.7
         version: 4.6.7
 
+  packages/api-access:
+    devDependencies:
+      '@quickben/eslint-config':
+        specifier: workspace:*
+        version: link:../../tooling/eslint-config
+      '@quickben/tsconfig':
+        specifier: workspace:*
+        version: link:../../tooling/tsconfig
+      '@types/node':
+        specifier: 22.20.5
+        version: 22.20.5
+      '@vitest/coverage-v8':
+        specifier: 5.1.0
+        version: 5.1.0(vitest@5.1.0)
+      eslint:
+        specifier: 10.14.0
+        version: 10.14.0(jiti@2.7.0)
+      publint:
+        specifier: 0.3.25
+        version: 0.3.25
+      tsdown:
+        specifier: 0.23.7
+        version: 0.23.7(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vite:
+        specifier: 8.3.8
+        version: 8.3.8(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+      vitest:
+        specifier: 5.1.0
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@22.20.5)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4)(vite@8.3.8(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+
   packages/auth-better-auth:
     devDependencies:
       '@quickben/core':
@@ -760,6 +802,84 @@ importers:
         version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@22.20.5)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4)(vite@8.3.8(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/db-memory:
+    devDependencies:
+      '@quickben/adapter-tests':
+        specifier: workspace:*
+        version: link:../adapter-tests
+      '@quickben/core':
+        specifier: workspace:^
+        version: link:../core
+      '@quickben/eslint-config':
+        specifier: workspace:*
+        version: link:../../tooling/eslint-config
+      '@quickben/tsconfig':
+        specifier: workspace:*
+        version: link:../../tooling/tsconfig
+      '@types/node':
+        specifier: 22.20.5
+        version: 22.20.5
+      '@vitest/coverage-v8':
+        specifier: 5.1.0
+        version: 5.1.0(vitest@5.1.0)
+      eslint:
+        specifier: 10.14.0
+        version: 10.14.0(jiti@2.7.0)
+      publint:
+        specifier: 0.3.25
+        version: 0.3.25
+      tsdown:
+        specifier: 0.23.7
+        version: 0.23.7(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vite:
+        specifier: 8.3.8
+        version: 8.3.8(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+      vitest:
+        specifier: 5.1.0
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@22.20.5)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4)(vite@8.3.8(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+
+  packages/email-resend:
+    devDependencies:
+      '@quickben/adapter-tests':
+        specifier: workspace:*
+        version: link:../adapter-tests
+      '@quickben/core':
+        specifier: workspace:^
+        version: link:../core
+      '@quickben/eslint-config':
+        specifier: workspace:*
+        version: link:../../tooling/eslint-config
+      '@quickben/tsconfig':
+        specifier: workspace:*
+        version: link:../../tooling/tsconfig
+      '@types/node':
+        specifier: 22.20.5
+        version: 22.20.5
+      '@vitest/coverage-v8':
+        specifier: 5.1.0
+        version: 5.1.0(vitest@5.1.0)
+      eslint:
+        specifier: 10.14.0
+        version: 10.14.0(jiti@2.7.0)
+      publint:
+        specifier: 0.3.25
+        version: 0.3.25
+      tsdown:
+        specifier: 0.23.7
+        version: 0.23.7(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vite:
+        specifier: 8.3.8
+        version: 8.3.8(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+      vitest:
+        specifier: 5.1.0
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@22.20.5)(@vitest/coverage-v8@5.1.0)(happy-dom@21.0.4)(vite@8.3.8(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+
+  packages/email-sendgrid:
     devDependencies:
       '@quickben/adapter-tests':
         specifier: workspace:*

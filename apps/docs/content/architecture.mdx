@@ -22,11 +22,14 @@ The source of truth is [`ARCHITECTURE.md`](https://github.com/vialabs-net/quickb
 | `packages/storage-local`   | `@quickben/storage-local`             | Available |
 | `packages/storage-gcs`     | `@quickben/storage-gcs`               | Available |
 | `packages/storage-s3`      | `@quickben/storage-s3`                | Available |
+| `packages/email-resend`    | `@quickben/email-resend`              | Available |
+| `packages/email-sendgrid`  | `@quickben/email-sendgrid`            | Available |
+| `packages/api-access`      | `@quickben/api-access`                | Available |
 | `packages/create-quickben` | `create-quickben`                     | Available |
 | `apps/docs`                | This site                             | Available |
 | `apps/playground`          | Next.js app using everything (PGlite) | Available |
 
-Dependencies point one way. Adapters and other packages depend on `@quickben/core` as a peer dependency. Core depends only on Zod.
+Dependencies point one way. Adapters and other packages depend on `@quickben/core` as a peer dependency. Core depends only on Zod. `@quickben/api-access` depends on nothing.
 
 ## Layers
 
@@ -44,6 +47,8 @@ DatabaseAdapter         memory, Drizzle (Postgres, PGlite, SQLite), others later
 ```
 
 File fields store their bytes through a `StorageAdapter` (memory, local directory, GCS, S3). See [Files and storage](/docs/storage).
+
+Apps send email through an `EmailAdapter` (memory, Resend, SendGrid). See [Email](/docs/email).
 
 The [route handlers](/docs/nextjs/route-handlers) and the [admin UI](/docs/nextjs/admin) call the local API. They do not talk to the adapter directly.
 

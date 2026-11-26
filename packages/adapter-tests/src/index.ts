@@ -543,4 +543,7 @@ export function runAdapterContractTests(
   });
 }
 
+export { runEmailContractTests } from "./email";
 export { runStorageContractTests } from "./storage";
+
+export type { EmailContractHarness, EmailContractOptions, RecordedEmailRequest } from "./email";
