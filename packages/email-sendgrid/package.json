@@ -1,6 +1,6 @@
 {
   "name": "@quickben/email-sendgrid",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "SendGrid email adapter for Quickben: transactional email over the SendGrid v3 Mail Send API.",
   "keywords": [
     "quickben",

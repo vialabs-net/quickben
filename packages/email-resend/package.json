@@ -1,6 +1,6 @@
 {
   "name": "@quickben/email-resend",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Resend email adapter for Quickben: transactional email over the Resend REST API.",
   "keywords": [
     "quickben",
