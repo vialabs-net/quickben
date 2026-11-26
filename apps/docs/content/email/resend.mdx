@@ -1,0 +1,43 @@
+---
+title: Resend
+description: "@quickben/email-resend: transactional email through the Resend REST API."
+---
+
+# Resend
+
+```sh
+pnpm add @quickben/email-resend
+```
+
+```ts
+import { defineConfig } from "@quickben/core";
+import { memoryAdapter } from "@quickben/db-memory";
+import { resendEmail } from "@quickben/email-resend";
+
+export default defineConfig({
+  db: memoryAdapter(),
+  email: resendEmail({
+    apiKey: process.env.RESEND_API_KEY,
+    from: "Acme <no-reply@acme.com>",
+  }),
+  collections: [],
+});
+```
+
+| Option      | Default                  | Purpose                                                |
+| ----------- | ------------------------ | ------------------------------------------------------ |
+| `apiKey`    | required                 | `re_…` key, or a function that returns it.             |
+| `from`      | none                     | Default sender. The message `from` wins.               |
+| `baseUrl`   | `https://api.resend.com` | API root. Must be `https://`.                          |
+| `allowHttp` | `false`                  | Allow an `http://` `baseUrl`, for a local test server. |
+| `fetch`     | global `fetch`           | Your own `fetch`, for tests or a proxy.                |
+| `timeoutMs` | `10000`                  | Time to wait for Resend.                               |
+
+| Message field    | Resend request                                                                               |
+| ---------------- | -------------------------------------------------------------------------------------------- |
+| `idempotencyKey` | `Idempotency-Key` header. Resend keeps it 24 hours and answers a retry with the first email. |
+| `tags`           | `tags: [{ name, value }]`                                                                    |
+| `replyTo`        | `reply_to`                                                                                   |
+| others           | Same name.                                                                                   |
+
+The sender domain must be verified in Resend. A failed result has Resend's `name` and `message` in `detail`, for example `Resend answered 403 validation_error: …`. A 409 `concurrent_idempotent_requests` is retryable.

@@ -16,6 +16,8 @@
       "@quickben/core",
       "@quickben/db-drizzle",
       "@quickben/db-memory",
+      "@quickben/email-resend",
+      "@quickben/email-sendgrid",
       "@quickben/next",
       "@quickben/openapi",
       "@quickben/plugin-connections",

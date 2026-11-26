@@ -4,6 +4,17 @@ export { defineCollection, extendCollection } from "./collection";
 export { defineConfig, definePlugin } from "./config";
 export { defineEndpoint, endpointFactory, reply } from "./endpoints";
 export {
+  disabledEmail,
+  isEmailResult,
+  isRetryableStatus,
+  isValidEmailAddress,
+  memoryEmail,
+  parseEmailAddress,
+  prepareEmail,
+  resolveEmailApiKey,
+  sendEmailRequest,
+} from "./email";
+export {
   ConfigError,
   ConflictError,
   ForbiddenError,
@@ -85,6 +96,20 @@ export type {
   EndpointResultOf,
   PathParams,
 } from "./endpoints";
+export type {
+  EmailAdapter,
+  EmailApiKey,
+  EmailMessage,
+  EmailRecipients,
+  EmailRequest,
+  EmailResult,
+  MemoryEmail,
+  MemoryEmailMessage,
+  MemoryEmailOptions,
+  ParsedEmailAddress,
+  PrepareEmailDefaults,
+  PreparedEmail,
+} from "./email";
 export type { ErrorCode, ForbiddenErrorOptions, ValidationIssue } from "./errors";
 export type { LocaleFromRequestOptions, LocalizedText } from "./localize";
 export type { JsonRowColumn } from "./rows";

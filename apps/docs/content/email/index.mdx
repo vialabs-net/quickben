@@ -1,0 +1,129 @@
+---
+title: Email
+description: The EmailAdapter contract, the Resend and SendGrid adapters, and how an app sends transactional email.
+---
+
+# Email
+
+An `EmailAdapter` sends one message per `send` call and returns a result. It never throws for provider or network errors.
+
+```ts filename="quickben.config.ts"
+import { defineConfig, disabledEmail } from "@quickben/core";
+import { memoryAdapter } from "@quickben/db-memory";
+import { resendEmail } from "@quickben/email-resend";
+import { sendgridEmail } from "@quickben/email-sendgrid";
+
+const from = process.env.EMAIL_FROM;
+
+function email() {
+  switch (process.env.EMAIL_PROVIDER) {
+    case "resend":
+      return resendEmail({ apiKey: process.env.RESEND_API_KEY, from });
+    case "sendgrid":
+      return sendgridEmail({ apiKey: process.env.SENDGRID_API_KEY, from });
+    default:
+      return disabledEmail("EMAIL_PROVIDER is not set.");
+  }
+}
+
+export default defineConfig({
+  db: memoryAdapter(),
+  email: email(),
+  collections: [],
+});
+```
+
+The config `email` is read back as `qb.config.email`. You can also build the adapter in your own module and import it where you send.
+
+## Adapters
+
+| Package                                            | Use                                             |
+| -------------------------------------------------- | ----------------------------------------------- |
+| `memoryEmail()` from `@quickben/core`              | Tests and demos. Keeps messages in `messages`.  |
+| `disabledEmail(detail)` from `@quickben/core`      | Email off. Every send answers `not_configured`. |
+| [`@quickben/email-resend`](/docs/email/resend)     | Resend REST API.                                |
+| [`@quickben/email-sendgrid`](/docs/email/sendgrid) | SendGrid v3 Mail Send API.                      |
+
+Both provider adapters call the API with `fetch`. They have no SDK dependency.
+
+## Sending
+
+```ts filename="notify.ts"
+import { getQuickben } from "@quickben/core";
+
+import config from "./quickben.config";
+
+const qb = await getQuickben(config);
+const result = await qb.config.email?.send({
+  to: "Ada Lovelace <ada@example.com>",
+  subject: "Your receipt",
+  html: "<p>Thanks for your order.</p>",
+  text: "Thanks for your order.",
+  idempotencyKey: "receipt-0199",
+});
+if (result?.status === "failed" && result.retryable) {
+  // Queue a retry with the same idempotency key.
+}
+```
+
+| Field            | Required | Notes                                                                         |
+| ---------------- | -------- | ----------------------------------------------------------------------------- |
+| `from`           | no       | `address@domain.tld` or `Name <address@domain.tld>`. Default: adapter `from`. |
+| `to`             | yes      | One address or an array.                                                      |
+| `cc`, `bcc`      | no       | One address or an array.                                                      |
+| `replyTo`        | no       | One address or an array.                                                      |
+| `subject`        | yes      | One line.                                                                     |
+| `html`, `text`   | one of   | Send both when you can.                                                       |
+| `headers`        | no       | Extra MIME headers, such as `List-Unsubscribe`.                               |
+| `idempotencyKey` | no       | Up to 256 characters. See each adapter for what the provider does with it.    |
+| `tags`           | no       | Key-value labels for webhooks and logs. ASCII letters, digits, `_`, `-`.      |
+
+## Results
+
+| `status`         | Fields                                           | Meaning                                                            |
+| ---------------- | ------------------------------------------------ | ------------------------------------------------------------------ |
+| `sent`           | `provider`, `id`                                 | The provider accepted the message. `id` is `null` if it gave none. |
+| `not_configured` | `provider`, `detail`                             | No API key or no sender. No request was made.                      |
+| `failed`         | `provider`, `detail`, `retryable`, `statusCode?` | Invalid message, provider error, network error or timeout.         |
+
+`retryable` is `true` for timeouts, network errors, 408, 425, 429 and 5xx. Invalid messages fail before any request, with `retryable: false`. The API key is removed from `detail`.
+
+## API keys
+
+`apiKey` takes a string or a function. The function runs on each send, so the key can come from a secret store or a [connection](/docs/plugins/connections). An empty or missing key gives `not_configured`, so a missing environment variable does not stop the app from starting.
+
+## Redirecting mail outside production
+
+Adapters send the message as given. To send every message to a test inbox, wrap the adapter:
+
+```ts filename="redirect.ts"
+import type { EmailAdapter } from "@quickben/core";
+
+export function redirectEmail(adapter: EmailAdapter, inbox: string): EmailAdapter {
+  return {
+    name: adapter.name,
+    send: (message) =>
+      adapter.send({
+        ...message,
+        to: inbox,
+        cc: undefined,
+        bcc: undefined,
+        subject: `[to ${String(message.to)}] ${message.subject}`,
+      }),
+  };
+}
+```
+
+## Tests
+
+```ts filename="email.test.ts"
+import { memoryEmail } from "@quickben/core";
+
+const email = memoryEmail({ from: "no-reply@acme.test" });
+await email.send({ to: "ada@example.com", subject: "Hi", text: "Hello" });
+export const sent = email.messages.map((message) => message.to[0]?.address);
+```
+
+`memoryEmail` checks messages like the provider adapters. A repeated `idempotencyKey` returns the first id and is not kept again.
+
+Adapter authors: `runEmailContractTests` in `@quickben/adapter-tests` runs the shared suite with a mocked `fetch`.

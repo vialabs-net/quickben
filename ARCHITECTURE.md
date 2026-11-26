@@ -36,6 +36,8 @@ This file describes what exists. Sections marked **Planned** describe agreed des
 | `packages/storage-local`     | `@quickben/storage-local`                   | Exists |
 | `packages/storage-gcs`       | `@quickben/storage-gcs`                     | Exists |
 | `packages/storage-s3`        | `@quickben/storage-s3`                      | Exists |
+| `packages/email-resend`      | `@quickben/email-resend`                    | Exists |
+| `packages/email-sendgrid`    | `@quickben/email-sendgrid`                  | Exists |
 | `packages/api-access`        | `@quickben/api-access`                      | Exists |
 | `packages/create-quickben`   | `create-quickben`                           | Exists |
 | `apps/docs`                  | Nextra site at https://quickben.vialabs.net | Exists |
@@ -242,6 +244,26 @@ interface StorageAdapter {
 - Cleanup: the old object of a replaced or cleared file, and every file of a deleted document, is removed after the outermost commit. Objects stored by writes of a transaction are removed when the outermost transaction rolls back. A write that fails inside a transaction that still commits keeps its objects. Removal errors are logged.
 - `qb.readFile` reads the document with `select: [field]`, so document and field read access apply.
 - Adapters: `memoryStorage()` (core), `@quickben/storage-local`, `@quickben/storage-gcs`, `@quickben/storage-s3` (SDKs as optional peers). `@quickben/adapter-tests` exports `runStorageContractTests`.
+
+### Email
+
+```ts
+interface EmailAdapter {
+  readonly name: string;
+  send(message: EmailMessage): Promise<EmailResult>; // never throws for provider or network errors
+}
+type EmailResult =
+  | { status: "sent"; provider; id: string | null }
+  | { status: "not_configured"; provider; detail }
+  | { status: "failed"; provider; detail; retryable; statusCode? };
+```
+
+- `defineConfig({ email })` is read back as `qb.config.email`. Core does not send email itself.
+- `prepareEmail` checks addresses, subject, body, headers, idempotency key and tags before any request. No sender gives `not_configured`; an invalid message gives `failed` with `retryable: false`.
+- `sendEmailRequest` adds a timeout (default 10 s), turns network errors and timeouts into retryable failures, and removes the API key from `detail`.
+- `apiKey` is a string or a getter called on each send. Empty means `not_configured`.
+- Adapters: `memoryEmail()` and `disabledEmail()` (core), `@quickben/email-resend` (`Idempotency-Key` header), `@quickben/email-sendgrid` (key in `custom_args.idempotency_key`, no provider deduplication). Both use `fetch`, no SDK. `@quickben/adapter-tests` exports `runEmailContractTests`.
+- Redirecting or filtering recipients is app code: wrap the adapter.
 
 ### Access
 
