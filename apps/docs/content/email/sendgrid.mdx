@@ -1,0 +1,47 @@
+---
+title: SendGrid
+description: "@quickben/email-sendgrid: transactional email through the SendGrid v3 Mail Send API."
+---
+
+# SendGrid
+
+```sh
+pnpm add @quickben/email-sendgrid
+```
+
+```ts
+import { defineConfig } from "@quickben/core";
+import { memoryAdapter } from "@quickben/db-memory";
+import { sendgridEmail } from "@quickben/email-sendgrid";
+
+export default defineConfig({
+  db: memoryAdapter(),
+  email: sendgridEmail({
+    apiKey: process.env.SENDGRID_API_KEY,
+    from: "Acme <no-reply@acme.com>",
+  }),
+  collections: [],
+});
+```
+
+| Option      | Default                    | Purpose                                                          |
+| ----------- | -------------------------- | ---------------------------------------------------------------- |
+| `apiKey`    | required                   | `SG.…` key with Mail Send access, or a function that returns it. |
+| `from`      | none                       | Default sender. The message `from` wins.                         |
+| `baseUrl`   | `https://api.sendgrid.com` | API root. `SENDGRID_EU_URL` for EU accounts. Must be `https://`. |
+| `allowHttp` | `false`                    | Allow an `http://` `baseUrl`, for a local test server.           |
+| `fetch`     | global `fetch`             | Your own `fetch`, for tests or a proxy.                          |
+| `timeoutMs` | `10000`                    | Time to wait for SendGrid.                                       |
+
+| Message field     | SendGrid request                            |
+| ----------------- | ------------------------------------------- |
+| `to`, `cc`, `bcc` | One entry in `personalizations`.            |
+| `from`            | `from: { email, name }`                     |
+| `replyTo`         | `reply_to`, or `reply_to_list` for several. |
+| `text`, `html`    | `content`, `text/plain` first.              |
+| `tags`            | `custom_args`                               |
+| `idempotencyKey`  | `custom_args.idempotency_key`               |
+
+SendGrid has no idempotency header. A retry after a lost answer can send the message twice. The key is in `custom_args`, so it shows in the Activity feed and in Event Webhook payloads, where you can find duplicates. It replaces a tag with the same name.
+
+SendGrid answers `202` with an `X-Message-Id` header. That header is the result `id`. A failed result joins SendGrid's `errors[].message` (and `field`) in `detail`.
