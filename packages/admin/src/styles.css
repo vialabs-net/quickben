@@ -24,7 +24,7 @@
  *
  * Select tokens: every single-line `<select>` inside `.qb-root` hides the browser's arrow
  * (`appearance: none`) and draws its own chevron at the inline end. `--qb-select-chevron` is
- * its color (default `--qb-text-muted`), `--qb-select-chevron-inset` the space between the
+ * its color (default the select's text color at 60%, so it follows light/dark and disabled), `--qb-select-chevron-inset` the space between the
  * chevron and the end edge (default `0.75rem`, the same as the text's start padding) and
  * `--qb-select-chevron-space` the end padding kept free for it (default `2rem`). The rule is
  * in `@layer base`, so a `px-*` utility on a select also replaces that end padding: add
@@ -131,7 +131,7 @@
     --qb-selected: color-mix(in oklab, var(--qb-text) 6%, var(--qb-surface));
     --qb-danger-strong: color-mix(in oklab, var(--qb-danger) 80%, var(--qb-text));
     --qb-success-strong: var(--qb-success);
-    --qb-select-chevron: var(--qb-text-muted);
+    --qb-select-chevron: color-mix(in oklab, currentColor 60%, transparent);
     --qb-font-sans:
       ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
       "Segoe UI Symbol", "Noto Color Emoji";
@@ -202,7 +202,15 @@
       right var(--qb-select-chevron-inset) center;
   }
 
-  .qb-root :where(select:not([multiple], [size]:not([size="0"], [size="1"])):dir(rtl)) {
+  /*
+   * Right to left: the chevron goes to the left edge. `[dir="rtl"]` too, because build tools
+   * that lower `:dir()` for older browsers turn it into a `:lang()` list that misses `dir`.
+   */
+  .qb-root :where(select:not([multiple], [size]:not([size="0"], [size="1"])):dir(rtl)),
+  .qb-root
+    :where([dir="rtl"] select, select[dir="rtl"]):where(
+      :not([multiple], [size]:not([size="0"], [size="1"]))
+    ) {
     background-position:
       left var(--qb-select-chevron-inset) center,
       left calc(var(--qb-select-chevron-inset) + 5px) center;

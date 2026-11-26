@@ -68,7 +68,7 @@ export interface AdminTheme {
   headingWeight?: string;
   /** `--qb-table-row-height`. */
   tableRowHeight?: string;
-  /** `--qb-select-chevron`: color of the chevron of selects. Default `textMuted`. */
+  /** `--qb-select-chevron`: color of the chevron of selects. Default text at 60%. */
   selectChevron?: string;
   /** `--qb-select-chevron-inset`: space between the chevron and the end edge. `0.75rem`. */
   selectChevronInset?: string;

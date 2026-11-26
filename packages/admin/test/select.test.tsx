@@ -61,9 +61,11 @@ describe("select base styles in the built CSS", () => {
   });
 
   it("put the chevron at the start edge in right-to-left text", () => {
+    // `:dir(rtl)`, and `[dir=rtl]` for bundlers that lower `:dir()` to `:lang()`.
     const rule = declarations(
       base,
-      `.qb-root :where(select:not([multiple],[size]:not([size="0"],[size="1"])):dir(rtl))`,
+      `.qb-root :where(select:not([multiple],[size]:not([size="0"],[size="1"])):dir(rtl)),` +
+        `.qb-root :where([dir=rtl] select,select[dir=rtl]):where(:not([multiple],[size]:not([size="0"],[size="1"])))`,
     );
     expect(rule).toContain("background-position:left var(--qb-select-chevron-inset) center");
   });

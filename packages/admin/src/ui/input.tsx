@@ -24,7 +24,8 @@ export type SelectProps = ComponentProps<"select"> & {
   /**
    * A select without border or background, for a pill or chip that has its own padding: no
    * start padding and the chevron at the select's end edge, so the pill's padding is the
-   * same space before the text and after the chevron.
+   * same space before the text and after the chevron. It is as wide as the chosen option
+   * where `field-sizing` is supported.
    */
   inline?: boolean;
 };
@@ -35,6 +36,8 @@ const chevronSpace = "qb:pe-(--qb-select-chevron-space)";
 const inlineSelect = cn(
   "qb:max-w-full qb:min-w-0 qb:truncate qb:rounded-sm qb:bg-transparent qb:text-fg",
   "qb:[--qb-select-chevron-inset:0px] qb:[--qb-select-chevron-space:1.25rem]",
+  // As wide as the chosen option where supported, not the longest one.
+  "qb:[field-sizing:content]",
   "qb:disabled:cursor-not-allowed qb:disabled:text-fg-muted",
   focusRing,
 );
