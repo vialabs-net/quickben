@@ -9,6 +9,7 @@ const meta: MetaRecord = {
   storage: "Files and storage",
   email: "Email",
   auth: "Auth",
+  "api-access": "API access",
   nextjs: "Next.js integration",
   playground: "Playground",
   plugins: "Plugins",
