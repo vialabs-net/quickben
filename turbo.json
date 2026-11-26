@@ -14,12 +14,12 @@
     },
     "test": {
       "dependsOn": ["^build"],
-      "env": ["QUICKBEN_TEST_POSTGRES_URL"]
+      "env": ["QUICKBEN_TEST_POSTGRES_URL", "QUICKBEN_TEST_REDIS_URL"]
     },
     "test:coverage": {
       "dependsOn": ["^build"],
       "outputs": ["coverage/**"],
-      "env": ["QUICKBEN_TEST_POSTGRES_URL"]
+      "env": ["QUICKBEN_TEST_POSTGRES_URL", "QUICKBEN_TEST_REDIS_URL"]
     },
     "clean": {
       "cache": false

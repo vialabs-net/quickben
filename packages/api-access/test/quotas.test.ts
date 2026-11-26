@@ -187,7 +187,11 @@ describe("createQuotaLimiter", () => {
       windows: [{ name: "minute", kind: "fixed", ms: MINUTE }],
     });
     const now = new Date();
-    const key = `k:minute:${String(Math.floor(now.getTime() / MINUTE) * MINUTE)}`;
+    const key = JSON.stringify([
+      "k",
+      "minute",
+      String(Math.floor(now.getTime() / MINUTE) * MINUTE),
+    ]);
     await inner.incr(key, 1, new Date(now.getTime() + MINUTE));
     const r = await limiter.consume("k", { limits: { minute: 1 } });
     expect(r.allowed).toBe(false);
@@ -220,6 +224,25 @@ describe("createQuotaLimiter", () => {
     ).toThrow(RangeError);
     const limiter = createQuotaLimiter({ store, windows: [] });
     await expect(limiter.consume("k", { limits: {}, cost: -1 })).rejects.toThrow(TypeError);
+    await expect(limiter.consume("k", { limits: {}, cost: 0.5 })).rejects.toThrow(/integer/);
+    await expect(limiter.consume("k", { limits: {}, cost: Number.NaN })).rejects.toThrow(TypeError);
+    expect((await limiter.consume("k", { limits: {}, cost: 0 })).allowed).toBe(true);
+  });
+
+  it("keeps subject and window apart in store keys", async () => {
+    const c = clock("2026-11-26T12:00:30Z");
+    const limiter = createQuotaLimiter({
+      store: memoryQuotaStore({ now: c.now }),
+      now: c.now,
+      windows: [
+        { name: "b:c", kind: "fixed", ms: MINUTE },
+        { name: "c", kind: "fixed", ms: MINUTE },
+      ],
+    });
+    await limiter.consume("a", { limits: { "b:c": 1 } });
+    const other = await limiter.consume("a:b", { limits: { c: 1 } });
+    expect(other.allowed).toBe(true);
+    expect(byName(other, "c")?.used).toBe(1);
   });
 });
 
@@ -251,7 +274,14 @@ describe("redisQuotaStore", () => {
     vi.useRealTimers();
   });
 
-  it("counts with INCRBY and expires with PEXPIREAT", async () => {
+  it("rejects a non-integer increment in every store", async () => {
+    const at = new Date(Date.now() + 1000);
+    await expect(memoryQuotaStore().incr("x", 0.5, at)).rejects.toThrow(/integer/);
+    await expect(redisQuotaStore(new FakeRedis()).incr("x", 0.5, at)).rejects.toThrow(/integer/);
+    expect(await memoryQuotaStore().incr("x", -2, at)).toBe(-2);
+  });
+
+  it("counts and sets the expiry in one EVAL", async () => {
     vi.useFakeTimers({ now: new Date("2026-11-26T12:00:30Z") });
     const redis = new FakeRedis();
     const store = redisQuotaStore(redis);
@@ -260,6 +290,8 @@ describe("redisQuotaStore", () => {
     expect(await store.incr("x", 3, at)).toBe(5);
     expect(redis.strings.get("qb:quota:x")).toBe("5");
     expect(redis.expiry.get("qb:quota:x")).toBe(at.getTime());
+    expect(redis.calls.filter((c) => c === "eval")).toHaveLength(2);
+    expect(redis.calls).not.toContain("incrby");
     expect(await store.get("x")).toBe(5);
     expect(await store.get("missing")).toBe(0);
     vi.setSystemTime(at);

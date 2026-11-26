@@ -1,4 +1,4 @@
-import type { RedisLike } from "./redis";
+import { integerIncrementError, QUOTA_INCR_SCRIPT, type RedisLike } from "./redis";
 
 export type QuotaWindowSpec =
   | { name: string; kind: "fixed"; ms: number }
@@ -49,6 +49,8 @@ export function memoryQuotaStore(opts: { now?: () => Date } = {}): QuotaStore {
   };
   return {
     incr(key, by, expireAt) {
+      const invalid = integerIncrementError(by);
+      if (invalid) return Promise.reject(invalid);
       const now = clock().getTime();
       writes += 1;
       if (writes % 1000 === 0) sweep(now);
@@ -62,14 +64,18 @@ export function memoryQuotaStore(opts: { now?: () => Date } = {}): QuotaStore {
   };
 }
 
-/** Quota store on Redis. Keys are `${prefix}${key}` (default prefix `qb:quota:`). */
+/**
+ * Quota store on Redis. Keys are `${prefix}${key}` (default prefix `qb:quota:`). The increment
+ * and the expiry run in one EVAL.
+ */
 export function redisQuotaStore(redis: RedisLike, opts: { prefix?: string } = {}): QuotaStore {
   const prefix = opts.prefix ?? "qb:quota:";
   return {
     async incr(key, by, expireAt) {
-      const value = await redis.incrby(prefix + key, by);
-      await redis.pexpireat(prefix + key, expireAt.getTime());
-      return value;
+      const invalid = integerIncrementError(by);
+      if (invalid) throw invalid;
+      const value = await redis.eval(QUOTA_INCR_SCRIPT, 1, prefix + key, by, expireAt.getTime());
+      return Number(value);
     },
     async get(key) {
       const raw = await redis.get(prefix + key);
@@ -207,7 +213,7 @@ export function createQuotaLimiter(opts: {
       const period = periodOf(spec, now);
       return {
         name: spec.name,
-        key: `${subject}:${spec.name}:${period.id}`,
+        key: JSON.stringify([subject, spec.name, period.id]),
         resetAt: period.resetAt,
         limit: limits[spec.name] ?? null,
       };
@@ -231,8 +237,8 @@ export function createQuotaLimiter(opts: {
 
   return {
     async consume(subject, { limits, cost = 1, enforce = true }) {
-      if (!Number.isFinite(cost) || cost < 0) {
-        throw new TypeError("Quota cost must be a non-negative number.");
+      if (!Number.isSafeInteger(cost) || cost < 0) {
+        throw new TypeError("Quota cost must be a non-negative integer.");
       }
       const now = clock();
       const resolved = resolve(subject, limits, now);
