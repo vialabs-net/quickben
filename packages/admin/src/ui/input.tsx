@@ -19,14 +19,40 @@ export function Textarea({ className, ...props }: Readonly<ComponentProps<"texta
   return <textarea className={cn(control, "qb:min-h-24", className)} {...props} />;
 }
 
+/** Props of {@link Select}. */
+export type SelectProps = ComponentProps<"select"> & {
+  /**
+   * A select without border or background, for a pill or chip that has its own padding: no
+   * start padding and the chevron at the select's end edge, so the pill's padding is the
+   * same space before the text and after the chevron.
+   */
+  inline?: boolean;
+};
+
+/** Leaves the end padding of the base styles to the chevron: `px-*` would replace it. */
+const chevronSpace = "qb:pe-(--qb-select-chevron-space)";
+
+const inlineSelect = cn(
+  "qb:max-w-full qb:min-w-0 qb:truncate qb:rounded-sm qb:bg-transparent qb:text-fg",
+  "qb:[--qb-select-chevron-inset:0px] qb:[--qb-select-chevron-space:1.25rem]",
+  "qb:disabled:cursor-not-allowed qb:disabled:text-fg-muted",
+  focusRing,
+);
+
 /**
- * Native select. It fits its column: a long selected label is cut with an ellipsis, and the
- * open list shows the options in full.
+ * Native select with the chevron of the base styles. It fits its column: a long selected
+ * label is cut with an ellipsis, and the open list shows the options in full. `inline` is
+ * for a borderless select inside a pill.
  */
-export function Select({ className, ...props }: Readonly<ComponentProps<"select">>) {
+export function Select({ className, inline = false, ...props }: Readonly<SelectProps>) {
   return (
     <select
-      className={cn(control, "qb:h-9 qb:max-w-full qb:min-w-0 qb:truncate qb:pr-8", className)}
+      className={cn(
+        inline
+          ? inlineSelect
+          : cn(control, "qb:h-9 qb:max-w-full qb:min-w-0 qb:truncate", chevronSpace),
+        className,
+      )}
       {...props}
     />
   );

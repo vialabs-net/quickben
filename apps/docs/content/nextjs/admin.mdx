@@ -456,41 +456,46 @@ The admin and plugin pages read only these custom properties. Set them with the 
 }
 ```
 
-| Token                   | `theme` key      | Use                                 | Default                         |
-| ----------------------- | ---------------- | ----------------------------------- | ------------------------------- |
-| `--qb-surface`          | `surface`        | cards, inputs, sidebar              | white                           |
-| `--qb-surface-muted`    | `surfaceMuted`   | page background, table headers      | near white                      |
-| `--qb-text`             | `text`           | body text                           | near black                      |
-| `--qb-text-muted`       | `textMuted`      | secondary text                      | gray                            |
-| `--qb-heading-text`     | `headingText`    | page and card titles, sidebar title | `--qb-text`                     |
-| `--qb-border`           | `border`         | borders, dividers                   | light gray                      |
-| `--qb-border-strong`    | `borderStrong`   | input and secondary button borders  | mixed from border and text      |
-| `--qb-accent`           | `accent`         | primary buttons, toasts             | near black                      |
-| `--qb-accent-hover`     | `accentHover`    | primary buttons on hover            | mixed from accent               |
-| `--qb-accent-text`      | `accentText`     | text on accent                      | white                           |
-| `--qb-selected`         | `selected`       | current sidebar link, active option | `--qb-text` at 6%               |
-| `--qb-danger`           | `danger`         | errors, delete buttons              | red                             |
-| `--qb-danger-strong`    | `dangerStrong`   | error text on soft backgrounds      | mixed from danger and text      |
-| `--qb-danger-text`      | `dangerText`     | text on danger                      | white                           |
-| `--qb-success`          | `success`        | success fills                       | green                           |
-| `--qb-success-strong`   | `successStrong`  | success text on soft backgrounds    | `--qb-success`                  |
-| `--qb-warning`          | `warning`        | badges and notices                  | amber                           |
-| `--qb-info`             | `info`           | badges and notices                  | blue                            |
-| `--qb-focus-ring`       | `focusRing`      | focus outline                       | blue                            |
-| `--qb-radius`           | `radius`         | control radius                      | `0.375rem`                      |
-| `--qb-button-radius`    | `buttonRadius`   | button radius; `9999px` for pills   | `--qb-radius`                   |
-| `--qb-card-radius`      | `cardRadius`     | card radius                         | radius + 2px                    |
-| `--qb-card-padding`     | `cardPadding`    | card and form padding               | `1.25rem`                       |
-| `--qb-card-shadow`      | `cardShadow`     | card `box-shadow`                   | `0 1px 2px 0 rgb(0 0 0 / 0.05)` |
-| `--qb-title-size`       | `titleSize`      | page titles                         | `1.5rem`                        |
-| `--qb-title-weight`     | `titleWeight`    | page titles                         | `600`                           |
-| `--qb-heading-size`     | `headingSize`    | card titles                         | `0.875rem`                      |
-| `--qb-heading-weight`   | `headingWeight`  | card titles                         | `600`                           |
-| `--qb-table-row-height` | `tableRowHeight` | smallest table row                  | `2.5rem`                        |
-| `--qb-font-sans`        | `fontSans`       | text font                           | system UI font                  |
-| `--qb-font-mono`        | `fontMono`       | code font                           | system monospace font           |
+| Token                       | `theme` key          | Use                                 | Default                         |
+| --------------------------- | -------------------- | ----------------------------------- | ------------------------------- |
+| `--qb-surface`              | `surface`            | cards, inputs, sidebar              | white                           |
+| `--qb-surface-muted`        | `surfaceMuted`       | page background, table headers      | near white                      |
+| `--qb-text`                 | `text`               | body text                           | near black                      |
+| `--qb-text-muted`           | `textMuted`          | secondary text                      | gray                            |
+| `--qb-heading-text`         | `headingText`        | page and card titles, sidebar title | `--qb-text`                     |
+| `--qb-border`               | `border`             | borders, dividers                   | light gray                      |
+| `--qb-border-strong`        | `borderStrong`       | input and secondary button borders  | mixed from border and text      |
+| `--qb-accent`               | `accent`             | primary buttons, toasts             | near black                      |
+| `--qb-accent-hover`         | `accentHover`        | primary buttons on hover            | mixed from accent               |
+| `--qb-accent-text`          | `accentText`         | text on accent                      | white                           |
+| `--qb-selected`             | `selected`           | current sidebar link, active option | `--qb-text` at 6%               |
+| `--qb-danger`               | `danger`             | errors, delete buttons              | red                             |
+| `--qb-danger-strong`        | `dangerStrong`       | error text on soft backgrounds      | mixed from danger and text      |
+| `--qb-danger-text`          | `dangerText`         | text on danger                      | white                           |
+| `--qb-success`              | `success`            | success fills                       | green                           |
+| `--qb-success-strong`       | `successStrong`      | success text on soft backgrounds    | `--qb-success`                  |
+| `--qb-warning`              | `warning`            | badges and notices                  | amber                           |
+| `--qb-info`                 | `info`               | badges and notices                  | blue                            |
+| `--qb-focus-ring`           | `focusRing`          | focus outline                       | blue                            |
+| `--qb-radius`               | `radius`             | control radius                      | `0.375rem`                      |
+| `--qb-button-radius`        | `buttonRadius`       | button radius; `9999px` for pills   | `--qb-radius`                   |
+| `--qb-card-radius`          | `cardRadius`         | card radius                         | radius + 2px                    |
+| `--qb-card-padding`         | `cardPadding`        | card and form padding               | `1.25rem`                       |
+| `--qb-card-shadow`          | `cardShadow`         | card `box-shadow`                   | `0 1px 2px 0 rgb(0 0 0 / 0.05)` |
+| `--qb-title-size`           | `titleSize`          | page titles                         | `1.5rem`                        |
+| `--qb-title-weight`         | `titleWeight`        | page titles                         | `600`                           |
+| `--qb-heading-size`         | `headingSize`        | card titles                         | `0.875rem`                      |
+| `--qb-heading-weight`       | `headingWeight`      | card titles                         | `600`                           |
+| `--qb-table-row-height`     | `tableRowHeight`     | smallest table row                  | `2.5rem`                        |
+| `--qb-select-chevron`       | `selectChevron`      | chevron of selects                  | `--qb-text-muted`               |
+| `--qb-select-chevron-inset` | `selectChevronInset` | chevron to end edge                 | `0.75rem`                       |
+| `--qb-select-chevron-space` | `selectChevronSpace` | end padding kept for the chevron    | `2rem`                          |
+| `--qb-font-sans`            | `fontSans`           | text font                           | system UI font                  |
+| `--qb-font-mono`            | `fontMono`           | code font                           | system monospace font           |
 
 Tables scroll inside their own box, with shadows at the edges that can scroll, and never widen the page. Selects and relation chips fit their column; a cut label shows in full in the open list or as a tooltip.
+
+Every single-line `<select>` inside `.qb-root` hides the browser's arrow and draws its own chevron at the inline end, in `--qb-select-chevron`, so the space before the text and after the chevron is the same in every browser and in right-to-left text. `multiple` and `size` > 1 selects keep the native look. The rule is in the base layer: a `px-*` utility on a raw select also replaces the end padding, so add `pe-(--qb-select-chevron-space)`. `Select` from `@quickben/admin/ui` does this, and `<Select inline>` is a borderless select for a pill with its own padding. To keep your own arrow, set `background-image: none` on your selects from unlayered CSS.
 
 Hover and soft shades are mixed from these with `color-mix()`. Defaults use `light-dark()`. `.qb-root` does not set `color-scheme`: it inherits the page's, so `:root { color-scheme: light dark }` follows the system.
 

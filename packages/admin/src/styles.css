@@ -22,6 +22,16 @@
  * `--qb-heading-size` and `--qb-heading-weight` (card and section titles),
  * `--qb-table-row-height` (smallest height of a table row).
  *
+ * Select tokens: every single-line `<select>` inside `.qb-root` hides the browser's arrow
+ * (`appearance: none`) and draws its own chevron at the inline end. `--qb-select-chevron` is
+ * its color (default `--qb-text-muted`), `--qb-select-chevron-inset` the space between the
+ * chevron and the end edge (default `0.75rem`, the same as the text's start padding) and
+ * `--qb-select-chevron-space` the end padding kept free for it (default `2rem`). The rule is
+ * in `@layer base`, so a `px-*` utility on a select also replaces that end padding: add
+ * `pe-(--qb-select-chevron-space)`, as the `Select` component does. `multiple` and `size` > 1
+ * selects keep the native look. To keep an app's own arrow, set `background-image: none` on
+ * its selects from unlayered CSS.
+ *
  * Optional color tokens default to a value derived from the ones above: `--qb-heading-text`
  * (titles), `--qb-border-strong`, `--qb-accent-hover`, `--qb-selected` (current link, active
  * option), `--qb-danger-strong` and `--qb-success-strong` (text on soft backgrounds).
@@ -112,6 +122,8 @@
     --qb-table-row-height: 2.5rem;
     --qb-card-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
     --qb-button-radius: var(--qb-radius);
+    --qb-select-chevron-inset: 0.75rem;
+    --qb-select-chevron-space: 2rem;
     /* Optional tokens, derived from the ones above by default. */
     --qb-heading-text: var(--qb-text);
     --qb-border-strong: color-mix(in oklab, var(--qb-border), var(--qb-text) 15%);
@@ -119,6 +131,7 @@
     --qb-selected: color-mix(in oklab, var(--qb-text) 6%, var(--qb-surface));
     --qb-danger-strong: color-mix(in oklab, var(--qb-danger) 80%, var(--qb-text));
     --qb-success-strong: var(--qb-success);
+    --qb-select-chevron: var(--qb-text-muted);
     --qb-font-sans:
       ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
       "Segoe UI Symbol", "Noto Color Emoji";
@@ -159,6 +172,40 @@
     font: inherit;
     color: inherit;
     background-color: transparent;
+  }
+
+  /*
+   * Single-line selects: own chevron, drawn by two gradients (an SVG image cannot read
+   * `--qb-select-chevron`), so it follows the theme and light/dark. 10px × 5px, at
+   * `--qb-select-chevron-inset` from the inline end; the start padding is the same inset.
+   */
+  .qb-root :where(select:not([multiple], [size]:not([size="0"], [size="1"]))) {
+    appearance: none;
+    padding-inline: var(--qb-select-chevron-inset) var(--qb-select-chevron-space);
+    background-image:
+      linear-gradient(
+        to top right,
+        transparent calc(50% - 1.1px),
+        var(--qb-select-chevron) calc(50% - 0.4px) calc(50% + 0.4px),
+        transparent calc(50% + 1.1px)
+      ),
+      linear-gradient(
+        to top left,
+        transparent calc(50% - 1.1px),
+        var(--qb-select-chevron) calc(50% - 0.4px) calc(50% + 0.4px),
+        transparent calc(50% + 1.1px)
+      );
+    background-repeat: no-repeat;
+    background-size: 5px 5px;
+    background-position:
+      right calc(var(--qb-select-chevron-inset) + 5px) center,
+      right var(--qb-select-chevron-inset) center;
+  }
+
+  .qb-root :where(select:not([multiple], [size]:not([size="0"], [size="1"])):dir(rtl)) {
+    background-position:
+      left var(--qb-select-chevron-inset) center,
+      left calc(var(--qb-select-chevron-inset) + 5px) center;
   }
 
   .qb-root :where(button, [role="option"]) {

@@ -68,6 +68,12 @@ export interface AdminTheme {
   headingWeight?: string;
   /** `--qb-table-row-height`. */
   tableRowHeight?: string;
+  /** `--qb-select-chevron`: color of the chevron of selects. Default `textMuted`. */
+  selectChevron?: string;
+  /** `--qb-select-chevron-inset`: space between the chevron and the end edge. `0.75rem`. */
+  selectChevronInset?: string;
+  /** `--qb-select-chevron-space`: end padding of selects, kept free for the chevron. `2rem`. */
+  selectChevronSpace?: string;
 }
 
 /** CSS custom property of each {@link AdminTheme} key. */
@@ -103,6 +109,9 @@ const themeProperties: Readonly<Record<keyof AdminTheme, `--qb-${string}`>> = {
   headingSize: "--qb-heading-size",
   headingWeight: "--qb-heading-weight",
   tableRowHeight: "--qb-table-row-height",
+  selectChevron: "--qb-select-chevron",
+  selectChevronInset: "--qb-select-chevron-inset",
+  selectChevronSpace: "--qb-select-chevron-space",
 };
 
 /**
