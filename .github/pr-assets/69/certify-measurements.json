@@ -1,0 +1,238 @@
+{
+  "light-default": {
+    "paddingStart": "12px",
+    "paddingEnd": "32px",
+    "appearance": "none",
+    "image": "linear-gradient(to right top, rgba(0, 0, 0, 0) calc(50% - 1.1px), oklab(0.210329 0.00161358 -0.00563219 / 0.6) calc(50% - 0.4px), oklab(0.210329 0.00161358 -0.00563219 / 0.6) calc(50% + 0.4px), rgba(0, 0, 0, 0) calc(50% + 1.1px)), linear-gradient(to left top, rgba(0, 0, 0, 0) calc(50% - 1.1px), oklab(0.210329 0.00161358 -0.00563219 / 0.6) calc(50% - 0.4px), oklab(0.210329 0.00161358 -0.00563219 / 0.6) calc(50% + 0.4px), rgba(0, 0, 0, 0) calc(50% + 1.1px))",
+    "position": "calc(100% - 17px) 50%, calc(100% - 12px) 50%",
+    "color": "rgb(24, 24, 27)",
+    "background": "rgb(255, 255, 255)",
+    "border": "1px",
+    "rect": {
+      "x": 24,
+      "y": 87,
+      "width": 256,
+      "height": 36
+    }
+  },
+  "light-disabled": {
+    "paddingStart": "12px",
+    "paddingEnd": "32px",
+    "appearance": "none",
+    "image": "linear-gradient(to right top, rgba(0, 0, 0, 0) calc(50% - 1.1px), oklab(0.55166 0.00381657 -0.0132654 / 0.6) calc(50% - 0.4px), oklab(0.55166 0.00381657 -0.0132654 / 0.6) calc(50% + 0.4px), rgba(0, 0, 0, 0) calc(50% + 1.1px)), linear-gradient(to left top, rgba(0, 0, 0, 0) calc(50% - 1.1px), oklab(0.55166 0.00381657 -0.0132654 / 0.6) calc(50% - 0.4px), oklab(0.55166 0.00381657 -0.0132654 / 0.6) calc(50% + 0.4px), rgba(0, 0, 0, 0) calc(50% + 1.1px))",
+    "position": "calc(100% - 17px) 50%, calc(100% - 12px) 50%",
+    "color": "rgb(113, 113, 122)",
+    "background": "rgb(250, 250, 250)",
+    "border": "1px",
+    "rect": {
+      "x": 24,
+      "y": 165,
+      "width": 256,
+      "height": 36
+    }
+  },
+  "light-small": {
+    "paddingStart": "8px",
+    "paddingEnd": "26px",
+    "appearance": "none",
+    "image": "linear-gradient(to right top, rgba(0, 0, 0, 0) calc(50% - 1.1px), oklab(0.210329 0.00161358 -0.00563219 / 0.6) calc(50% - 0.4px), oklab(0.210329 0.00161358 -0.00563219 / 0.6) calc(50% + 0.4px), rgba(0, 0, 0, 0) calc(50% + 1.1px)), linear-gradient(to left top, rgba(0, 0, 0, 0) calc(50% - 1.1px), oklab(0.210329 0.00161358 -0.00563219 / 0.6) calc(50% - 0.4px), oklab(0.210329 0.00161358 -0.00563219 / 0.6) calc(50% + 0.4px), rgba(0, 0, 0, 0) calc(50% + 1.1px))",
+    "position": "calc(100% - 13px) 50%, calc(100% - 8px) 50%",
+    "color": "rgb(24, 24, 27)",
+    "background": "rgb(255, 255, 255)",
+    "border": "1px",
+    "rect": {
+      "x": 24,
+      "y": 243,
+      "width": 192,
+      "height": 28
+    }
+  },
+  "light-raw": {
+    "paddingStart": "12px",
+    "paddingEnd": "32px",
+    "appearance": "none",
+    "image": "linear-gradient(to right top, rgba(0, 0, 0, 0) calc(50% - 1.1px), oklab(0.210329 0.00161358 -0.00563219 / 0.6) calc(50% - 0.4px), oklab(0.210329 0.00161358 -0.00563219 / 0.6) calc(50% + 0.4px), rgba(0, 0, 0, 0) calc(50% + 1.1px)), linear-gradient(to left top, rgba(0, 0, 0, 0) calc(50% - 1.1px), oklab(0.210329 0.00161358 -0.00563219 / 0.6) calc(50% - 0.4px), oklab(0.210329 0.00161358 -0.00563219 / 0.6) calc(50% + 0.4px), rgba(0, 0, 0, 0) calc(50% + 1.1px))",
+    "position": "calc(100% - 17px) 50%, calc(100% - 12px) 50%",
+    "color": "rgb(24, 24, 27)",
+    "background": "rgb(255, 255, 255)",
+    "border": "1px",
+    "rect": {
+      "x": 24,
+      "y": 313,
+      "width": 277,
+      "height": 34
+    }
+  },
+  "light-rtl": {
+    "paddingStart": "12px",
+    "paddingEnd": "32px",
+    "appearance": "none",
+    "image": "linear-gradient(to right top, rgba(0, 0, 0, 0) calc(50% - 1.1px), oklab(0.210329 0.00161358 -0.00563219 / 0.6) calc(50% - 0.4px), oklab(0.210329 0.00161358 -0.00563219 / 0.6) calc(50% + 0.4px), rgba(0, 0, 0, 0) calc(50% + 1.1px)), linear-gradient(to left top, rgba(0, 0, 0, 0) calc(50% - 1.1px), oklab(0.210329 0.00161358 -0.00563219 / 0.6) calc(50% - 0.4px), oklab(0.210329 0.00161358 -0.00563219 / 0.6) calc(50% + 0.4px), rgba(0, 0, 0, 0) calc(50% + 1.1px))",
+    "position": "12px 50%, 17px 50%",
+    "color": "rgb(24, 24, 27)",
+    "background": "rgb(255, 255, 255)",
+    "border": "1px",
+    "rect": {
+      "x": 24,
+      "y": 462,
+      "width": 256,
+      "height": 36
+    }
+  },
+  "light-multiple": {
+    "paddingStart": "0px",
+    "paddingEnd": "0px",
+    "appearance": "auto",
+    "image": "none",
+    "position": "0% 0%",
+    "color": "rgb(24, 24, 27)",
+    "background": "rgb(255, 255, 255)",
+    "border": "1px",
+    "rect": {
+      "x": 24,
+      "y": 540,
+      "width": 256,
+      "height": 86.75
+    }
+  },
+  "light-pill": {
+    "paddingStart": "0px",
+    "paddingEnd": "20px",
+    "appearance": "none",
+    "image": "linear-gradient(to right top, rgba(0, 0, 0, 0) calc(50% - 1.1px), oklab(0.210329 0.00161358 -0.00563219 / 0.6) calc(50% - 0.4px), oklab(0.210329 0.00161358 -0.00563219 / 0.6) calc(50% + 0.4px), rgba(0, 0, 0, 0) calc(50% + 1.1px)), linear-gradient(to left top, rgba(0, 0, 0, 0) calc(50% - 1.1px), oklab(0.210329 0.00161358 -0.00563219 / 0.6) calc(50% - 0.4px), oklab(0.210329 0.00161358 -0.00563219 / 0.6) calc(50% + 0.4px), rgba(0, 0, 0, 0) calc(50% + 1.1px))",
+    "position": "calc(100% - 5px) 50%, 100% 50%",
+    "color": "rgb(24, 24, 27)",
+    "background": "rgba(0, 0, 0, 0)",
+    "border": "0px",
+    "rect": {
+      "x": 87.625,
+      "y": 394,
+      "width": 55.296875,
+      "height": 21
+    },
+    "startToText": 13,
+    "chevronToEnd": 13,
+    "pillRect": {
+      "x": 24,
+      "width": 131.921875
+    }
+  },
+  "dark-default": {
+    "paddingStart": "12px",
+    "paddingEnd": "32px",
+    "appearance": "none",
+    "image": "linear-gradient(to right top, rgba(0, 0, 0, 0) calc(50% - 1.1px), oklab(0.985098 0.0000447631 0.0000197291 / 0.6) calc(50% - 0.4px), oklab(0.985098 0.0000447631 0.0000197291 / 0.6) calc(50% + 0.4px), rgba(0, 0, 0, 0) calc(50% + 1.1px)), linear-gradient(to left top, rgba(0, 0, 0, 0) calc(50% - 1.1px), oklab(0.985098 0.0000447631 0.0000197291 / 0.6) calc(50% - 0.4px), oklab(0.985098 0.0000447631 0.0000197291 / 0.6) calc(50% + 0.4px), rgba(0, 0, 0, 0) calc(50% + 1.1px))",
+    "position": "calc(100% - 17px) 50%, calc(100% - 12px) 50%",
+    "color": "rgb(250, 250, 250)",
+    "background": "rgb(24, 24, 27)",
+    "border": "1px",
+    "rect": {
+      "x": 744,
+      "y": 87,
+      "width": 256,
+      "height": 36
+    }
+  },
+  "dark-disabled": {
+    "paddingStart": "12px",
+    "paddingEnd": "32px",
+    "appearance": "none",
+    "image": "linear-gradient(to right top, rgba(0, 0, 0, 0) calc(50% - 1.1px), oklab(0.71181 0.00361261 -0.0124171 / 0.6) calc(50% - 0.4px), oklab(0.71181 0.00361261 -0.0124171 / 0.6) calc(50% + 0.4px), rgba(0, 0, 0, 0) calc(50% + 1.1px)), linear-gradient(to left top, rgba(0, 0, 0, 0) calc(50% - 1.1px), oklab(0.71181 0.00361261 -0.0124171 / 0.6) calc(50% - 0.4px), oklab(0.71181 0.00361261 -0.0124171 / 0.6) calc(50% + 0.4px), rgba(0, 0, 0, 0) calc(50% + 1.1px))",
+    "position": "calc(100% - 17px) 50%, calc(100% - 12px) 50%",
+    "color": "rgb(161, 161, 170)",
+    "background": "rgb(15, 15, 17)",
+    "border": "1px",
+    "rect": {
+      "x": 744,
+      "y": 165,
+      "width": 256,
+      "height": 36
+    }
+  },
+  "dark-small": {
+    "paddingStart": "8px",
+    "paddingEnd": "26px",
+    "appearance": "none",
+    "image": "linear-gradient(to right top, rgba(0, 0, 0, 0) calc(50% - 1.1px), oklab(0.985098 0.0000447631 0.0000197291 / 0.6) calc(50% - 0.4px), oklab(0.985098 0.0000447631 0.0000197291 / 0.6) calc(50% + 0.4px), rgba(0, 0, 0, 0) calc(50% + 1.1px)), linear-gradient(to left top, rgba(0, 0, 0, 0) calc(50% - 1.1px), oklab(0.985098 0.0000447631 0.0000197291 / 0.6) calc(50% - 0.4px), oklab(0.985098 0.0000447631 0.0000197291 / 0.6) calc(50% + 0.4px), rgba(0, 0, 0, 0) calc(50% + 1.1px))",
+    "position": "calc(100% - 13px) 50%, calc(100% - 8px) 50%",
+    "color": "rgb(250, 250, 250)",
+    "background": "rgb(24, 24, 27)",
+    "border": "1px",
+    "rect": {
+      "x": 744,
+      "y": 243,
+      "width": 192,
+      "height": 28
+    }
+  },
+  "dark-raw": {
+    "paddingStart": "12px",
+    "paddingEnd": "32px",
+    "appearance": "none",
+    "image": "linear-gradient(to right top, rgba(0, 0, 0, 0) calc(50% - 1.1px), oklab(0.985098 0.0000447631 0.0000197291 / 0.6) calc(50% - 0.4px), oklab(0.985098 0.0000447631 0.0000197291 / 0.6) calc(50% + 0.4px), rgba(0, 0, 0, 0) calc(50% + 1.1px)), linear-gradient(to left top, rgba(0, 0, 0, 0) calc(50% - 1.1px), oklab(0.985098 0.0000447631 0.0000197291 / 0.6) calc(50% - 0.4px), oklab(0.985098 0.0000447631 0.0000197291 / 0.6) calc(50% + 0.4px), rgba(0, 0, 0, 0) calc(50% + 1.1px))",
+    "position": "calc(100% - 17px) 50%, calc(100% - 12px) 50%",
+    "color": "rgb(250, 250, 250)",
+    "background": "rgb(24, 24, 27)",
+    "border": "1px",
+    "rect": {
+      "x": 744,
+      "y": 313,
+      "width": 277,
+      "height": 34
+    }
+  },
+  "dark-rtl": {
+    "paddingStart": "12px",
+    "paddingEnd": "32px",
+    "appearance": "none",
+    "image": "linear-gradient(to right top, rgba(0, 0, 0, 0) calc(50% - 1.1px), oklab(0.985098 0.0000447631 0.0000197291 / 0.6) calc(50% - 0.4px), oklab(0.985098 0.0000447631 0.0000197291 / 0.6) calc(50% + 0.4px), rgba(0, 0, 0, 0) calc(50% + 1.1px)), linear-gradient(to left top, rgba(0, 0, 0, 0) calc(50% - 1.1px), oklab(0.985098 0.0000447631 0.0000197291 / 0.6) calc(50% - 0.4px), oklab(0.985098 0.0000447631 0.0000197291 / 0.6) calc(50% + 0.4px), rgba(0, 0, 0, 0) calc(50% + 1.1px))",
+    "position": "12px 50%, 17px 50%",
+    "color": "rgb(250, 250, 250)",
+    "background": "rgb(24, 24, 27)",
+    "border": "1px",
+    "rect": {
+      "x": 744,
+      "y": 462,
+      "width": 256,
+      "height": 36
+    }
+  },
+  "dark-multiple": {
+    "paddingStart": "0px",
+    "paddingEnd": "0px",
+    "appearance": "auto",
+    "image": "none",
+    "position": "0% 0%",
+    "color": "rgb(250, 250, 250)",
+    "background": "rgb(24, 24, 27)",
+    "border": "1px",
+    "rect": {
+      "x": 744,
+      "y": 540,
+      "width": 256,
+      "height": 86.75
+    }
+  },
+  "dark-pill": {
+    "paddingStart": "0px",
+    "paddingEnd": "20px",
+    "appearance": "none",
+    "image": "linear-gradient(to right top, rgba(0, 0, 0, 0) calc(50% - 1.1px), oklab(0.985098 0.0000447631 0.0000197291 / 0.6) calc(50% - 0.4px), oklab(0.985098 0.0000447631 0.0000197291 / 0.6) calc(50% + 0.4px), rgba(0, 0, 0, 0) calc(50% + 1.1px)), linear-gradient(to left top, rgba(0, 0, 0, 0) calc(50% - 1.1px), oklab(0.985098 0.0000447631 0.0000197291 / 0.6) calc(50% - 0.4px), oklab(0.985098 0.0000447631 0.0000197291 / 0.6) calc(50% + 0.4px), rgba(0, 0, 0, 0) calc(50% + 1.1px))",
+    "position": "calc(100% - 5px) 50%, 100% 50%",
+    "color": "rgb(250, 250, 250)",
+    "background": "rgba(0, 0, 0, 0)",
+    "border": "0px",
+    "rect": {
+      "x": 807.625,
+      "y": 394,
+      "width": 55.296875,
+      "height": 21
+    },
+    "startToText": 13,
+    "chevronToEnd": 13,
+    "pillRect": {
+      "x": 744,
+      "width": 131.921875
+    }
+  }
+}

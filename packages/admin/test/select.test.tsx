@@ -57,17 +57,24 @@ describe("select base styles in the built CSS", () => {
       /background-image:linear-gradient\(to top right,.*var\(--qb-select-chevron\)/,
     );
     expect(rule).toContain("background-repeat:no-repeat");
-    expect(rule).toContain("right var(--qb-select-chevron-inset) center");
+    expect(rule).toContain("var(--_qb-select-side,right)");
   });
 
   it("put the chevron at the start edge in right-to-left text", () => {
-    // `:dir(rtl)`, and `[dir=rtl]` for bundlers that lower `:dir()` to `:lang()`.
     const rule = declarations(
       base,
-      `.qb-root :where(select:not([multiple],[size]:not([size="0"],[size="1"])):dir(rtl)),` +
-        `.qb-root :where([dir=rtl] select,select[dir=rtl]):where(:not([multiple],[size]:not([size="0"],[size="1"])))`,
+      `.qb-root :where(select:not([multiple],[size]:not([size="0"],[size="1"])):dir(rtl))`,
     );
-    expect(rule).toContain("background-position:left var(--qb-select-chevron-inset) center");
+    expect(rule).toContain("background-position:var(--_qb-select-side,left)");
+    expect(declarations(base, ":where([dir=rtl])")).toContain("--_qb-select-side:left");
+    expect(declarations(base, ":where([dir=ltr])")).toContain("--_qb-select-side:right");
+  });
+
+  it("restores the native arrow in forced colors", () => {
+    const forced = base.slice(base.indexOf("@media (forced-colors:active)"));
+    const rule = declarations(forced, single);
+    expect(rule).toContain("appearance:auto");
+    expect(rule).toContain("background-image:none");
   });
 
   it("define the select tokens on .qb-root", () => {
