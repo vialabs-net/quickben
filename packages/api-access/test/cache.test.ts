@@ -107,7 +107,7 @@ describe("createCache", () => {
     const a = createCache({ store, namespace: "a" });
     const b = createCache({ store, namespace: "b" });
     await a.getOrLoad("k", 60, () => Promise.resolve("A"));
-    expect(await store.get("a:k")).toBe('"A"');
+    expect(await store.get(JSON.stringify(["a", "k"]))).toBe('"A"');
     expect(await b.getOrLoad("k", 60, () => Promise.resolve("B"))).toEqual({
       value: "B",
       hit: false,
@@ -217,5 +217,151 @@ describe("createCache", () => {
       "x",
     );
     expect((await cache.getOrLoad("k", 60, () => Promise.resolve(1))).hit).toBe(false);
+  });
+});
+
+/** A memory store whose `set` or `addToTag` waits for `gate` once. */
+function gatedStore(which: "set" | "addToTag") {
+  const inner = memoryCacheStore();
+  const gate = deferred<undefined>();
+  const reached = deferred<undefined>();
+  let used = false;
+  const store: CacheStore = {
+    ...inner,
+    async set(key, value, ttl) {
+      if (which === "set" && !used) {
+        used = true;
+        reached.resolve(undefined);
+        await gate.promise;
+      }
+      await inner.set(key, value, ttl);
+    },
+    async addToTag(tag, key, ttl) {
+      if (which === "addToTag" && !used) {
+        used = true;
+        reached.resolve(undefined);
+        await gate.promise;
+      }
+      await inner.addToTag(tag, key, ttl);
+    },
+  };
+  return { store, inner, gate, reached };
+}
+
+describe("createCache review fixes", () => {
+  it("keeps namespaces and keys with colons apart", async () => {
+    const store = memoryCacheStore();
+    const a = createCache({ store, namespace: "a:b" });
+    const b = createCache({ store, namespace: "a" });
+    await a.getOrLoad("c", 60, () => Promise.resolve("first"), { tags: "x:y".split(",") });
+    expect(await b.getOrLoad("b:c", 60, () => Promise.resolve("second"))).toEqual({
+      value: "second",
+      hit: false,
+    });
+    await b.getOrLoad("k", 60, () => Promise.resolve(1), { tags: ["b:x:y"] });
+    expect(await b.invalidateTag("b:x:y")).toBe(1);
+    expect((await a.getOrLoad("c", 60, () => Promise.resolve("again"))).hit).toBe(true);
+    expect(await store.get(JSON.stringify(["a:b", "c"]))).toBe('"first"');
+  });
+
+  it("removes the value when tag registration fails", async () => {
+    const inner = memoryCacheStore();
+    const errors: unknown[] = [];
+    const store: CacheStore = {
+      ...inner,
+      addToTag: () => Promise.reject(new Error("tag down")),
+    };
+    const cache = createCache({ store, namespace: "ns", onError: (e) => errors.push(e) });
+    expect(await cache.getOrLoad("k", 60, () => Promise.resolve(1), { tags: ["t"] })).toEqual({
+      value: 1,
+      hit: false,
+    });
+    expect(errors).toHaveLength(1);
+    expect(await inner.get(JSON.stringify(["ns", "k"]))).toBeNull();
+  });
+
+  it("reports a failed rollback through onError", async () => {
+    const errors: unknown[] = [];
+    const store: CacheStore = {
+      ...memoryCacheStore(),
+      addToTag: () => Promise.reject(new Error("tag down")),
+      delete: () => Promise.reject(new Error("delete down")),
+    };
+    const cache = createCache({ store, namespace: "ns", onError: (e) => errors.push(e) });
+    expect((await cache.getOrLoad("k", 60, () => Promise.resolve(1), { tags: ["t"] })).value).toBe(
+      1,
+    );
+    expect(errors.map((e) => (e as Error).message)).toEqual(["tag down", "delete down"]);
+  });
+
+  it("removes a value whose set finished after the invalidation", async () => {
+    const { store, inner, gate, reached } = gatedStore("set");
+    const cache = createCache({ store, namespace: "ns" });
+    const load = cache.getOrLoad("k", 60, () => Promise.resolve(1), { tags: ["t"] });
+    await reached.promise;
+    await cache.invalidateTag("t");
+    gate.resolve(undefined);
+    expect((await load).value).toBe(1);
+    expect(await inner.get(JSON.stringify(["ns", "k"]))).toBeNull();
+  });
+
+  it("removes a value invalidated while its tags were written", async () => {
+    const { store, inner, gate, reached } = gatedStore("addToTag");
+    const cache = createCache({ store, namespace: "ns" });
+    const load = cache.getOrLoad("k", 60, () => Promise.resolve(1), { tags: ["t"] });
+    await reached.promise;
+    await cache.delete("k");
+    gate.resolve(undefined);
+    await load;
+    expect(await inner.get(JSON.stringify(["ns", "k"]))).toBeNull();
+  });
+
+  it("keeps a newer load's value when an invalidated load finishes later", async () => {
+    const { store, inner, gate, reached } = gatedStore("addToTag");
+    const cache = createCache({ store, namespace: "ns" });
+    const old = cache.getOrLoad("k", 60, () => Promise.resolve("old"), { tags: ["t"] });
+    await reached.promise;
+    await cache.invalidateTag("t");
+    expect(await cache.getOrLoad("k", 60, () => Promise.resolve("new"), { tags: ["t"] })).toEqual({
+      value: "new",
+      hit: false,
+    });
+    gate.resolve(undefined);
+    await old;
+    expect(await inner.get(JSON.stringify(["ns", "k"]))).toBe('"new"');
+    expect(await cache.invalidateTag("t")).toBe(1);
+  });
+
+  it("retries after a loader that throws synchronously", async () => {
+    const cache = createCache({ store: memoryCacheStore(), namespace: "ns" });
+    const throwing = (() => {
+      throw new Error("sync");
+    }) as () => Promise<number>;
+    await expect(cache.getOrLoad("k", 60, throwing)).rejects.toThrow("sync");
+    expect(await cache.getOrLoad("k", 60, () => Promise.resolve(2))).toEqual({
+      value: 2,
+      hit: false,
+    });
+  });
+});
+
+describe("memoryCacheStore cleanup", () => {
+  it("removes expired values and tags every 1000 writes", async () => {
+    let now = new Date("2026-11-26T12:00:00Z");
+    const store = memoryCacheStore({ now: () => now });
+    await store.addToTag("old-tag", "a", 1);
+    for (let i = 0; i < 998; i++) await store.set(`k${String(i)}`, "v", 1);
+    now = new Date(now.getTime() + 2000);
+    const spy = vi.spyOn(Map.prototype, "delete");
+    try {
+      await store.set("fresh", "v", 60);
+      const removed = spy.mock.calls.map(([key]) => key as unknown);
+      expect(removed).toHaveLength(999);
+      expect(removed).toContain("k0");
+      expect(removed).toContain("old-tag");
+    } finally {
+      spy.mockRestore();
+    }
+    expect(await store.get("fresh")).toBe("v");
   });
 });
