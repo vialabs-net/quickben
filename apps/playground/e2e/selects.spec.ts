@@ -28,7 +28,7 @@ test("select chevrons follow the nearest direction override", async ({ page }) =
     await expect(page.locator(`#${id}`)).toHaveCSS("padding-right", "32px");
   }
   await page.locator("html").evaluate((html) => {
-    html.dir = "rtl";
+    html.setAttribute("dir", "rtl");
   });
   await expect(page.locator("#light-default")).toHaveCSS("background-position", /^12px /);
 });
