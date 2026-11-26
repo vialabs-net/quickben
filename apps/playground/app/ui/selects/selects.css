@@ -1,0 +1,20 @@
+/*
+ * Panels of the select check. `color-scheme` is set here, not inline: Next.js lowers
+ * `light-dark()` for older browsers and that only follows `color-scheme` set in CSS.
+ */
+.selects-panel {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+  padding: 1.5rem;
+  background: var(--qb-surface-muted);
+  color: var(--qb-text);
+}
+
+.selects-panel[data-scheme="light"] {
+  color-scheme: light;
+}
+
+.selects-panel[data-scheme="dark"] {
+  color-scheme: dark;
+}

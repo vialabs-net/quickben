@@ -90,6 +90,9 @@ describe("theme tokens", () => {
       headingSize: "x",
       headingWeight: "x",
       tableRowHeight: "x",
+      selectChevron: "x",
+      selectChevronInset: "x",
+      selectChevronSpace: "x",
     };
     const properties = Object.keys(themeStyle(all) ?? {});
     expect(properties).toHaveLength(Object.keys(all).length);
