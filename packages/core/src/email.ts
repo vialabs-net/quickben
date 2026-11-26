@@ -254,6 +254,8 @@ export interface EmailRequest {
   fetch?: typeof fetch;
   /** Default `10000`. */
   timeoutMs?: number;
+  /** Allow an `http://` URL, for a local test server. Default `false`: only `https://`. */
+  allowHttp?: boolean;
   /** Removed from any detail text. */
   secret: string;
   /** Turn the provider answer into a result. Thrown errors become `failed`. */
@@ -265,7 +267,8 @@ const MAX_DETAIL = 500;
 /**
  * Make the provider request with a timeout and turn every outcome into an {@link EmailResult}:
  * network errors and timeouts are retryable failures, and the API key never appears in
- * `detail`.
+ * `detail`. A URL that is not `https://` (or `http://` with `allowHttp`) is a non-retryable
+ * failure and nothing is sent.
  */
 export async function sendEmailRequest(request: EmailRequest): Promise<EmailResult> {
   const clean = (result: EmailResult): EmailResult =>
@@ -278,6 +281,18 @@ export async function sendEmailRequest(request: EmailRequest): Promise<EmailResu
             : result.detail
           ).slice(0, MAX_DETAIL),
         };
+  const protocol = URL.canParse(request.url) ? new URL(request.url).protocol : null;
+  if (protocol !== "https:" && !(protocol === "http:" && request.allowHttp === true)) {
+    return {
+      status: "failed",
+      provider: request.provider,
+      detail:
+        protocol === "http:"
+          ? `The ${request.provider} URL uses http://. Use https://, or set allowHttp for a local test server.`
+          : `Invalid ${request.provider} URL: it must start with https://.`,
+      retryable: false,
+    };
+  }
   const doFetch = request.fetch ?? globalThis.fetch;
   let response: Response;
   try {

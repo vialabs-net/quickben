@@ -212,6 +212,42 @@ describe("sendEmailRequest", () => {
     });
     expect(result).toMatchObject({ status: "failed", retryable: true, statusCode: 502 });
   });
+
+  it("refuses a URL that is not https without sending", async () => {
+    const fetch = vi.fn(() => Promise.resolve(new Response("{}")));
+    const read = () => Promise.resolve({ status: "sent", provider: "p", id: "1" } as const);
+    for (const url of ["http://p.test/send", "ftp://p.test/send", "not a url"]) {
+      const result = await sendEmailRequest({
+        ...base,
+        url,
+        fetch: fetch,
+        read,
+      });
+      expect(result, url).toMatchObject({ status: "failed", provider: "p", retryable: false });
+    }
+    const ftp = await sendEmailRequest({
+      ...base,
+      url: "ftp://p.test/send",
+      allowHttp: true,
+      fetch: fetch,
+      read,
+    });
+    expect(ftp).toMatchObject({ status: "failed", retryable: false });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("allows http with allowHttp", async () => {
+    const fetch = vi.fn(() => Promise.resolve(new Response("{}")));
+    const result = await sendEmailRequest({
+      ...base,
+      url: "http://localhost:4010/send",
+      allowHttp: true,
+      fetch: fetch,
+      read: () => Promise.resolve({ status: "sent", provider: "p", id: "1" }),
+    });
+    expect(result).toEqual({ status: "sent", provider: "p", id: "1" });
+    expect(fetch).toHaveBeenCalledWith("http://localhost:4010/send", expect.anything());
+  });
 });
 
 describe("config email", () => {
