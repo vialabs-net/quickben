@@ -22,3 +22,5 @@ playwright-report/
 .doc-reader-files/
 .uploads/
 .better-auth.sqlite
+# Local `pnpm pack` output
+*.tgz

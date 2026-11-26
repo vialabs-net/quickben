@@ -10,6 +10,7 @@
     [
       "create-quickben",
       "@quickben/admin",
+      "@quickben/api-access",
       "@quickben/auth-better-auth",
       "@quickben/auth-firebase",
       "@quickben/core",
