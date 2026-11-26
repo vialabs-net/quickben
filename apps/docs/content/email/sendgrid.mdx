@@ -28,7 +28,8 @@ export default defineConfig({
 | ----------- | -------------------------- | ---------------------------------------------------------------- |
 | `apiKey`    | required                   | `SG.…` key with Mail Send access, or a function that returns it. |
 | `from`      | none                       | Default sender. The message `from` wins.                         |
-| `baseUrl`   | `https://api.sendgrid.com` | API root. `SENDGRID_EU_URL` for EU accounts.                     |
+| `baseUrl`   | `https://api.sendgrid.com` | API root. `SENDGRID_EU_URL` for EU accounts. Must be `https://`. |
+| `allowHttp` | `false`                    | Allow an `http://` `baseUrl`, for a local test server.           |
 | `fetch`     | global `fetch`             | Your own `fetch`, for tests or a proxy.                          |
 | `timeoutMs` | `10000`                    | Time to wait for SendGrid.                                       |
 

@@ -71,6 +71,52 @@ describe("resendEmail", () => {
     expect(fetch).toHaveBeenCalledWith("https://resend.proxy.test/emails", expect.anything());
   });
 
+  it("refuses an http base URL unless allowHttp is set", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>(() => Promise.resolve(Response.json({ id: "x" })));
+    const message = { to: "b@example.com", subject: "S", text: "T" };
+    const options = {
+      apiKey: "re_k",
+      from: "a@acme.test",
+      baseUrl: "http://localhost:4010",
+      fetch,
+    };
+    const refused = await resendEmail(options).send(message);
+    expect(refused).toMatchObject({ status: "failed", provider: "resend", retryable: false });
+    expect(fetch).not.toHaveBeenCalled();
+    expect(await resendEmail({ ...options, allowHttp: true }).send(message)).toMatchObject({
+      status: "sent",
+    });
+    expect(fetch).toHaveBeenCalledWith("http://localhost:4010/emails", expect.anything());
+  });
+
+  it.each(["通知-42", " lead", "trail ", "tab\tkey", "é"])(
+    "refuses idempotency key %j that a header cannot carry",
+    async (idempotencyKey) => {
+      const { email, fetch } = setup();
+      const result = await email.send({
+        to: "a@example.com",
+        subject: "S",
+        text: "T",
+        idempotencyKey,
+      });
+      expect(result).toMatchObject({ status: "failed", provider: "resend", retryable: false });
+      expect(fetch).not.toHaveBeenCalled();
+    },
+  );
+
+  it("sends ordinary idempotency keys unchanged", async () => {
+    const { email, fetch } = setup();
+    await email.send({
+      to: "a@example.com",
+      subject: "S",
+      text: "T",
+      idempotencyKey: "order 42/a:b",
+    });
+    expect(new Headers(fetch.mock.calls[0]?.[1]?.headers).get("idempotency-key")).toBe(
+      "order 42/a:b",
+    );
+  });
+
   it("retries a concurrent idempotent request, not an invalid one", async () => {
     const answer = (name: string) => () =>
       Response.json({ statusCode: 409, name, message: "m" }, { status: 409 });

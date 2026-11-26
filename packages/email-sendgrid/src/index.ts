@@ -31,8 +31,13 @@ export interface SendGridEmailOptions {
   apiKey: EmailApiKey;
   /** Default sender, such as `Acme <no-reply@acme.com>`. A message's `from` wins. */
   from?: string;
-  /** API root. Default {@link SENDGRID_URL}; {@link SENDGRID_EU_URL} for EU accounts. */
+  /**
+   * API root. Default {@link SENDGRID_URL}; {@link SENDGRID_EU_URL} for EU accounts. Must be
+   * `https://` unless `allowHttp` is set.
+   */
   baseUrl?: string;
+  /** Allow an `http://` `baseUrl`, for a local test server. Default `false`. */
+  allowHttp?: boolean;
   /** Default: the global `fetch`. */
   fetch?: typeof fetch;
   /** Milliseconds to wait for SendGrid. Default `10000`. */
@@ -127,6 +132,7 @@ export function sendgridEmail(options: SendGridEmailOptions): EmailAdapter {
         },
         fetch: options.fetch,
         timeoutMs: options.timeoutMs,
+        allowHttp: options.allowHttp,
         secret: apiKey,
         read: readAnswer,
       });

@@ -110,6 +110,27 @@ describe("sendgridEmail", () => {
     });
   });
 
+  it("refuses an http base URL unless allowHttp is set", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>(() => Promise.resolve(accepted()));
+    const message = { to: "b@example.com", subject: "S", text: "T" };
+    const options = {
+      apiKey: "SG.k",
+      from: "a@acme.test",
+      baseUrl: "http://localhost:4010",
+      fetch,
+    };
+    expect(await sendgridEmail(options).send(message)).toMatchObject({
+      status: "failed",
+      provider: "sendgrid",
+      retryable: false,
+    });
+    expect(fetch).not.toHaveBeenCalled();
+    expect(await sendgridEmail({ ...options, allowHttp: true }).send(message)).toMatchObject({
+      status: "sent",
+    });
+    expect(fetch).toHaveBeenCalledWith("http://localhost:4010/v3/mail/send", expect.anything());
+  });
+
   it("uses the EU API root", async () => {
     const fetch = vi.fn<typeof globalThis.fetch>(() => Promise.resolve(accepted()));
     await sendgridEmail({

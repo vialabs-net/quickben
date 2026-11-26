@@ -24,13 +24,14 @@ export default defineConfig({
 });
 ```
 
-| Option      | Default                  | Purpose                                    |
-| ----------- | ------------------------ | ------------------------------------------ |
-| `apiKey`    | required                 | `re_…` key, or a function that returns it. |
-| `from`      | none                     | Default sender. The message `from` wins.   |
-| `baseUrl`   | `https://api.resend.com` | API root.                                  |
-| `fetch`     | global `fetch`           | Your own `fetch`, for tests or a proxy.    |
-| `timeoutMs` | `10000`                  | Time to wait for Resend.                   |
+| Option      | Default                  | Purpose                                                |
+| ----------- | ------------------------ | ------------------------------------------------------ |
+| `apiKey`    | required                 | `re_…` key, or a function that returns it.             |
+| `from`      | none                     | Default sender. The message `from` wins.               |
+| `baseUrl`   | `https://api.resend.com` | API root. Must be `https://`.                          |
+| `allowHttp` | `false`                  | Allow an `http://` `baseUrl`, for a local test server. |
+| `fetch`     | global `fetch`           | Your own `fetch`, for tests or a proxy.                |
+| `timeoutMs` | `10000`                  | Time to wait for Resend.                               |
 
 | Message field    | Resend request                                                                               |
 | ---------------- | -------------------------------------------------------------------------------------------- |

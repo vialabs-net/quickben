@@ -20,8 +20,10 @@ export interface ResendEmailOptions {
   apiKey: EmailApiKey;
   /** Default sender, such as `Acme <no-reply@acme.com>`. A message's `from` wins. */
   from?: string;
-  /** API root. Default {@link RESEND_URL}. */
+  /** API root. Default {@link RESEND_URL}. Must be `https://` unless `allowHttp` is set. */
   baseUrl?: string;
+  /** Allow an `http://` `baseUrl`, for a local test server. Default `false`. */
+  allowHttp?: boolean;
   /** Default: the global `fetch`. */
   fetch?: typeof fetch;
   /** Milliseconds to wait for Resend. Default `10000`. */
@@ -45,6 +47,9 @@ export function resendBody(email: PreparedEmail): Record<string, unknown> {
     ...(tags.length ? { tags } : {}),
   };
 }
+
+/** Printable ASCII, no space at either end: survives an HTTP header unchanged. */
+const headerSafe = /^[\x21-\x7e](?:[\x20-\x7e]*[\x21-\x7e])?$/;
 
 function withoutTrailingSlash(url: string): string {
   let end = url.length;
@@ -90,6 +95,15 @@ export function resendEmail(options: ResendEmailOptions): EmailAdapter {
       }
       const email = prepareEmail("resend", message, options);
       if (isEmailResult(email)) return email;
+      if (email.idempotencyKey !== undefined && !headerSafe.test(email.idempotencyKey)) {
+        return {
+          status: "failed",
+          provider: "resend",
+          detail:
+            "The idempotency key goes in an HTTP header: use printable ASCII without leading or trailing spaces.",
+          retryable: false,
+        };
+      }
       return sendEmailRequest({
         provider: "resend",
         url,
@@ -104,6 +118,7 @@ export function resendEmail(options: ResendEmailOptions): EmailAdapter {
         },
         fetch: options.fetch,
         timeoutMs: options.timeoutMs,
+        allowHttp: options.allowHttp,
         secret: apiKey,
         read: readAnswer,
       });
