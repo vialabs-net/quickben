@@ -36,11 +36,12 @@ This file describes what exists. Sections marked **Planned** describe agreed des
 | `packages/storage-local`     | `@quickben/storage-local`                   | Exists |
 | `packages/storage-gcs`       | `@quickben/storage-gcs`                     | Exists |
 | `packages/storage-s3`        | `@quickben/storage-s3`                      | Exists |
+| `packages/api-access`        | `@quickben/api-access`                      | Exists |
 | `packages/create-quickben`   | `create-quickben`                           | Exists |
 | `apps/docs`                  | Nextra site at https://quickben.vialabs.net | Exists |
 | `apps/playground`            | Next.js app using everything (PGlite)       | Exists |
 
-Dependencies point one way: adapters and other packages depend on `@quickben/core` (as a peer dependency). Core depends only on Zod.
+Dependencies point one way: adapters and other packages depend on `@quickben/core` (as a peer dependency). Core depends only on Zod. `@quickben/api-access` depends on nothing.
 
 ### Tooling
 

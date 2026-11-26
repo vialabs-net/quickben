@@ -1,0 +1,125 @@
+---
+title: API access
+description: "@quickben/api-access: API keys, scopes, quota windows and a read-through cache for machine clients."
+---
+
+# API access
+
+`@quickben/api-access` gives an app what it needs to serve machine clients:
+
+- API keys: create, parse and verify.
+- Scopes: check a key's scopes against an endpoint's.
+- Quotas: count requests per key in fixed and calendar-month windows.
+- Cache: a read-through cache with tags and hit/miss counters.
+
+It has no runtime dependencies and does not use `@quickben/core`. Stores come in memory and Redis versions. The Redis stores take any client with the commands in `RedisLike`, such as ioredis.
+
+```sh
+pnpm add @quickben/api-access
+```
+
+## Token format
+
+```txt
+<prefix>_<keyId>_<secret>
+ida_sk_k3j9x0a1b2c4_Q8w2...   (example)
+```
+
+| Part     | Format                                                       |
+| -------- | ------------------------------------------------------------ |
+| `prefix` | Letters and digits, at most one underscore (`ida_sk`, `qb`). |
+| `keyId`  | 12 lowercase base36 characters. Public. Look keys up by it.  |
+| `secret` | 32 base62 characters from `crypto.randomBytes`. Shown once.  |
+
+Store `keyId`, `secretHash` (SHA-256 hex of the secret) and `hint` (last 4 characters of the secret). Never store the secret or the token.
+
+```ts
+import { createApiKey } from "@quickben/api-access";
+
+const issued = createApiKey({ prefix: "ida_sk" });
+// issued.token goes to the client once.
+const row = { id: issued.keyId, secretHash: issued.secretHash, hint: issued.hint };
+```
+
+## Usage
+
+Fastify-style pseudo code. `db` and `redis` are your app's.
+
+```ts nocheck
+import {
+  bearerToken,
+  createCache,
+  createQuotaLimiter,
+  missingScopes,
+  parseApiKey,
+  quotaHeaders,
+  redisCacheStore,
+  redisQuotaStore,
+  verifyApiKeySecret,
+} from "@quickben/api-access";
+
+const limiter = createQuotaLimiter({
+  store: redisQuotaStore(redis),
+  windows: [
+    { name: "minute", kind: "fixed", ms: 60_000 },
+    { name: "month", kind: "calendar-month", timeZone: "America/Santiago" },
+  ],
+});
+const cache = createCache({ store: redisCacheStore(redis), namespace: "api" });
+
+app.get("/v1/vehicles/:plate", async (req, reply) => {
+  const token = bearerToken(req.headers.authorization, req.headers["x-api-key"]);
+  const parsed = token ? parseApiKey(token, { prefix: "ida_sk" }) : null;
+  const key = parsed ? await db.apiKeys.find(parsed.keyId) : null;
+  if (!parsed || !key || !verifyApiKeySecret(parsed.secret, key.secretHash)) {
+    return reply.code(401).send({ error: "invalid_api_key" });
+  }
+
+  const missing = missingScopes(key.scopes, ["vehicles:read"]);
+  if (missing.length > 0) return reply.code(403).send({ error: "missing_scopes", missing });
+
+  const quota = await limiter.consume(key.id, {
+    limits: { minute: key.perMinute, month: key.perMonth },
+  });
+  reply.headers(quotaHeaders(quota));
+  if (!quota.allowed)
+    return reply.code(429).send({ error: "quota_exceeded", windows: quota.exceeded });
+
+  const { value } = await cache.getOrLoad(
+    `vehicle:${req.params.plate}`,
+    300,
+    () => db.vehicles.find(req.params.plate),
+    { tags: [`vehicle:${req.params.plate}`] },
+  );
+  return value;
+});
+
+// After a vehicle changes:
+await cache.invalidateTag(`vehicle:${plate}`);
+```
+
+## Quotas
+
+| Behavior         | Details                                                                                                                                                               |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `limits`         | Per window name. `null` or missing means no limit. The window still counts.                                                                                           |
+| Refused request  | `allowed: false`. It is not counted.                                                                                                                                  |
+| `enforce: false` | Counts and never refuses. `exceeded` lists the windows over their limit.                                                                                              |
+| `cost`           | Default 1.                                                                                                                                                            |
+| `calendar-month` | Resets at 00:00 on day 1 in `timeZone` (default `"UTC"`).                                                                                                             |
+| `peek`           | Reads without counting. `allowed` is false when a window is at its limit.                                                                                             |
+| `quotaHeaders`   | `X-RateLimit-Limit-<Window>`, `X-RateLimit-Remaining-<Window>`, `X-RateLimit-Reset-<Window>` (unix seconds) for windows with a limit, and `Retry-After` when refused. |
+
+A window named `per_minute` gives headers ending in `-Per-Minute`.
+
+## Cache
+
+| Behavior     | Details                                                                                  |
+| ------------ | ---------------------------------------------------------------------------------------- |
+| Values       | Stored as JSON. A `Date` comes back as a string on a hit. `undefined` is not cached.     |
+| Keys         | Prefixed with `namespace`.                                                               |
+| Tags         | `invalidateTag(tag)` deletes every key loaded with that tag and returns the count.       |
+| Concurrency  | Concurrent calls for one key in one process share one loader call.                       |
+| `enabled`    | `false` or a function returning `false`: every call runs the loader, nothing is counted. |
+| `stats()`    | `hits`, `misses`, `invalidations` in this process since start.                           |
+| Store errors | Passed to `onError`. The loader result is returned.                                      |

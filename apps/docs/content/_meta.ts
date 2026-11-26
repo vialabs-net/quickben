@@ -8,6 +8,7 @@ const meta: MetaRecord = {
   "database-adapters": "Database adapters",
   storage: "Files and storage",
   auth: "Auth",
+  "api-access": "API access",
   nextjs: "Next.js integration",
   playground: "Playground",
   plugins: "Plugins",

@@ -211,6 +211,9 @@ importers:
       '@quickben/admin':
         specifier: workspace:^
         version: link:../../packages/admin
+      '@quickben/api-access':
+        specifier: workspace:^
+        version: link:../../packages/api-access
       '@quickben/auth-better-auth':
         specifier: workspace:^
         version: link:../../packages/auth-better-auth
