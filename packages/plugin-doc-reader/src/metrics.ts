@@ -253,7 +253,7 @@ function stepOf(
 }
 
 /** Outcome of a check written before outcomes existed: from `match` alone. */
-const outcomeOf = (check: FieldCheck): FieldOutcome | null => {
+export const outcomeOf = (check: FieldCheck): FieldOutcome | null => {
   if (check.outcome !== undefined) return check.outcome;
   if (check.match === null) return null;
   return check.match ? "correct" : "wrong";

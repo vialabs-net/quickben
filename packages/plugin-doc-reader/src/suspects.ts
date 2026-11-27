@@ -131,12 +131,13 @@ export function printedForms(
   if (canonical) forms.add(searchable(canonical));
   if (field.type === "date" && canonical) {
     const [year = "", month = "", day = ""] = canonical.split("-");
-    const d = String(Number(day));
-    const m = String(Number(month));
+    const [first, second] = field.dateOrder === "mdy" ? [month, day] : [day, month];
+    const firstNumber = String(Number(first));
+    const secondNumber = String(Number(second));
     for (const form of [
-      `${pad(day)}${pad(month)}${year}`,
-      `${d}${m}${year}`,
-      `${pad(day)}${pad(month)}${year.slice(2)}`,
+      `${pad(first)}${pad(second)}${year}`,
+      `${firstNumber}${secondNumber}${year}`,
+      `${pad(first)}${pad(second)}${year.slice(2)}`,
       `${year}${pad(month)}${pad(day)}`,
     ]) {
       forms.add(form);
@@ -263,6 +264,7 @@ function textSignal(
   sample: SampleRecord,
   field: FieldDefinition,
   text: string,
+  wanted: ReadonlySet<SuspectDetector>,
 ): { detector: SuspectDetector; read: string | null } | null {
   const expected = expectedIn(sample, field.key);
   if (!hasValue(ctx.type, expected, field) || inText(field, expected, text) !== false) return null;
@@ -270,7 +272,9 @@ function textSignal(
   const read = check?.read ?? null;
   const wrong = check !== undefined && fieldStatus(check) === "wrong";
   const readFound = wrong && hasValue(ctx.type, read, field) && inText(field, read, text) === true;
-  return { detector: readFound ? "read-in-text" : "expected-not-in-text", read };
+  const detector =
+    readFound && wanted.has("read-in-text") ? "read-in-text" : "expected-not-in-text";
+  return wanted.has(detector) ? { detector, read } : null;
 }
 
 const TEXT_EVIDENCE: Record<string, string> = {
@@ -290,8 +294,8 @@ async function textDetectors(
     const text = searchable((await read(sample)) ?? "");
     if (text.length < MIN_TEXT) continue;
     for (const field of fields) {
-      const signal = textSignal(ctx, sample, field, text);
-      if (!signal || !wanted.has(signal.detector)) continue;
+      const signal = textSignal(ctx, sample, field, text, wanted);
+      if (!signal) continue;
       const suspect = row(ctx, sample, field, signal.detector, {
         read: signal.read,
         evidence: TEXT_EVIDENCE[signal.detector] ?? "",

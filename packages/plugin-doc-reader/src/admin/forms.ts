@@ -36,7 +36,6 @@ const list = (value: string) =>
     .map((item) => item.trim())
     .filter(Boolean);
 
-/** Fields from the editor. `origin` and `compare` have no inputs yet: they carry over by key. */
 function fieldsOf(formData: FormData, current?: DocumentType) {
   const fields: Record<string, unknown>[] = [];
   for (let i = 0; i < count(formData, "fieldCount"); i += 1) {
@@ -51,17 +50,20 @@ function fieldsOf(formData: FormData, current?: DocumentType) {
       required: formData.get(`${p}required`) === "on",
     };
     if (formData.get(`${p}unscored`) === "on") field.scored = false;
+    const { origin, compare, phoneCountry, emptyValues } =
+      current?.fields.find((candidate) => candidate.key === key) ?? {};
     const extra = {
       description: text(formData, `${p}description`),
       transform: text(formData, `${p}transform`),
       pattern: text(formData, `${p}pattern`),
       dateOrder: text(formData, `${p}dateOrder`),
       decimalSeparator: text(formData, `${p}decimalSeparator`),
+      origin,
+      compare,
+      phoneCountry,
+      emptyValues,
     };
     for (const [name, value] of Object.entries(extra)) if (value !== undefined) field[name] = value;
-    const before = current?.fields.find((candidate) => candidate.key === field.key);
-    if (before?.origin !== undefined) field.origin = before.origin;
-    if (before?.compare !== undefined) field.compare = before.compare;
     fields.push(field);
   }
   return fields;

@@ -130,7 +130,7 @@ export function docCorrectionsCollection(isStaff: IsStaff) {
     fields: {
       typeKey: f.text({ required: true, index: true, maxLength: 64 }),
       sampleId: f.text({ index: true, maxLength: 64 }),
-      sampleKey: f.text({ maxLength: 200 }),
+      sampleKey: f.text({ index: true, maxLength: 200 }),
       field: f.text({ required: true, maxLength: 200 }),
       before: f.text({ maxLength: 10_000 }),
       after: f.text({ maxLength: 10_000 }),

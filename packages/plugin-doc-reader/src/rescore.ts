@@ -16,7 +16,7 @@ import type { TestRun } from "./bench";
 import type { DocumentType } from "./definition";
 import type { FieldValue } from "./extractor";
 import type { SampleResult } from "./metrics";
-import type { SampleRecord, TestRunRecord } from "./records";
+import type { SampleRecord } from "./records";
 import type { Quickben, RequestContext } from "@quickben/core";
 
 /** Options of {@link rescoreTestRun}. */
@@ -50,7 +50,8 @@ export function rescoreResult(
 ): SampleResult {
   if (result.skipped !== undefined || result.failed === true) return result;
   const steps = new Map(result.fields.map((check) => [check.key, check.step]));
-  const fields = checkFields(type, expected, { fields: readsOf(result) }).map((check) => {
+  const checkedType = { ...type, fields: type.fields.filter((field) => steps.has(field.key)) };
+  const fields = checkFields(checkedType, expected, { fields: readsOf(result) }).map((check) => {
     const step = steps.get(check.key);
     return step ? { ...check, step } : check;
   });
@@ -71,63 +72,66 @@ export async function rescoreTestRun(
   if (source.state === "running") {
     throw new ValidationError([{ path: "run", message: "The run is still running" }]);
   }
+  const original = source.rescoredFrom ? await getTestRun(qb, ctx, source.rescoredFrom) : source;
   const version = await getVersion(qb, ctx, source.typeKey, options.version ?? source.typeVersion);
   const type = version.definition;
-  const ids = [...new Set(source.results.map((result) => result.sampleId))];
+  const ids = [...new Set(original.results.map((result) => result.sampleId))];
   const samples = await findAll<SampleRecord>(qb, DOC_SAMPLES, { id: { in: ids } }, ctx);
   const expected = new Map(samples.map((sample) => [sample.id, sample.expected]));
-  const results = source.results.map((result) =>
+  const results = original.results.map((result) =>
     rescoreResult(type, expected.get(result.sampleId) ?? {}, result),
   );
   const wallMs = source.metrics?.wallMs ?? source.summary?.wallMs ?? null;
-  const record = (await qb.create(
-    DOC_TEST_RUNS,
-    {
-      typeKey: source.typeKey,
-      typeVersion: version.version,
-      typeRevision: version.revision,
-      examplesRevision: source.examplesRevision ?? null,
-      compareGroup: null,
-      variant: source.variant,
-      pipeline: type.pipeline,
-      definition: type,
-      state: "done",
-      results,
-      summary: summarize(results, wallMs),
-      metrics: runMetrics(type, results, wallMs),
-      error: source.error,
-      costUsd: source.costUsd,
-      splits: source.splits,
-      splitVersion: source.splitVersion,
-      heldOut: source.heldOut,
-      purpose: "rescore",
-      // A re-score of a re-score points at the run that read.
-      rescoredFrom: source.rescoredFrom ?? source.id,
-      sampleIds: ids,
-      total: source.total,
-      concurrency: 1,
-      maxCostUsd: null,
-      retries: 0,
-      finishedAt: new Date().toISOString(),
-      createdBy: ctx.user?.email ?? ctx.user?.id ?? null,
-    },
-    ctx,
-  )) as unknown as TestRunRecord;
-  for (const [index, result] of results.entries()) {
-    await qb.create(
-      DOC_TEST_RESULTS,
+  const id = await qb.transaction(async (tx) => {
+    const record = await tx.create(
+      DOC_TEST_RUNS,
       {
-        run: record.id,
-        index,
-        slot: `${record.id}:${String(index)}`,
-        sampleId: result.sampleId,
-        lane: 0,
-        laneCostUsd: 0,
-        costUsd: result.costUsd,
-        result,
+        typeKey: source.typeKey,
+        typeVersion: version.version,
+        typeRevision: version.revision,
+        examplesRevision: source.examplesRevision ?? null,
+        compareGroup: null,
+        variant: source.variant,
+        pipeline: type.pipeline,
+        definition: type,
+        state: "done",
+        results,
+        summary: summarize(results, wallMs),
+        metrics: runMetrics(type, results, wallMs),
+        error: source.error,
+        costUsd: source.costUsd,
+        splits: source.splits,
+        splitVersion: source.splitVersion,
+        heldOut: source.heldOut,
+        purpose: "rescore",
+        rescoredFrom: original.id,
+        sampleIds: ids,
+        total: source.total,
+        concurrency: 1,
+        maxCostUsd: null,
+        retries: 0,
+        finishedAt: new Date().toISOString(),
+        createdBy: ctx.user?.email ?? ctx.user?.id ?? null,
       },
-      SYSTEM,
+      ctx,
     );
-  }
-  return getTestRun(qb, ctx, record.id);
+    for (const [index, result] of results.entries()) {
+      await tx.create(
+        DOC_TEST_RESULTS,
+        {
+          run: record.id,
+          index,
+          slot: `${record.id}:${String(index)}`,
+          sampleId: result.sampleId,
+          lane: 0,
+          laneCostUsd: 0,
+          costUsd: result.costUsd,
+          result,
+        },
+        SYSTEM,
+      );
+    }
+    return record.id;
+  });
+  return getTestRun(qb, ctx, id);
 }

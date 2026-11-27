@@ -53,24 +53,13 @@ export interface LocatedEvidence extends FieldEvidence {
   readonly source?: "text-layer" | "model";
 }
 
-/**
- * Boxes for the values read, from the PDF's text layer: each value (else its evidence text) is
- * looked up in the text runs of its evidence page, then of the other pages. A value not found
- * keeps the box the vision model drew (`source: "model"`); scans have no text layer, so their
- * boxes always come from the model.
- */
-/**
- * What to look for on the page, best first: the value, the part of the model's evidence after
- * its last `:` (the printed value of `Tipo de Combustible : Gasolina`, often a text run apart
- * from its label), then the whole evidence.
- */
 function searchTexts(field: FieldValue): string[] {
   const evidence = field.evidence?.text ?? "";
-  const afterLabel = evidence.includes(":")
-    ? evidence.slice(evidence.lastIndexOf(":") + 1).trim()
-    : "";
+  const separator = evidence.indexOf(":");
+  const hasLabel = separator >= 0 && /\p{L}/u.test(evidence.slice(0, separator));
+  const afterLabel = hasLabel ? evidence.slice(separator + 1).trim() : "";
   return [field.value, afterLabel, evidence].filter(
-    (text, index, all) => text.length >= 2 && all.indexOf(text) === index,
+    (text, index, all) => text !== "" && all.indexOf(text) === index,
   );
 }
 
@@ -83,6 +72,7 @@ function firstBox(items: PageText["items"], candidates: readonly string[]) {
   return null;
 }
 
+/** Find evidence in PDF text, preferring the reported page. Keep the model box as a fallback. */
 export async function locateEvidence(
   bytes: Uint8Array,
   mime: string,

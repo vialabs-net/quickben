@@ -1,3 +1,5 @@
+import { parsePhoneNumberFromString } from "libphonenumber-js/min";
+
 /**
  * Telephone numbers in E.164 (`+<country code><national number>`) for a field's default
  * country. Only countries with a plan here are supported; a number that does not fit its
@@ -14,14 +16,14 @@ interface PhonePlan {
 
 /** Plans by ISO 3166-1 alpha-2 code. */
 export const PHONE_PLANS = {
-  AR: { code: "54", national: [10], trunk: "0" },
+  AR: { code: "54", national: [10, 11], trunk: "0" },
   BR: { code: "55", national: [10, 11], trunk: "0" },
   CA: { code: "1", national: [10], trunk: "1" },
   CL: { code: "56", national: [9], trunk: "0" },
   CO: { code: "57", national: [10] },
   ES: { code: "34", national: [9] },
   MX: { code: "52", national: [10] },
-  PE: { code: "51", national: [9], trunk: "0" },
+  PE: { code: "51", national: [8, 9], trunk: "0" },
   US: { code: "1", national: [10], trunk: "1" },
   UY: { code: "598", national: [8], trunk: "0" },
 } as const satisfies Record<string, PhonePlan>;
@@ -35,6 +37,10 @@ export const PHONE_COUNTRIES = Object.keys(PHONE_PLANS) as [PhoneCountry, ...Pho
  * trunk prefix (`09…`).
  */
 export function toE164(raw: string, country: PhoneCountry): string | null {
+  if (country === "AR") {
+    const number = parsePhoneNumberFromString(raw, { defaultCountry: country, extract: false });
+    return number?.country === country && number.isPossible() ? number.number : null;
+  }
   const plan: PhonePlan = PHONE_PLANS[country];
   const text = raw.trim();
   let digits = text.replaceAll(/\D/gu, "");

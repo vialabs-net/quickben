@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  addSample,
   applyCorrections,
   canPublish,
   compareFieldValue,
@@ -63,6 +64,12 @@ describe("comparison rules", () => {
       "near",
     );
     expect(compareFieldValue(field, "TALLERES NANDU", "TALLERES PANDU")).toBe("different");
+    expect(compareFieldValue(field, "AB C", "A BC")).toBe("different");
+    const aliases = {
+      ...name,
+      compare: { equivalents: [["ACME CORPORATION", "ACME"]] as [string, string][] },
+    };
+    expect(compareFieldValue(aliases, "NORTH ACME CORPORATION", "NORTH ACME")).toBe("near");
     expect(
       compareFieldValue(
         { ...name, compare: { minSimilarity: 0.9 } },
@@ -167,6 +174,19 @@ describe("phones", () => {
       }),
     ).toThrow();
   });
+
+  it("matches Argentine mobile numbers with local and international prefixes", () => {
+    const field = { type: "phone" as const, phoneCountry: "AR" as const };
+    expect(normalizeFieldValue(field, "011 15 2345-6789")).toBe("+5491123456789");
+    expect(normalizeFieldValue(field, "+54 9 11 2345-6789")).toBe("+5491123456789");
+    expect(normalizeFieldValue(field, "0223 15 512-3456")).toBe("+5492235123456");
+  });
+
+  it("matches Peruvian fixed-line and mobile numbers", () => {
+    expect(toE164("01 234 5678", "PE")).toBe("+5112345678");
+    expect(toE164("+51 1 234 5678", "PE")).toBe("+5112345678");
+    expect(toE164("912345678", "PE")).toBe("+51912345678");
+  });
 });
 
 describe("system fields", () => {
@@ -239,14 +259,37 @@ describe("re-scoring", () => {
     expect(after.costUsd).toBe(before.costUsd);
     const again = await rescoreTestRun(made.qb, admin, after.id);
     expect(again.rescoredFrom).toBe(before.id);
-    // Never a reason to publish.
     const version = await getVersion(made.qb, admin, "invoice", draft.version);
     expect(canPublish(version, [after])).toBe(false);
+    await saveDraft(made.qb, admin, "invoice", draft.version, {
+      ...definition,
+      fields: definition.fields.filter((field) => field.key !== "number"),
+    });
+    const reduced = await rescoreTestRun(made.qb, admin, before.id, { version: draft.version });
+    expect(reduced.results[0]?.fields.some((field) => field.key === "number")).toBe(false);
+    const restored = await rescoreTestRun(made.qb, admin, reduced.id, { version: 1 });
+    expect(restored.results[0]?.fields.find((field) => field.key === "number")?.read).toBe("A1043");
     await expect(rescoreTestRun(made.qb, admin, "missing")).rejects.toThrow();
   });
 });
 
 describe("corrections", () => {
+  it("rolls back the expected value when the audit entry is rejected", async () => {
+    const made = await benchWith();
+    const [sample] = await listSamples(made.qb, admin, "invoice");
+    const sampleId = sample?.id ?? "";
+    await expect(
+      correctExpected(made.qb, admin, {
+        sampleId,
+        field: "number",
+        value: "A-1043",
+        runId: "x".repeat(65),
+      }),
+    ).rejects.toThrow();
+    expect((await getSample(made.qb, admin, sampleId)).expected.number).toBe("A-1048");
+    expect(await listCorrections(made.qb, admin, "invoice")).toEqual([]);
+  });
+
   it("corrects, keeps and logs each decision", async () => {
     const made = await benchWith();
     const [a, b] = await listSamples(made.qb, admin, "invoice");
@@ -336,6 +379,11 @@ describe("corrections", () => {
     expect(json[0]).toMatchObject({ sampleKey: "north/a", before: "A-1048", after: "A-1043" });
     expect(() => parseCorrections({})).toThrow();
     expect(() => parseCorrections([{ typeKey: "invoice" }])).toThrow();
+    expect(() => parseCorrections([{ ...json[0], after: 1 }])).toThrow();
+    expect(() => parseCorrections([{ ...json[0], after: undefined }])).toThrow();
+    const formula = [{ ...log[0]!, after: "=1+2" }];
+    expect(exportCorrections(formula, "csv")).toContain("'=1+2");
+    expect(parseCorrections(JSON.parse(exportCorrections(formula, "json")))[0]?.after).toBe("=1+2");
   });
 
   it("keeps corrections through a re-import and applies an exported log elsewhere", async () => {
@@ -393,6 +441,10 @@ describe("corrections", () => {
 
   it("marks a field as system in a draft, never in the published version", async () => {
     const made = await benchWith();
+    await expect(
+      markSystemField(made.qb, admin, { typeKey: "invoice", field: "unknown" }),
+    ).rejects.toThrow();
+    expect(await listVersions(made.qb, admin, "invoice")).toHaveLength(1);
     const version = await markSystemField(made.qb, admin, {
       typeKey: "invoice",
       field: "total",
@@ -414,6 +466,80 @@ describe("corrections", () => {
     expect(
       await listCorrections(made.qb, admin, "invoice", { action: "mark-system" }),
     ).toHaveLength(2);
+  });
+
+  it("reimports connected corrections, checks the latest decisions, and skips removed fields", async () => {
+    const { qb } = await benchWith();
+    const [sample] = await listSamples(qb, admin, "invoice");
+    const sampleId = sample?.id ?? "";
+    const item = (number: string) => ({
+      key: "north/a",
+      file: { bytes: PNG, name: "a.png" },
+      group: "north",
+      expected: { number },
+    });
+    const correct = (field: string, value: string | null) =>
+      correctExpected(qb, admin, { sampleId, field, value });
+    await correct("number", "A-1043");
+    await correct("number", "A-1042");
+    await importSamples(qb, admin, "invoice", [item("B-2048")], { corrections: false });
+    async function* batch() {
+      await correct("number", "B-2043");
+      await correct("total", "90");
+      await correct("total", "99");
+      yield item("B-2048");
+    }
+    await importSamples(qb, admin, "invoice", batch());
+    expect((await getSample(qb, admin, sampleId)).expected).toEqual({
+      number: "B-2043",
+      total: "99",
+    });
+    await importSamples(qb, admin, "invoice", [item("A-1048")]);
+    expect((await getSample(qb, admin, sampleId)).expected.number).toBe("A-1042");
+
+    const draft = await createDraft(qb, admin, "invoice");
+    await saveDraft(qb, admin, "invoice", draft.version, {
+      ...draft.definition,
+      fields: draft.definition.fields.filter((field) => field.key !== "total"),
+    });
+    await importSamples(qb, admin, "invoice", [item("B-2048")]);
+    expect((await getSample(qb, admin, sampleId)).expected).toEqual({ number: "B-2043" });
+  });
+
+  it("replays by explicit key or by id and logs each unkeyed sample", async () => {
+    const { qb } = await benchWith();
+    const a = await addSample(qb, admin, "invoice", {
+      file: { bytes: PNG, name: "a.png" },
+      expected: { number: "A1" },
+    });
+    const b = await addSample(qb, admin, "invoice", {
+      file: { bytes: PNG, name: "b.png" },
+      expected: { number: "A1" },
+    });
+    const entry = {
+      typeKey: "invoice",
+      sampleId: a.id,
+      sampleKey: null,
+      field: "number",
+      before: "A1",
+      after: "A2",
+      action: "edit" as const,
+      reason: null,
+      runId: null,
+      by: null,
+    };
+    const decisions = [entry, { ...entry, sampleId: b.id }];
+    const report = await applyCorrections(qb, admin, "invoice", [
+      { ...entry, sampleKey: "missing", after: "A3" },
+      ...decisions,
+      ...decisions,
+    ]);
+    expect(report).toMatchObject({ missing: 1, applied: 2, already: 2 });
+    expect((await listCorrections(qb, admin, "invoice")).map((row) => row.sampleId)).toEqual([
+      a.id,
+      b.id,
+    ]);
+    expect((await getSample(qb, admin, a.id)).expected.number).toBe("A2");
   });
 });
 
@@ -452,7 +578,8 @@ describe("suspects", () => {
       text,
       detectors: ["expected-not-in-text"],
     });
-    expect(after).toHaveLength(2);
+    expect(after).toHaveLength(5);
+    expect(after.filter((item) => item.field === "number")).toHaveLength(3);
     await correctExpected(made.qb, admin, {
       sampleId: first?.id ?? "",
       field: "number",
@@ -478,6 +605,9 @@ describe("suspects", () => {
     const total = invoice.fields.find((field) => field.key === "total")!;
     const text = searchable("Fecha: 5/3/2026 · Total $ 1.234,50 · Nº ab");
     expect(inText(date, "05/03/2026", text)).toBe(true);
+    expect(
+      inText({ ...date, dateOrder: "mdy" }, "2026-03-05", searchable("Date: 03/05/2026")),
+    ).toBe(true);
     expect(inText(total, "1234.50", text)).toBe(true);
     expect(inText(total, "999", text)).toBe(false);
     expect(inText({ type: "text" }, "ab", text)).toBeNull();

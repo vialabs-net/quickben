@@ -9,7 +9,7 @@
  */
 import { HELD_OUT_SPLITS } from "./collections";
 import { isScored } from "./definition";
-import { fieldOutcome, isEmptyValue } from "./metrics";
+import { fieldOutcome, isEmptyValue, outcomeOf } from "./metrics";
 import { rescoreResult } from "./rescore";
 
 import type { TestRunHead } from "./bench";
@@ -22,7 +22,7 @@ export type FieldStatus = "correct" | "near" | "wrong" | "missed" | "hallucinate
 
 /** The status of a field check. */
 export function fieldStatus(check: FieldCheck): FieldStatus {
-  switch (check.outcome ?? null) {
+  switch (outcomeOf(check)) {
     case "correct":
     case "correct-empty":
       return "correct";
@@ -35,7 +35,7 @@ export function fieldStatus(check: FieldCheck): FieldStatus {
     case "hallucinated":
       return "hallucinated";
     default:
-      return check.match === false ? "wrong" : "unchecked";
+      return "unchecked";
   }
 }
 
@@ -187,14 +187,15 @@ export function sampleFieldViews(
     const field = defined.get(key);
     const check = checks.get(key);
     const read = check?.read ?? null;
+    const current = Object.hasOwn(expected, key) ? (expected[key] ?? null) : null;
     return {
       key,
       label: field?.label ?? check?.label ?? key,
       group: groupOf(key),
-      expected: expected[key] ?? null,
+      expected: current,
       runExpected: check ? check.expected : null,
       read,
-      status: liveStatus(type, field, check, expected[key] ?? null),
+      status: liveStatus(type, field, check, current),
       confidence: check?.confidence ?? null,
       low:
         read !== null &&

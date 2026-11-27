@@ -69,8 +69,8 @@ export interface ImportOptions {
 
 /** Options inside an import: the corrections of the current item. */
 type InternalOptions = ImportOptions & {
-  readonly corrected?: ReadonlyMap<string, { before: string | null; after: string | null }>;
-  readonly kept?: { count: number };
+  readonly corrected?: ReadonlyMap<string, ReadonlyMap<string | null, string | null>>;
+  readonly kept: { count: number };
 };
 
 export type ImportOutcome = "created" | "updated" | "unchanged" | "failed";
@@ -157,19 +157,15 @@ export async function importSamples(
   const counts = { created: 0, updated: 0, unchanged: 0 };
   const failed: { key: string; error: string }[] = [];
   const unknown = new Set<string>();
-  type Overrides = Awaited<ReturnType<typeof correctionOverrides>>;
-  const overrides: Overrides =
-    options.corrections === false
-      ? (new Map() as Overrides)
-      : await correctionOverrides(qb, ctx, typeKey);
-  const kept = { count: 0 };
+  let corrected = 0;
   let done = 0;
   for await (const item of items) {
     let outcome: ImportOutcome;
     try {
-      const corrected = overrides.get(item.key);
-      outcome = await importOne(qb, ctx, type, item, { ...options, corrected, kept }, unknown);
+      const kept = { count: 0 };
+      outcome = await importOne(qb, ctx, type, item, { ...options, kept }, unknown);
       counts[outcome] += 1;
+      corrected += kept.count;
     } catch (error) {
       outcome = "failed";
       const message = errorText(error);
@@ -183,7 +179,7 @@ export async function importSamples(
     ...counts,
     failed,
     unknownFields: [...unknown].sort((a, b) => a.localeCompare(b)),
-    corrected: kept.count,
+    corrected,
   };
 }
 
@@ -206,12 +202,13 @@ function sampleData(
     : (flattenValues(item.expected ?? {}) as ExpectedValues);
   const note = item.note?.trim().slice(0, 500) ?? "";
   const expected = expectedValues(type, mapped, unknown);
-  for (const [field, change] of options.corrected ?? []) {
-    const incoming = Object.hasOwn(expected, field) ? (expected[field] ?? null) : null;
-    if (incoming !== change.before || incoming === change.after) continue;
-    if (change.after === null) Reflect.deleteProperty(expected, field);
-    else expected[field] = change.after;
-    if (options.kept) options.kept.count += 1;
+  for (const { key } of type.fields) {
+    const incoming = Object.hasOwn(expected, key) ? (expected[key] ?? null) : null;
+    const after = options.corrected?.get(key)?.get(incoming);
+    if (after === undefined || incoming === after) continue;
+    if (after === null) Reflect.deleteProperty(expected, key);
+    else expected[key] = after;
+    options.kept.count += 1;
   }
   return {
     expected: parseExpected(expected, true),
@@ -296,5 +293,11 @@ async function importOne(
   options: InternalOptions,
   unknown: Set<string>,
 ): Promise<Exclude<ImportOutcome, "failed">> {
-  return datasetWrite(qb, type.key, () => importOneUnlocked(qb, ctx, type, item, options, unknown));
+  return datasetWrite(qb, type.key, async () => {
+    const corrected =
+      options.corrections === false
+        ? undefined
+        : (await correctionOverrides(qb, ctx, type.key, item.key)).get(item.key);
+    return importOneUnlocked(qb, ctx, type, item, { ...options, corrected }, unknown);
+  });
 }

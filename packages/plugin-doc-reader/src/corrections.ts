@@ -7,14 +7,16 @@
 import { NotFoundError, ValidationError } from "@quickben/core";
 
 import { DOC_CORRECTIONS, DOC_SAMPLES } from "./collections";
+import { datasetWrite } from "./eval-state";
+import { csvCell } from "./metrics";
 import { findAll } from "./store";
 import {
   createDraft,
   getSample,
   getVersion,
   listVersions,
+  parseExpected,
   saveDraft,
-  updateSample,
 } from "./studio";
 
 import type { Split } from "./collections";
@@ -130,7 +132,7 @@ async function setExpected(
   const next: Record<string, string> = { ...expected };
   if (value === null) Reflect.deleteProperty(next, field);
   else next[field] = value;
-  await updateSample(qb, ctx, sampleId, { expected: next });
+  await qb.update(DOC_SAMPLES, sampleId, { expected: parseExpected(next, true) }, ctx);
 }
 
 function assertField(type: { fields: readonly { key: string }[] }, field: string) {
@@ -165,27 +167,32 @@ export async function correctExpected(
   ctx: RequestContext,
   input: CorrectInput,
 ): Promise<Correction> {
-  const sample = await getSample(qb, ctx, input.sampleId);
   const action = input.action ?? "edit";
   if (!["use-read", "edit", "keep"].includes(action)) {
     throw new ValidationError([{ path: "action", message: "Use use-read, edit or keep" }]);
   }
-  const before = expectedOf(sample.expected, input.field);
-  const after = action === "keep" ? before : cleanValue(input.value, before);
-  if (after !== before) {
-    await setExpected(qb, ctx, sample.id, sample.expected, input.field, after);
-  }
-  return log(qb, ctx, {
-    typeKey: sample.typeKey,
-    sampleId: sample.id,
-    sampleKey: sample.key,
-    field: input.field,
-    before,
-    after,
-    reason: input.reason ?? null,
-    action,
-    runId: input.runId ?? null,
-  });
+  const { typeKey } = await getSample(qb, ctx, input.sampleId);
+  return datasetWrite(qb, typeKey, () =>
+    qb.transaction(async (tx) => {
+      const sample = await getSample(tx, ctx, input.sampleId);
+      const before = expectedOf(sample.expected, input.field);
+      const after = action === "keep" ? before : cleanValue(input.value, before);
+      if (after !== before) {
+        await setExpected(tx, ctx, sample.id, sample.expected, input.field, after);
+      }
+      return log(tx, ctx, {
+        typeKey,
+        sampleId: sample.id,
+        sampleKey: sample.key,
+        field: input.field,
+        before,
+        after,
+        reason: input.reason ?? null,
+        action,
+        runId: input.runId ?? null,
+      });
+    }),
+  );
 }
 
 /** Input of {@link correctExpectedBulk}. */
@@ -226,6 +233,14 @@ export async function correctExpectedBulk(
   if (input.value === undefined && input.values === undefined) {
     throw new ValidationError([{ path: "value", message: "Give value or values" }]);
   }
+  return datasetWrite(qb, input.typeKey, () => qb.transaction((tx) => applyBulk(tx, ctx, input)));
+}
+
+async function applyBulk(
+  qb: Quickben,
+  ctx: RequestContext,
+  input: BulkCorrectInput,
+): Promise<Correction[]> {
   const versions = await listVersions(qb, ctx, input.typeKey);
   const newest = versions[0];
   if (!newest) throw new NotFoundError(`Unknown document type ${input.typeKey}`);
@@ -272,18 +287,30 @@ export async function markSystemField(
   ctx: RequestContext,
   input: { typeKey: string; field: string; reason?: string | null },
 ): Promise<number> {
+  return datasetWrite(qb, input.typeKey, () =>
+    qb.transaction((tx) => markSystemDraft(tx, ctx, input)),
+  );
+}
+
+async function markSystemDraft(
+  qb: Quickben,
+  ctx: RequestContext,
+  input: Parameters<typeof markSystemField>[2],
+): Promise<number> {
   const versions = await listVersions(qb, ctx, input.typeKey);
-  const draft =
-    versions.find((v) => v.state === "draft") ?? (await createDraft(qb, ctx, input.typeKey));
-  const version = await getVersion(qb, ctx, input.typeKey, draft.version);
-  assertField(version.definition, input.field);
+  const latest = versions.find((v) => v.state === "draft") ?? versions[0];
+  if (!latest) throw new NotFoundError(`Unknown document type ${input.typeKey}`);
+  const base = await getVersion(qb, ctx, input.typeKey, latest.version);
+  assertField(base.definition, input.field);
+  const version =
+    latest.state === "draft" ? latest : await createDraft(qb, ctx, input.typeKey, base.version);
   const definition = {
-    ...version.definition,
-    fields: version.definition.fields.map((field) =>
+    ...base.definition,
+    fields: base.definition.fields.map((field) =>
       field.key === input.field ? { ...field, origin: "system" as const } : field,
     ),
   };
-  await saveDraft(qb, ctx, input.typeKey, draft.version, definition);
+  await saveDraft(qb, ctx, input.typeKey, version.version, definition);
   await log(qb, ctx, {
     typeKey: input.typeKey,
     sampleId: null,
@@ -295,7 +322,7 @@ export async function markSystemField(
     action: "mark-system",
     runId: null,
   });
-  return draft.version;
+  return version.version;
 }
 
 /** Filters of {@link listCorrections}. */
@@ -303,6 +330,7 @@ export interface CorrectionFilters {
   readonly field?: string;
   readonly action?: CorrectionAction;
   readonly sampleId?: string;
+  readonly sampleKey?: string;
 }
 
 /** The log of a type, oldest first. */
@@ -320,6 +348,7 @@ export async function listCorrections(
       ...(filters.field ? { field: { eq: filters.field } } : {}),
       ...(filters.action ? { action: { eq: filters.action } } : {}),
       ...(filters.sampleId ? { sampleId: { eq: filters.sampleId } } : {}),
+      ...(filters.sampleKey ? { sampleKey: { eq: filters.sampleKey } } : {}),
     },
     ctx,
     { sort: "createdAt" },
@@ -341,11 +370,6 @@ const CSV_COLUMNS = [
   "runId",
 ] as const;
 
-const csvCell = (value: string | null) => {
-  const text = value ?? "";
-  return /[",\n\r]/u.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
-};
-
 /** The log as JSON (an array) or CSV (one row per decision). */
 export function exportCorrections(list: readonly Correction[], format: "json" | "csv"): string {
   if (format === "json") {
@@ -361,6 +385,7 @@ export function exportCorrections(list: readonly Correction[], format: "json" | 
 const isAction = (value: unknown): value is CorrectionAction =>
   CORRECTION_ACTIONS.includes(value as CorrectionAction);
 const textOrNull = (value: unknown) => (typeof value === "string" ? value : null);
+const isTextOrNull = (value: unknown) => value === null || typeof value === "string";
 
 /** Check exported corrections read back from JSON. Invalid rows throw. */
 export function parseCorrections(raw: unknown): CorrectionInput[] {
@@ -374,6 +399,14 @@ export function parseCorrections(raw: unknown): CorrectionInput[] {
     ) {
       throw new ValidationError([
         { path: String(index), message: "typeKey, field and action are required" },
+      ]);
+    }
+    if (
+      CHANGES.includes(item.action) &&
+      (!isTextOrNull(item.before) || !isTextOrNull(item.after))
+    ) {
+      throw new ValidationError([
+        { path: String(index), message: "before and after must be text or null" },
       ]);
     }
     return {
@@ -411,7 +444,7 @@ export interface ApplyReport {
 }
 
 const sameEntry = (a: Correction, b: CorrectionInput) =>
-  a.sampleKey === b.sampleKey &&
+  (b.sampleKey === null ? a.sampleId === b.sampleId : a.sampleKey === b.sampleKey) &&
   a.field === b.field &&
   a.action === b.action &&
   a.before === b.before &&
@@ -424,6 +457,17 @@ const sameEntry = (a: Correction, b: CorrectionInput) =>
  * why. `mark-system` entries are only logged: field origins live in the type's versions.
  */
 export async function applyCorrections(
+  qb: Quickben,
+  ctx: RequestContext,
+  typeKey: string,
+  corrections: readonly CorrectionInput[],
+): Promise<ApplyReport> {
+  return datasetWrite(qb, typeKey, () =>
+    qb.transaction((tx) => applyLog(tx, ctx, typeKey, corrections)),
+  );
+}
+
+async function applyLog(
   qb: Quickben,
   ctx: RequestContext,
   typeKey: string,
@@ -451,7 +495,7 @@ export async function applyCorrections(
 interface ApplyState {
   readonly byKey: Map<string, SampleRecord>;
   readonly byId: Map<string, SampleRecord>;
-  readonly logged: readonly Correction[];
+  readonly logged: Correction[];
   readonly report: { applied: number; already: number; logged: number; missing: number };
   readonly conflicts: { sampleKey: string | null; field: string; current: string | null }[];
 }
@@ -462,9 +506,14 @@ async function logDecision(
   state: ApplyState,
   entry: CorrectionInput,
 ): Promise<void> {
-  if (state.logged.some((item) => sameEntry(item, entry))) return;
-  const sample = entry.sampleKey ? state.byKey.get(entry.sampleKey) : undefined;
-  await log(qb, ctx, { ...entry, sampleId: sample?.id ?? entry.sampleId });
+  const sample = entry.sampleKey === null ? undefined : state.byKey.get(entry.sampleKey);
+  if (entry.sampleKey !== null && !sample) {
+    state.report.missing += 1;
+    return;
+  }
+  const resolved = { ...entry, sampleId: sample?.id ?? entry.sampleId };
+  if (state.logged.some((item) => sameEntry(item, resolved))) return;
+  state.logged.push(await log(qb, ctx, resolved));
   state.report.logged += 1;
 }
 
@@ -475,8 +524,9 @@ async function applyChange(
   entry: CorrectionInput,
 ): Promise<void> {
   const sample =
-    (entry.sampleKey ? state.byKey.get(entry.sampleKey) : undefined) ??
-    (entry.sampleId ? state.byId.get(entry.sampleId) : undefined);
+    entry.sampleKey !== null
+      ? state.byKey.get(entry.sampleKey)
+      : state.byId.get(entry.sampleId ?? "");
   if (!sample) {
     state.report.missing += 1;
     return;
@@ -494,28 +544,35 @@ async function applyChange(
     state.byId.set(sample.id, fresh);
     state.report.applied += 1;
   }
-  if (!state.logged.some((item) => sameEntry(item, entry))) {
-    await log(qb, ctx, { ...entry, sampleId: sample.id, sampleKey: sample.sampleKey ?? null });
+  const resolved = { ...entry, sampleId: sample.id, sampleKey: sample.sampleKey ?? null };
+  if (!state.logged.some((item) => sameEntry(item, resolved))) {
+    state.logged.push(await log(qb, ctx, resolved));
   }
 }
 
-/**
- * The value each logged correction leaves, by sample key and field, for re-imports: an
- * incoming value equal to `before` becomes `after`. The newest decision wins.
- */
+type CorrectionValues = Map<string | null, string | null>;
+type CorrectionsByField = Map<string, CorrectionValues>;
+
+/** Corrected values by sample key, field and incoming value. */
 export async function correctionOverrides(
   qb: Quickben,
   ctx: RequestContext,
   typeKey: string,
-): Promise<Map<string, Map<string, { before: string | null; after: string | null }>>> {
-  const out = new Map<string, Map<string, { before: string | null; after: string | null }>>();
-  for (const item of await listCorrections(qb, ctx, typeKey)) {
+  sampleKey?: string,
+): Promise<Map<string, CorrectionsByField>> {
+  const out = new Map<string, CorrectionsByField>();
+  const corrections = await listCorrections(qb, ctx, typeKey, { sampleKey });
+  for (const item of corrections.toReversed()) {
     if (!CHANGES.includes(item.action) || item.sampleKey === null) continue;
-    const fields =
-      out.get(item.sampleKey) ?? new Map<string, { before: string | null; after: string | null }>();
-    const previous = fields.get(item.field);
-    // A chain a → b → c keeps the first `before`, so a re-import of `a` lands on `c`.
-    fields.set(item.field, { before: previous?.before ?? item.before, after: item.after });
+    const fields = out.get(item.sampleKey) ?? new Map<string, CorrectionValues>();
+    const values = fields.get(item.field) ?? new Map<string | null, string | null>();
+    if (!values.has(item.before)) {
+      values.set(
+        item.before,
+        values.has(item.after) ? (values.get(item.after) ?? null) : item.after,
+      );
+    }
+    fields.set(item.field, values);
     out.set(item.sampleKey, fields);
   }
   return out;

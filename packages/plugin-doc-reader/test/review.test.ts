@@ -56,6 +56,7 @@ describe("review helpers", () => {
       "hallucinated",
     ]);
     expect(fieldStatus(check({ key: "x", match: false }))).toBe("wrong");
+    expect(fieldStatus(check({ key: "x", match: true }))).toBe("correct");
     expect(fieldStatus(check({ key: "x" }))).toBe("unchecked");
     expect(sampleErrors(result())).toBe(2);
     expect(isHeldOutSplit("test")).toBe(true);
@@ -121,14 +122,42 @@ describe("review helpers", () => {
     // No expected value any more: not checked.
     expect(views.find((v) => v.key === "issuedOn")?.status).toBe("unchecked");
     const current = {
-      type: invoice,
-      expected: new Map([["s1", { number: "A1", total: "13", issuedOn: "01/02/2026" }]]),
+      type: {
+        ...invoice,
+        fields: [
+          ...invoice.fields,
+          { key: "added", label: "Added", type: "text" as const, required: false },
+        ],
+      },
+      expected: new Map([
+        ["s1", { number: "A1", total: "13", issuedOn: "01/02/2026", added: "X" }],
+      ]),
     };
     expect([...errorsBySample([result()], current)]).toEqual([["s1", 1]]);
     expect(runProblems([result()], { current }).map((p) => p.field)).toEqual(["issuedOn"]);
+    const currentViews = sampleFieldViews(current.type, current.expected.get("s1")!, result());
+    expect(currentViews.find((view) => view.key === "added")?.status).toBe("unchecked");
     expect(liveResults([result()])).toHaveLength(1);
     // Samples missing from `current` keep their stored outcomes.
     expect([...errorsBySample([result({ sampleId: "s9" })], current)]).toEqual([["s9", 2]]);
+  });
+
+  it("uses only values present in the expected map", () => {
+    const type = {
+      ...invoice,
+      fields: [
+        { key: "constructor", label: "Constructor", type: "text" as const, required: false },
+      ],
+    };
+    const stored = result({ fields: [check({ key: "constructor", read: "A1" })] });
+    expect(sampleFieldViews(type, {}, stored)[0]).toMatchObject({
+      expected: null,
+      status: "unchecked",
+    });
+    expect(sampleFieldViews(type, { constructor: "A1" }, stored)[0]).toMatchObject({
+      expected: "A1",
+      status: "correct",
+    });
   });
 
   it("picks the run to show for a sample", () => {

@@ -133,19 +133,23 @@ export function looseText(value: string, rules: CompareRules = {}): string {
 
 const escapeRegExp = (text: string) => text.replaceAll(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 
+function comparisonText(value: string, rules: CompareRules): string {
+  const text = rules.ignorePunctuation ? value.replaceAll(/[\p{P}\p{S}]/gu, "") : value;
+  return looseText(text, rules);
+}
+
 /** Every equivalent written as the first of its pair, as whole words. */
 function applyEquivalents(text: string, rules: CompareRules): string {
   let out = text;
   for (const [canonical, other] of rules.equivalents ?? []) {
-    const a = looseText(canonical, rules);
-    const b = looseText(other, rules);
+    const a = comparisonText(canonical, rules);
+    const b = comparisonText(other, rules);
     if (!a || !b || a === b) continue;
-    // Spaces inside a phrase are optional: `S A` also matches `SA` once dots are gone.
-    const phrase = b
-      .split(" ")
-      .map((word) => escapeRegExp(word))
-      .join(" ?");
-    out = out.replaceAll(new RegExp(`(?<![\\p{L}\\p{N}])${phrase}(?![\\p{L}\\p{N}])`, "gu"), a);
+    const phrases = (a.length >= b.length ? [a, b] : [b, a]).map(escapeRegExp).join("|");
+    out = out.replaceAll(
+      new RegExp(`(?<![\\p{L}\\p{N}])(?:${phrases})(?![\\p{L}\\p{N}])`, "gu"),
+      () => a,
+    );
   }
   return out.replaceAll(/\s+/gu, " ").trim();
 }
@@ -185,11 +189,9 @@ export function compareFieldValue(
   if (!rules) return "different";
   const a = normalizeFieldValue(field, expected) ?? (expected ?? "").trim();
   const b = normalizeFieldValue(field, read) ?? (read ?? "").trim();
-  const left = applyEquivalents(looseText(a, rules), rules);
-  const right = applyEquivalents(looseText(b, rules), rules);
-  // Without punctuation, `S.A.` and `SA` differ only by spaces.
-  const squeeze = (text: string) => (rules.ignorePunctuation ? text.replaceAll(" ", "") : text);
-  if (squeeze(left) === squeeze(right)) return "near";
+  const left = applyEquivalents(comparisonText(a, rules), rules);
+  const right = applyEquivalents(comparisonText(b, rules), rules);
+  if (left === right) return "near";
   if (rules.minSimilarity !== undefined && similarity(left, right) >= rules.minSimilarity) {
     return "near";
   }

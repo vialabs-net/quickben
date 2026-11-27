@@ -265,8 +265,13 @@ describe("evidence boxes", () => {
     page.drawText("Fuel type", { x: 20, y: 360, size: 8, font });
     page.drawText(":", { x: 120, y: 360, size: 8, font });
     page.drawText("Petrol", { x: 300, y: 360, size: 8, font });
+    page.drawText("7", { x: 300, y: 320, size: 8, font });
+    page.drawText("30", { x: 20, y: 280, size: 8, font });
+    page.drawText("10:30", { x: 300, y: 280, size: 8, font });
     const pdf = new Uint8Array(await doc.save());
     const located = await locateEvidence(pdf, "application/pdf", [1], {
+      count: { value: "7", confidence: 0.9 },
+      time: { value: "11:45", confidence: 0.6, evidence: { page: 1, text: "Hora: 10:30" } },
       fuel: {
         value: "PETROL (HYBRID)",
         confidence: 0.6,
@@ -283,6 +288,8 @@ describe("evidence boxes", () => {
     });
     expect(located.fuel?.evidence?.box?.x0).toBeGreaterThan(0.45);
     expect(located.fuel?.evidence?.box?.y0).toBeLessThan(0.2);
+    expect(located.count?.evidence).toMatchObject({ source: "text-layer", text: "7" });
+    expect(located.time?.evidence?.box?.x0).toBeGreaterThan(0.45);
   });
 
   it("labels each field for the view", () => {
