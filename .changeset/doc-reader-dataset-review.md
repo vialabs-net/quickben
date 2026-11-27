@@ -1,5 +1,5 @@
 ---
-"@quickben/plugin-doc-reader": minor
+"@quickben/plugin-doc-reader": patch
 ---
 
 Dataset review. Fields take comparison rules as data (`compare`: ignore accents, ignore punctuation, equivalents, minimum similarity); a read equal only under them scores the new outcome `near`, counted as right and reported apart (`near` in metrics). Fields of `origin: "system"` are never sent to extractors and never scored. `rescoreTestRun` (and the CLI's `rescore`) scores an earlier run again with today's rules and expected values, without reading, as a new `rescore` run that never counts for publishing. Corrections of expected values are logged in `doc-corrections` (`correctExpected`, `correctExpectedBulk`, `markSystemField`, `listCorrections`, `exportCorrections`, `applyCorrections`), and `importSamples` keeps them on re-import. `findSuspects` lists expected values that look wrong: constant in a group, read value in the PDF text but not the expected one, expected value not in the text, and the same difference on several samples. Types without the new options score as before.
