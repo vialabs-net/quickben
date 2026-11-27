@@ -1,6 +1,6 @@
 {
   "name": "@quickben/plugin-doc-reader",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Document reading for Quickben: versioned document types, a pipeline of text-layer and vision-LLM extractors, a test bench, quotas, usage and a job queue.",
   "keywords": [
     "quickben",

@@ -1,6 +1,6 @@
 {
   "name": "@quickben/storage-local",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Local filesystem storage adapter for Quickben file fields. For development, tests and one server.",
   "keywords": [
     "quickben",
