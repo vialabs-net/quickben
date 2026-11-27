@@ -31,6 +31,7 @@ export function defineConfig<
   let config: PluginConfig = {
     db: input.db,
     storage: input.storage,
+    email: input.email,
     collections: [...input.collections],
     auth: input.auth,
     admin: input.admin ?? {},
@@ -55,6 +56,7 @@ export function defineConfig<
   return {
     db: config.db,
     storage: config.storage,
+    email: config.email,
     collections,
     auth: config.auth,
     admin: {

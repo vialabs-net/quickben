@@ -1,5 +1,11 @@
 # @quickben/next
 
+## 0.4.1
+
+### Patch Changes
+
+- @quickben/openapi@0.4.1
+
 ## 0.4.0
 
 ### Patch Changes

@@ -21,6 +21,13 @@ npx -y modern-web-guidance@latest legacy-scan apps/docs/app        # whole-codeb
 
 Not for backend, database, CI or tooling work.
 
+## Changesets: `patch` while 0.x
+
+Write every changeset as `patch`. Use `minor` or `major` only when the owner asks for it; the owner
+then adds the label `release:minor` or `release:major` to the pull request. Without the label the CI
+job `Changeset bumps` fails. Tooling-only changes (CI, scripts, docs outside packages) need no
+changeset. See [CONTRIBUTING.md](CONTRIBUTING.md#changesets).
+
 ## Other skills in this repo
 
 | Skill                              | Use                                           |

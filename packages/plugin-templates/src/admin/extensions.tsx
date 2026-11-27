@@ -40,6 +40,13 @@ const cx = (...classes: (string | false | null | undefined)[]) => classes.filter
 
 const control =
   "qbt:h-7 qbt:rounded qbt:border qbt:border-line-strong qbt:bg-surface qbt:px-2 qbt:text-xs qbt:text-fg qbt:disabled:bg-surface-muted";
+/**
+ * `control` for a select: the base styles of the admin draw the chevron; `px-2` would take
+ * its end padding, so keep it and put the chevron at the same inset as the text.
+ */
+export const selectSpace =
+  "qbt:pe-(--qb-select-chevron-space) qbt:[--qb-select-chevron-inset:0.5rem] qbt:[--qb-select-chevron-space:1.625rem]";
+const selectControl = cx(control, selectSpace);
 const caption =
   "qbt:shrink-0 qbt:text-[11px] qbt:font-medium qbt:tracking-wide qbt:text-fg-muted qbt:uppercase";
 
@@ -102,7 +109,7 @@ function VariableView({ node, updateAttributes, selected }: Readonly<ReactNodeVi
               updateAttributes({ transform: event.target.value || null });
             }}
             aria-label={t("node.case")}
-            className={control}
+            className={selectControl}
           >
             <option value="">{t("node.case.asIs")}</option>
             <option value="lower">{t("node.case.lower")}</option>
@@ -362,7 +369,7 @@ function RepeatView({ node, updateAttributes, selected }: Readonly<ReactNodeView
             updateAttributes({ list: event.target.value, columns: [] });
           }}
           aria-label={t("node.list")}
-          className={control}
+          className={selectControl}
         >
           {list ? null : <option value={path}>{path || t("node.chooseList")}</option>}
           {lists.map((v) => (
@@ -378,7 +385,7 @@ function RepeatView({ node, updateAttributes, selected }: Readonly<ReactNodeView
             updateAttributes({ display: event.target.value });
           }}
           aria-label={t("node.display")}
-          className={control}
+          className={selectControl}
         >
           <option value="table">{t("node.asTable")}</option>
           <option value="bullets">{t("node.asBullets")}</option>
@@ -390,7 +397,7 @@ function RepeatView({ node, updateAttributes, selected }: Readonly<ReactNodeView
             updateAttributes({ empty: event.target.value });
           }}
           aria-label={t("node.whenEmpty")}
-          className={control}
+          className={selectControl}
         >
           <option value="blank">{t("node.emptyBlank")}</option>
           <option value="hide">{t("node.emptyHide")}</option>

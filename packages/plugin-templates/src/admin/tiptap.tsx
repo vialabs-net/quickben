@@ -5,7 +5,13 @@ import { useAdminI18n } from "@quickben/admin/i18n";
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { EditorMetaContext, resolvePath, showIssues, templateExtensions } from "./extensions";
+import {
+  EditorMetaContext,
+  resolvePath,
+  selectSpace,
+  showIssues,
+  templateExtensions,
+} from "./extensions";
 import { groupLabel, templatesMessages, variableLabel } from "./messages";
 
 import type { TemplateContent } from "../content";
@@ -139,7 +145,7 @@ function Toolbar({ editor }: Readonly<{ editor: Editor }>) {
         onChange={(event) => {
           setStyle(editor, event.target.value as Style);
         }}
-        className="qbt:h-8 qbt:rounded-md qbt:border qbt:border-line-strong qbt:bg-surface qbt:px-2 qbt:text-sm"
+        className={`qbt:h-8 qbt:rounded-md qbt:border qbt:border-line-strong qbt:bg-surface qbt:px-2 qbt:text-sm ${selectSpace}`}
       >
         {styles.map((style) => (
           <option key={style} value={style}>
