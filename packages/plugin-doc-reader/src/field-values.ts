@@ -8,16 +8,18 @@
  * | `date`   | `YYYY-MM-DD`. Input: ISO, or day/month/year by `dateOrder`. |
  * | `number` | A plain decimal: `1234.5`. Thousands separators dropped. |
  * | `email`  | Lowercase, must look like an address.                  |
- * | `phone`  | Digits, with a leading `+` when printed. 6 digits or more. |
+ * | `phone`  | E.164 with `phoneCountry`; else digits, `+` when printed. 6 digits or more. |
  */
 import { listParam } from "./definition";
+import { toE164 } from "./phone";
 
-import type { DocumentType, ExtractionParams, FieldDefinition } from "./definition";
+import type { CompareRules, DocumentType, ExtractionParams, FieldDefinition } from "./definition";
 
 type FieldRules = Pick<
   FieldDefinition,
   "type" | "transform" | "pattern" | "dateOrder" | "decimalSeparator"
->;
+> &
+  Partial<Pick<FieldDefinition, "phoneCountry">>;
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -80,6 +82,8 @@ function byType(field: FieldRules, value: string): string | null {
     case "phone": {
       const digits = value.replaceAll(/\D/gu, "");
       if (digits.length < 6) return null;
+      const e164 = field.phoneCountry ? toE164(value, field.phoneCountry) : null;
+      if (e164) return e164;
       return value.startsWith("+") ? `+${digits}` : digits;
     }
     case "text":
@@ -117,6 +121,81 @@ export function sameFieldValue(
   const b = normalizeFieldValue(field, read) ?? (read ?? "").trim();
   if (field.type === "text") return a.toUpperCase() === b.toUpperCase();
   return a === b;
+}
+
+/** Uppercase, accents and punctuation dropped as the rules say, whitespace collapsed. */
+export function looseText(value: string, rules: CompareRules = {}): string {
+  let text = value.toUpperCase();
+  if (rules.ignoreAccents) text = text.normalize("NFD").replaceAll(/\p{M}/gu, "");
+  if (rules.ignorePunctuation) text = text.replaceAll(/[\p{P}\p{S}]/gu, " ");
+  return text.replaceAll(/\s+/gu, " ").trim();
+}
+
+const escapeRegExp = (text: string) => text.replaceAll(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+
+function comparisonText(value: string, rules: CompareRules): string {
+  const text = rules.ignorePunctuation ? value.replaceAll(/[\p{P}\p{S}]/gu, "") : value;
+  return looseText(text, rules);
+}
+
+/** Every equivalent written as the first of its pair, as whole words. */
+function applyEquivalents(text: string, rules: CompareRules): string {
+  let out = text;
+  for (const [canonical, other] of rules.equivalents ?? []) {
+    const a = comparisonText(canonical, rules);
+    const b = comparisonText(other, rules);
+    if (!a || !b || a === b) continue;
+    const phrases = (a.length >= b.length ? [a, b] : [b, a]).map(escapeRegExp).join("|");
+    out = out.replaceAll(
+      new RegExp(`(?<![\\p{L}\\p{N}])(?:${phrases})(?![\\p{L}\\p{N}])`, "gu"),
+      () => a,
+    );
+  }
+  return out.replaceAll(/\s+/gu, " ").trim();
+}
+
+/** 1 − Levenshtein distance / the longer length; 1 for two empty strings. */
+export function similarity(a: string, b: string): number {
+  if (a === b) return 1;
+  const longer = Math.max(a.length, b.length);
+  if (longer === 0) return 1;
+  let previous = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i += 1) {
+    const current = [i];
+    for (let j = 1; j <= b.length; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      current[j] = Math.min(
+        (previous[j] ?? 0) + 1,
+        (current[j - 1] ?? 0) + 1,
+        (previous[j - 1] ?? 0) + cost,
+      );
+    }
+    previous = current;
+  }
+  return 1 - (previous[b.length] ?? longer) / longer;
+}
+
+/**
+ * How a read value compares with an expected one: `same` under the type rules (see
+ * {@link sameFieldValue}), `near` only under the field's `compare` rules, else `different`.
+ */
+export function compareFieldValue(
+  field: FieldRules & { readonly compare?: CompareRules },
+  expected: string | null | undefined,
+  read: string | null | undefined,
+): "same" | "near" | "different" {
+  if (sameFieldValue(field, expected, read)) return "same";
+  const rules = field.compare;
+  if (!rules) return "different";
+  const a = normalizeFieldValue(field, expected) ?? (expected ?? "").trim();
+  const b = normalizeFieldValue(field, read) ?? (read ?? "").trim();
+  const left = applyEquivalents(comparisonText(a, rules), rules);
+  const right = applyEquivalents(comparisonText(b, rules), rules);
+  if (left === right) return "near";
+  if (rules.minSimilarity !== undefined && similarity(left, right) >= rules.minSimilarity) {
+    return "near";
+  }
+  return "different";
 }
 
 /**

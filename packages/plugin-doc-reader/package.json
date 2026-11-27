@@ -64,6 +64,7 @@
     "clean": "rm -rf dist coverage .turbo"
   },
   "dependencies": {
+    "libphonenumber-js": "1.13.17",
     "unpdf": "2.1.0",
     "zod": "^4.6.7"
   },
@@ -105,8 +106,8 @@
     "@napi-rs/canvas": "1.1.1",
     "@quickben/admin": "workspace:^",
     "@quickben/core": "workspace:^",
-    "@quickben/db-memory": "workspace:^",
     "@quickben/db-drizzle": "workspace:^",
+    "@quickben/db-memory": "workspace:^",
     "@quickben/eslint-config": "workspace:*",
     "@quickben/next": "workspace:^",
     "@quickben/plugin-connections": "workspace:^",

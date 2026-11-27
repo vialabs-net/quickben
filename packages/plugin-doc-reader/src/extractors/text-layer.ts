@@ -53,12 +53,26 @@ export interface LocatedEvidence extends FieldEvidence {
   readonly source?: "text-layer" | "model";
 }
 
-/**
- * Boxes for the values read, from the PDF's text layer: each value (else its evidence text) is
- * looked up in the text runs of its evidence page, then of the other pages. A value not found
- * keeps the box the vision model drew (`source: "model"`); scans have no text layer, so their
- * boxes always come from the model.
- */
+function searchTexts(field: FieldValue): string[] {
+  const evidence = field.evidence?.text ?? "";
+  const separator = evidence.indexOf(":");
+  const hasLabel = separator >= 0 && /\p{L}/u.test(evidence.slice(0, separator));
+  const afterLabel = hasLabel ? evidence.slice(separator + 1).trim() : "";
+  return [field.value, afterLabel, evidence].filter(
+    (text, index, all) => text !== "" && all.indexOf(text) === index,
+  );
+}
+
+/** The first candidate found on a page. */
+function firstBox(items: PageText["items"], candidates: readonly string[]) {
+  for (const text of candidates) {
+    const found = findBox(items, text);
+    if (found) return found;
+  }
+  return null;
+}
+
+/** Find evidence in PDF text, preferring the reported page. Keep the model box as a fallback. */
 export async function locateEvidence(
   bytes: Uint8Array,
   mime: string,
@@ -85,10 +99,9 @@ export async function locateEvidence(
   for (const [key, field] of Object.entries(fields)) {
     const first = field.evidence?.page;
     const ordered = [...texts].sort((a, b) => Number(b.page === first) - Number(a.page === first));
+    const candidates = searchTexts(field);
     for (const page of ordered) {
-      const found =
-        findBox(page.items, field.value) ??
-        (field.evidence?.text ? findBox(page.items, field.evidence.text) : null);
+      const found = firstBox(page.items, candidates);
       if (!found) continue;
       out[key] = {
         ...field,

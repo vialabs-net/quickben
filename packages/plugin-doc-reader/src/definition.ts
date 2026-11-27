@@ -7,6 +7,7 @@
 import { z } from "zod";
 
 import { FIELD_KEY, FIELD_KEY_MAX } from "./field-keys";
+import { PHONE_COUNTRIES } from "./phone";
 
 /** Value types of a field. They decide how a read value is normalized and compared. */
 export const FIELD_TYPES = ["text", "date", "number", "email", "phone"] as const;
@@ -31,6 +32,26 @@ export const TYPE_KEY = /^[a-z][a-z\d]*(?:-[a-z\d]+)*$/;
 
 const pattern = z.string().max(500).refine(isValidPattern, "invalid regular expression");
 
+/** Where a field's value comes from. */
+export const FIELD_ORIGINS = ["document", "system"] as const;
+export type FieldOrigin = (typeof FIELD_ORIGINS)[number];
+
+/** Comparison rules of a field. See `compareValues`. */
+export const compareSchema = z.object({
+  /** `MECÁNICA` = `MECANICA`. */
+  ignoreAccents: z.boolean().optional(),
+  /** `S.A.` = `S.A` = `SA`; punctuation and symbols are dropped. */
+  ignorePunctuation: z.boolean().optional(),
+  /** Pairs of words or phrases taken as equal, e.g. `["SOCIEDAD ANONIMA", "S.A."]`. */
+  equivalents: z
+    .array(z.tuple([z.string().trim().min(1).max(100), z.string().trim().min(1).max(100)]))
+    .max(100)
+    .optional(),
+  /** 0..1: values at least this similar (1 − edit distance / length) are `near`. */
+  minSimilarity: z.number().min(0).max(1).optional(),
+});
+export type CompareRules = z.infer<typeof compareSchema>;
+
 export const fieldSchema = z.object({
   /** camelCase segments joined by `.`, e.g. `total` or `vehicle.make`. */
   key: z
@@ -50,8 +71,25 @@ export const fieldSchema = z.object({
   dateOrder: z.enum(["dmy", "mdy"]).optional(),
   /** Decimal separator of `number` fields as printed. Default `.`. */
   decimalSeparator: z.enum([".", ","]).optional(),
+  /**
+   * Default country of `phone` fields (ISO 3166-1 alpha-2): values become E.164
+   * (`+56912345678`). A number that does not fit the country's plan stays as digits.
+   */
+  phoneCountry: z.enum(PHONE_COUNTRIES).optional(),
+  /** Values that mean "empty" for this field, besides the type's `evaluation.emptyValues`. */
+  emptyValues: z.array(z.string().max(50)).max(20).optional(),
   /** `false`: test runs report the field but leave it out of accuracy. Default `true`. */
   scored: z.boolean().optional(),
+  /**
+   * `document` (default): printed on the document, read by the extractors. `system`: filled by
+   * the caller's systems (master data, lookups); never asked of extractors and never scored.
+   */
+  origin: z.enum(FIELD_ORIGINS).optional(),
+  /**
+   * How test runs compare a read value with the expected one beyond the type rules. A value
+   * equal only under these rules scores `near`: right, but counted apart.
+   */
+  compare: compareSchema.optional(),
 });
 export type FieldDefinition = z.infer<typeof fieldSchema>;
 
@@ -198,11 +236,24 @@ export function parseDocumentType(input: unknown): DocumentType {
   return documentTypeSchema.parse(input);
 }
 
-/** Whether a field counts in accuracy. */
-export const isScored = (field: Pick<FieldDefinition, "scored">) => field.scored !== false;
+/** Whether a field counts in accuracy: not `scored: false` and not of `system` origin. */
+export const isScored = (field: Pick<FieldDefinition, "scored" | "origin">) =>
+  field.scored !== false && field.origin !== "system";
+
+/** Whether extractors read a field: every field but those of `system` origin. */
+export const isReadable = (field: Pick<FieldDefinition, "origin">) => field.origin !== "system";
+
+/** The type as extractors see it: without `system` fields. */
+export function readableType(type: DocumentType): DocumentType {
+  return type.fields.every((field) => isReadable(field))
+    ? type
+    : { ...type, fields: type.fields.filter((field) => isReadable(field)) };
+}
 
 export function requiredFields(type: DocumentType): string[] {
-  return type.fields.filter((field) => field.required).map((field) => field.key);
+  return type.fields
+    .filter((field) => field.required && isReadable(field))
+    .map((field) => field.key);
 }
 
 /** Caller parameters, as every extractor accepts them: strings or string lists. */

@@ -407,6 +407,7 @@ function delta(i18n: AdminI18n, value: number | null, format: (n: number) => str
 const outcomeTone: Record<FieldOutcome, "green" | "red" | "amber" | "neutral"> = {
   correct: "green",
   "correct-empty": "green",
+  near: "green",
   wrong: "red",
   missed: "amber",
   hallucinated: "red",

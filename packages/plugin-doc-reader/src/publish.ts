@@ -63,13 +63,15 @@ export interface VersionEvaluation {
 /** Whether a version may be published before the type is split: a finished run of it as it is. */
 export function canPublish(
   version: { readonly state: string; readonly revision: string; readonly updatedAt: string },
-  runs: readonly Pick<TestRun, "state" | "variant" | "typeRevision" | "createdAt">[],
+  runs: readonly (Pick<TestRun, "state" | "variant" | "typeRevision" | "createdAt"> &
+    Partial<Pick<TestRun, "purpose">>)[],
 ): boolean {
   return (
     version.state === "draft" &&
     runs.some(
       (run) =>
         run.state === "done" &&
+        run.purpose !== "rescore" &&
         run.variant === null &&
         run.typeRevision === version.revision &&
         run.createdAt >= version.updatedAt,
@@ -190,6 +192,7 @@ export async function checkPublish(
   const run =
     runs.find(
       (r) =>
+        r.purpose !== "rescore" &&
         readValidation(r, splitVersion, validation) &&
         runMetrics(type, onValidation(r.results)).global.checked > 0 &&
         r.examplesRevision === revision &&
@@ -203,6 +206,7 @@ export async function checkPublish(
   const baseline =
     baseRuns.find(
       (r) =>
+        r.purpose !== "rescore" &&
         readValidation(r, splitVersion, validation) &&
         runMetrics(type, onValidation(r.results)).global.checked > 0,
     ) ?? null;

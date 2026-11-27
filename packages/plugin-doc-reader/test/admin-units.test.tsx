@@ -188,6 +188,30 @@ describe("forms", () => {
     ).toThrow(ValidationError);
   });
 
+  it("keeps field options without editor inputs when saving a draft", () => {
+    const options = {
+      origin: "document" as const,
+      compare: { ignorePunctuation: true },
+      phoneCountry: "CL" as const,
+      emptyValues: ["1"],
+    };
+    const current = {
+      ...invoice,
+      fields: [
+        { key: "phone", type: "phone" as const, label: "Phone", required: false, ...options },
+      ],
+    };
+    const data = form({
+      fieldCount: "1",
+      "fields.0.key": "phone",
+      "fields.0.label": "Telephone",
+      "fields.0.type": "phone",
+    });
+    expect(definitionFromForm(data, current)).toMatchObject({
+      fields: [{ key: "phone", label: "Telephone", ...options }],
+    });
+  });
+
   it("reads sample values, parameters, model choices and files", () => {
     const data = form({
       "expected.number": " A1 ",

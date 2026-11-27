@@ -705,6 +705,7 @@ export {
   exportTestRun,
   failInterruptedRuns,
   getTestRun,
+  listTestRunHeads,
   listTestRuns,
   startTestRun,
   variantPipeline,

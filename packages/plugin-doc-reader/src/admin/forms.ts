@@ -36,7 +36,7 @@ const list = (value: string) =>
     .map((item) => item.trim())
     .filter(Boolean);
 
-function fieldsOf(formData: FormData) {
+function fieldsOf(formData: FormData, current?: DocumentType) {
   const fields: Record<string, unknown>[] = [];
   for (let i = 0; i < count(formData, "fieldCount"); i += 1) {
     const p = `fields.${String(i)}.`;
@@ -50,12 +50,18 @@ function fieldsOf(formData: FormData) {
       required: formData.get(`${p}required`) === "on",
     };
     if (formData.get(`${p}unscored`) === "on") field.scored = false;
+    const { origin, compare, phoneCountry, emptyValues } =
+      current?.fields.find((candidate) => candidate.key === key) ?? {};
     const extra = {
       description: text(formData, `${p}description`),
       transform: text(formData, `${p}transform`),
       pattern: text(formData, `${p}pattern`),
       dateOrder: text(formData, `${p}dateOrder`),
       decimalSeparator: text(formData, `${p}decimalSeparator`),
+      origin,
+      compare,
+      phoneCountry,
+      emptyValues,
     };
     for (const [name, value] of Object.entries(extra)) if (value !== undefined) field[name] = value;
     fields.push(field);
@@ -189,7 +195,7 @@ export function definitionFromForm(
       text: lines(raw(formData, "classText")),
       fileName: lines(raw(formData, "classFileName")),
     },
-    fields: fieldsOf(formData),
+    fields: fieldsOf(formData, current),
     params: paramsOf(formData),
     pipeline: {
       steps: stepsOf(formData),

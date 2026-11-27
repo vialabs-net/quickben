@@ -396,6 +396,68 @@ quickben-doc-reader export --config quickben.config.ts --run <id> --format csv -
 
 The CLI runs as trusted server code against the config's database. `--out` must stay inside the working directory, including through symbolic links. `--map` names a module whose default export maps expected JSON to fields. TypeScript configs load through `tsx` when the app has it.
 
+**Field rules and origin**
+
+```ts
+fields: [
+  {
+    key: "issuer.name",
+    label: "Issuer",
+    type: "text",
+    compare: {
+      ignoreAccents: true, // MECÁNICA = MECANICA
+      ignorePunctuation: true, // S.A. = S.A = SA
+      equivalents: [["SOCIEDAD ANONIMA", "S.A."]],
+      minSimilarity: 0.97, // 1 − edit distance / length
+    },
+  },
+  { key: "issuer.code", label: "Issuer code", type: "text", origin: "system" },
+];
+```
+
+| Option           | Effect                                                                                           |
+| ---------------- | ------------------------------------------------------------------------------------------------ |
+| `compare`        | A read equal only under these rules scores `near`: right, counted apart (`metrics.global.near`). |
+| `origin: system` | Filled by your systems, not printed: never sent to extractors, never scored.                     |
+
+| `phoneCountry` | `phone` fields: values (read and expected) become E.164 for that country (`+56912345678`). Numbers that do not fit its plan stay as digits. |
+| `emptyValues` | Values that mean empty for this field only, e.g. a system's placeholder `1`. |
+
+Without these options a field scores as before. `toE164(raw, "CL")` and `nationalNumber(e164, "CL")` are exported for adapters that need another format.
+
+**Reviewing the dataset**
+
+An imported dataset is often an export of another system, not a reading of each document. Review it and correct expected values to what the document says; every decision is logged.
+
+| Function                                                                | Does                                                                                                  |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `correctExpected(qb, ctx, { sampleId, field, value, action, reason })`  | One value (`use-read`, `edit`) or a confirmation (`keep`).                                            |
+| `correctExpectedBulk(qb, ctx, { typeKey, field, from, value, reason })` | Every sample whose expected value is `from` (`bulk`).                                                 |
+| `markSystemField(qb, ctx, { typeKey, field, reason })`                  | `origin: "system"` in the draft (created when missing). Published versions never change.              |
+| `listCorrections`, `exportCorrections(list, "json" \| "csv")`           | The log: sample, field, before, after, reason, action, who, when.                                     |
+| `applyCorrections(qb, ctx, typeKey, parseCorrections(json))`            | Apply an exported log: by sample key, only while the value is still the one corrected.                |
+| `rescoreTestRun(qb, ctx, runId, { version })`                           | Score a run again with today's rules and expected values. A new run, purpose `rescore`; no reading.   |
+| `findSuspects(qb, ctx, typeKey, { runId })`                             | Leads for review: `constant-in-group`, `read-in-text`, `expected-not-in-text`, `repeated-difference`. |
+
+`importSamples` keeps logged corrections: an incoming value equal to the one a correction replaced takes the corrected value (`report.corrected`). Pass `corrections: false` to take the incoming values. The CLI scores a run again with `quickben-doc-reader rescore --config <file> --run <id> [--version <n>]`. Rescored runs never count for publishing.
+
+**Your own review UI**
+
+Headless functions for an app that builds its own bench or review screen:
+
+| Function                                     | Gives                                                                                       |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `listTestRunHeads(qb, ctx, type, limit?)`    | Runs of a type without results and metrics, newest first.                                   |
+| `listSampleRuns(qb, ctx, sampleId)`          | One sample's result in each run that read it.                                               |
+| `pickSampleRun(history, prefer, version?)`   | The entry to show: the first preferred run, else the newest of `version`, else the newest.  |
+| `sampleFieldViews(type, expected, result)`   | Fields in definition order: expected now, expected at run time, read, status, evidence box. |
+| `fieldStatus(check)`, `isWrongStatus(s)`     | `correct`, `wrong`, `missed`, `hallucinated` or `unchecked`.                                |
+| `sampleErrors(result)`, `errorsBySample(rs)` | Wrong scored fields of a result; per sample of a run (`null` when skipped or failed).       |
+| `runProblems(results, { heldOut? })`         | Every wrong scored field of a run. `heldOut: false` leaves out `test` and `unseen`.         |
+| `isHeldOutSplit(split)`                      | `test` and `unseen`.                                                                        |
+
+Evidence boxes are page fractions (`x0`, `y0`, `x1`, `y1`), so they map onto a page rendered at any size.
+
 ## Budgets
 
 | Function                               | Does                                                   |

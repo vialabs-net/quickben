@@ -105,6 +105,7 @@ describe("import", () => {
       unchanged: 0,
       failed: [],
       unknownFields: ["pages"],
+      corrected: 0,
     });
     expect(progress).toHaveBeenCalledTimes(SIZE);
     const samples = await listSamples(qb, admin, "receipt");
@@ -369,6 +370,7 @@ describe("runs at scale", () => {
     const checked = Object.values(counted).reduce((a, b) => a + b, 0);
     expect(metrics.global).toEqual({
       ...counted,
+      near: 0,
       checked,
       accuracy: (counted.correct + counted.correctEmpty) / checked,
     });

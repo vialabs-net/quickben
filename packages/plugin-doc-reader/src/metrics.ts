@@ -6,6 +6,7 @@
  * | Expected | Read     | Outcome         | Counts as |
  * | -------- | -------- | --------------- | --------- |
  * | value    | same     | `correct`       | right     |
+ * | value    | near     | `near`          | right, counted apart |
  * | value    | other    | `wrong`         | wrong     |
  * | value    | empty    | `missed`        | wrong     |
  * | empty    | empty    | `correct-empty` | right     |
@@ -15,9 +16,11 @@
  * A sample without an expected value for a field does not check it. Fields with
  * `scored: false` are reported but left out of accuracy. Samples that failed (the provider
  * kept failing) or were skipped (spending limit) are counted apart, never as wrong reads.
+ * "Near" is equal only under the field's `compare` rules (accents, punctuation, equivalents,
+ * similarity). Fields of `system` origin are never scored.
  */
 import { DEFAULT_EMPTY_VALUES, isScored } from "./definition";
-import { sameFieldValue } from "./field-values";
+import { compareFieldValue } from "./field-values";
 
 import type { Split } from "./collections";
 import type { DocumentType, FieldDefinition } from "./definition";
@@ -27,6 +30,7 @@ import type { PipelineAttempt, PipelineResult } from "./pipeline";
 export const FIELD_OUTCOMES = [
   "correct",
   "correct-empty",
+  "near",
   "wrong",
   "missed",
   "hallucinated",
@@ -110,10 +114,12 @@ export interface OutcomeCounts {
   readonly checked: number;
   readonly correct: number;
   readonly correctEmpty: number;
+  /** Right only under the field's `compare` rules. */
+  readonly near: number;
   readonly wrong: number;
   readonly missed: number;
   readonly hallucinated: number;
-  /** (correct + correctEmpty) / checked, or `null` when nothing was checked. */
+  /** (correct + correctEmpty + near) / checked, or `null` when nothing was checked. */
   readonly accuracy: number | null;
 }
 
@@ -182,21 +188,30 @@ export function isEmptyValue(
 
 /** The outcome of one field, or `null` when there is no expected value. */
 export function fieldOutcome(
-  field: Pick<FieldDefinition, "type" | "transform" | "pattern" | "dateOrder" | "decimalSeparator">,
+  field: Pick<
+    FieldDefinition,
+    "type" | "transform" | "pattern" | "dateOrder" | "decimalSeparator" | "compare"
+  > &
+    Partial<Pick<FieldDefinition, "phoneCountry" | "emptyValues">>,
   expected: string | null,
   read: string | null,
-  emptyValues: readonly string[],
+  typeEmptyValues: readonly string[],
 ): FieldOutcome | null {
   if (expected === null) return null;
+  const emptyValues = field.emptyValues
+    ? [...typeEmptyValues, ...field.emptyValues]
+    : typeEmptyValues;
   const wantEmpty = isEmptyValue(expected, emptyValues);
   const gotEmpty = isEmptyValue(read, emptyValues);
   if (wantEmpty) return gotEmpty ? "correct-empty" : "hallucinated";
   if (gotEmpty) return "missed";
-  return sameFieldValue(field, expected, read) ? "correct" : "wrong";
+  const compared = compareFieldValue(field, expected, read);
+  if (compared === "same") return "correct";
+  return compared === "near" ? "near" : "wrong";
 }
 
 const isRight = (outcome: FieldOutcome | null | undefined) =>
-  outcome === "correct" || outcome === "correct-empty";
+  outcome === "correct" || outcome === "correct-empty" || outcome === "near";
 
 /** Each field read compared with the sample's expected value. */
 export function checkFields(
@@ -238,7 +253,7 @@ function stepOf(
 }
 
 /** Outcome of a check written before outcomes existed: from `match` alone. */
-const outcomeOf = (check: FieldCheck): FieldOutcome | null => {
+export const outcomeOf = (check: FieldCheck): FieldOutcome | null => {
   if (check.outcome !== undefined) return check.outcome;
   if (check.match === null) return null;
   return check.match ? "correct" : "wrong";
@@ -249,20 +264,32 @@ export const isScoredResult = (result: SampleResult) =>
   result.failed !== true && result.skipped === undefined;
 
 function countOutcomes(checks: readonly FieldCheck[]): OutcomeCounts {
-  const counts = { checked: 0, correct: 0, correctEmpty: 0, wrong: 0, missed: 0, hallucinated: 0 };
+  const counts = {
+    checked: 0,
+    correct: 0,
+    correctEmpty: 0,
+    near: 0,
+    wrong: 0,
+    missed: 0,
+    hallucinated: 0,
+  };
   for (const check of checks) {
     const outcome = outcomeOf(check);
     if (outcome === null || check.scored === false) continue;
     counts.checked += 1;
     if (outcome === "correct") counts.correct += 1;
     else if (outcome === "correct-empty") counts.correctEmpty += 1;
+    else if (outcome === "near") counts.near += 1;
     else if (outcome === "wrong") counts.wrong += 1;
     else if (outcome === "missed") counts.missed += 1;
     else counts.hallucinated += 1;
   }
   return {
     ...counts,
-    accuracy: counts.checked > 0 ? (counts.correct + counts.correctEmpty) / counts.checked : null,
+    accuracy:
+      counts.checked > 0
+        ? (counts.correct + counts.correctEmpty + counts.near) / counts.checked
+        : null,
   };
 }
 
@@ -381,7 +408,7 @@ export function summarize(
   return {
     samples: results.length,
     checked: counts.checked,
-    matched: counts.correct + counts.correctEmpty,
+    matched: counts.correct + counts.correctEmpty + counts.near,
     accuracy: counts.accuracy,
     costUsd,
     avgLatencyMs: durations.length > 0 ? Math.round(latency / durations.length) : 0,
