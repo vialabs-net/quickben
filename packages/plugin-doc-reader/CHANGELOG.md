@@ -1,5 +1,16 @@
 # @quickben/plugin-doc-reader
 
+## 0.4.2
+
+### Patch Changes
+
+- f79a6ba: Dataset review. Fields take comparison rules as data (`compare`: ignore accents, ignore punctuation, equivalents, minimum similarity); a read equal only under them scores the new outcome `near`, counted as right and reported apart (`near` in metrics). Fields of `origin: "system"` are never sent to extractors and never scored. `rescoreTestRun` (and the CLI's `rescore`) scores an earlier run again with today's rules and expected values, without reading, as a new `rescore` run that never counts for publishing. Corrections of expected values are logged in `doc-corrections` (`correctExpected`, `correctExpectedBulk`, `markSystemField`, `listCorrections`, `exportCorrections`, `applyCorrections`), and `importSamples` keeps them on re-import. `findSuspects` lists expected values that look wrong: constant in a group, read value in the PDF text but not the expected one, expected value not in the text, and the same difference on several samples. Types without the new options score as before.
+- 59a866b: Evidence boxes: when the read value is not in the PDF text, the value after the label in the model's evidence (`Tipo de Combustible : Gasolina` → `Gasolina`) is searched before the whole evidence, so the box lands on the printed value instead of the model's guess.
+- 70edc4a: Review helpers score a run's reads live: `sampleFieldViews` uses today's expected value and the definition's rules (the run's expected value stays as `runExpected`), and `errorsBySample` and `runProblems` take `current` (a definition and expected values by sample) to do the same. New `liveResults`.
+- 3950de6: `phone` fields take a default country (`phoneCountry`, ISO 3166): read and expected values become E.164 (`+56912345678`) before they are compared, and extractors return E.164. Numbers that do not fit the country's plan stay as digits. Fields take their own `emptyValues` (e.g. a system placeholder `1`). `correctExpectedBulk` accepts `values` by sample id, so each sample can get its own value.
+- fcc0899: A re-score of a re-scored run points `rescoredFrom` at the run that read, not at the intermediate re-score.
+- 67c04d6: Headless helpers for apps that build their own review UI on test runs: `listTestRunHeads` (runs without results), `sampleFieldViews` (a sample's fields with the expected value saved now, the read value, status and evidence box), `fieldStatus`, `isWrongStatus`, `sampleErrors`, `errorsBySample`, `runProblems`, `pickSampleRun` and `isHeldOutSplit`. The admin's sample view uses the same status rules.
+
 ## 0.4.1
 
 No changes in this release.

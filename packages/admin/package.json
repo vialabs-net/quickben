@@ -1,6 +1,6 @@
 {
   "name": "@quickben/admin",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Admin UI for Quickben, generated from your collections. React Server Components, server actions and Tailwind CSS v4.",
   "keywords": [
     "quickben",
