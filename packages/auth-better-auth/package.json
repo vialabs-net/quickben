@@ -54,7 +54,7 @@
     "@quickben/tsconfig": "workspace:*",
     "@types/node": "22.20.5",
     "@vitest/coverage-v8": "5.1.0",
-    "better-auth": "1.7.22",
+    "better-auth": "1.7.28",
     "eslint": "10.14.0",
     "publint": "0.3.25",
     "tsdown": "0.23.7",
